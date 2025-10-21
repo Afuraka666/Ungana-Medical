@@ -1,0 +1,16 @@
+{
+  "short_name": "Synapsis",
+  "name": "Synapsis Medical",
+  "description": "An AI-enhanced application for medical students to integrate knowledge across disciplines.",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#1e3a8a",
+  "background_color": "#f3f4f6"
+}
