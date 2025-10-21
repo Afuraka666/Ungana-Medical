@@ -4,9 +4,10 @@ import type { QuizQuestion } from '../types';
 interface QuizViewProps {
   quiz: QuizQuestion[];
   T: Record<string, any>;
+  showTitle?: boolean;
 }
 
-export const QuizView: React.FC<QuizViewProps> = ({ quiz, T }) => {
+export const QuizView: React.FC<QuizViewProps> = ({ quiz, T, showTitle = true }) => {
   const [userAnswers, setUserAnswers] = useState<Record<number, number>>({});
   const [isSubmitted, setIsSubmitted] = useState(false);
 
@@ -28,8 +29,8 @@ export const QuizView: React.FC<QuizViewProps> = ({ quiz, T }) => {
   }, 0);
 
   return (
-    <div className="mt-4">
-      <h3 className="text-lg font-bold text-brand-blue border-b-2 border-brand-blue/30 pb-1 mb-3">{T.quizTitle}</h3>
+    <div className="mt-1">
+      {showTitle && <h3 className="text-lg font-bold text-brand-blue border-b-2 border-brand-blue/30 pb-1 mb-3">{T.quizTitle}</h3>}
       {isSubmitted && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 text-center">
             <h4 className="font-bold text-xl text-brand-blue">{T.quizComplete}</h4>

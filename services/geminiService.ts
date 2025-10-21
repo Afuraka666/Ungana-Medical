@@ -7,6 +7,44 @@ if (!process.env.API_KEY) {
 
 export const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
+const diagramNodeSchema = {
+    type: Type.OBJECT,
+    properties: {
+        id: { type: Type.STRING, description: "A unique, concise identifier for the node (e.g., 'glucose')." },
+        label: { type: Type.STRING, description: "A short, human-readable label for the node (e.g., 'Glucose')." },
+        description: { type: Type.STRING, description: "An optional brief explanation of the node's role in the diagram." },
+    },
+    required: ["id", "label"]
+};
+
+const diagramLinkSchema = {
+    type: Type.OBJECT,
+    properties: {
+        source: { type: Type.STRING, description: "The 'id' of the source node." },
+        target: { type: Type.STRING, description: "The 'id' of the target node." },
+        label: { type: Type.STRING, description: "A brief label for the relationship (e.g., 'is converted to', 'inhibits')." }
+    },
+    required: ["source", "target", "label"]
+};
+
+const diagramDataSchema = {
+    type: Type.OBJECT,
+    properties: {
+        nodes: {
+            type: Type.ARRAY,
+            description: "An array of concepts or components in the diagram.",
+            items: diagramNodeSchema
+        },
+        links: {
+            type: Type.ARRAY,
+            description: "An array of relationships connecting the nodes.",
+            items: diagramLinkSchema
+        }
+    },
+    required: ["nodes", "links"],
+    nullable: true
+};
+
 const educationalContentSchema = {
     type: Type.OBJECT,
     properties: {
@@ -16,8 +54,12 @@ const educationalContentSchema = {
             enum: ["Diagram", "Graph", "Formula", "Image"]
         },
         title: { type: Type.STRING, description: "A concise title for the content." },
-        description: { type: Type.STRING, description: "A detailed text description of the visual content. For a diagram, describe its parts and connections. For a graph, describe its axes, data, and trend." },
-        reference: { type: Type.STRING, description: "The source or citation for the content." }
+        description: { type: Type.STRING, description: "A detailed text description of the visual content. This should summarize the diagram's purpose and key takeaways." },
+        reference: { type: Type.STRING, description: "The source or citation for the content." },
+        diagramData: {
+            ...diagramDataSchema,
+            description: "If the type is 'Diagram', provide the structured data for nodes and links to build an interactive diagram. For other types, this should be null."
+        }
     },
     required: ["type", "title", "description", "reference"]
 };
@@ -227,7 +269,7 @@ export const generatePatientCaseAndMap = async (condition: string, discipline: s
     **RULES FOR RIGOR - YOU MUST FOLLOW THESE:**
     1.  **Label Unverified Claims:** For any clinical reasoning that is inferential, speculative, or not based on established evidence, you MUST label it clearly in the text using tags like \`[Inference]\`, \`[Speculation]\`, or \`[Unverified]\`.
     2.  **Provide Traceable Evidence:** For at least 2-3 key clinical statements, provide a specific source. **Prioritize citing high-quality systematic reviews or major clinical practice guidelines.** Use the format: '(Systematic Review) [Citation]'.
-    3.  **Include Educational Content:** Add 1-2 pieces of rich educational content (like a diagram, graph, or formula). For each, provide a title, a detailed text description of what it shows, and a proper reference.
+    3.  **Include Educational Content:** Add 1-2 pieces of rich educational content. For each, provide a title, a detailed text description, and a reference. **Crucially, if the content type is 'Diagram', you MUST also generate the structured \`diagramData\` containing nodes and links for an interactive visualization. If a diagram is not applicable, set \`diagramData\` to null.**
     4.  **Suggest Further Readings:** List 2-3 high-quality references (e.g., review articles, clinical guidelines) for deeper learning.
     5.  **Create a Quiz:** Generate a multiple-choice quiz with 3 questions to test understanding of the key multidisciplinary concepts in this case. For each question, provide four string options, the 0-based index of the correct answer, and a brief explanation for the answer.
   `;

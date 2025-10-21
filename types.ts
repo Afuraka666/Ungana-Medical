@@ -18,11 +18,29 @@ export enum EducationalContentType {
   IMAGE = "Image",
 }
 
+export interface DiagramNode {
+  id: string;
+  label: string;
+  description?: string;
+}
+
+export interface DiagramLink {
+  source: string;
+  target: string;
+  label: string;
+}
+
+export interface DiagramData {
+  nodes: DiagramNode[];
+  links: DiagramLink[];
+}
+
 export interface EducationalContent {
   type: EducationalContentType;
   title: string;
   description: string; // AI-generated description of the visual content
   reference: string;
+  diagramData?: DiagramData;
 }
 
 export interface QuizQuestion {

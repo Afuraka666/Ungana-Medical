@@ -77,7 +77,7 @@ export const KnowledgeMap: React.FC<KnowledgeMapProps> = ({ data, onNodeClick, s
 
     defs.html(`
       <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-        <feGaussianBlur stdDeviation="4" result="coloredBlur"></feGaussianBlur>
+        <feGaussianBlur stdDeviation="5" result="coloredBlur"></feGaussianBlur>
         <feMerge>
           <feMergeNode in="coloredBlur"></feMergeNode>
           <feMergeNode in="SourceGraphic"></feMergeNode>
@@ -86,7 +86,7 @@ export const KnowledgeMap: React.FC<KnowledgeMapProps> = ({ data, onNodeClick, s
       <style type="text/css">
         @keyframes pulse {
           0% { r: 14; }
-          50% { r: 17; }
+          50% { r: 18; }
           100% { r: 14; }
         }
         .pulse-animation {
@@ -170,19 +170,32 @@ export const KnowledgeMap: React.FC<KnowledgeMapProps> = ({ data, onNodeClick, s
 
         circles.transition().duration(200)
             .attr("r", (d: KnowledgeNode) => d.id === selectedNodeId ? 14 : 12)
-            .attr("stroke-width", (d: KnowledgeNode) => d.id === selectedNodeId ? 3 : 0)
-            .attr("stroke", "#111827");
+            .attr("stroke-width", (d: KnowledgeNode) => {
+                if (d.id === selectedNodeId) return 3;
+                if (isAnyNodeSelected && connectedToSelected.has(d.id)) return 2;
+                return 0;
+            })
+            .attr("stroke", (d: KnowledgeNode) => d.id === selectedNodeId ? "#111827" : DisciplineColors[d.discipline] || "#6b7280");
 
         labels.transition().duration(200)
            .attr("font-size", (d: KnowledgeNode) => d.id === selectedNodeId ? "14px" : "12px")
-           .attr("font-weight", (d: KnowledgeNode) => d.id === selectedNodeId ? "700" : "500");
+           .attr("font-weight", (d: KnowledgeNode) => {
+                if (d.id === selectedNodeId) return "700";
+                return isAnyNodeSelected && connectedToSelected.has(d.id) ? "600" : "500";
+           });
            
         link.transition().duration(200)
+            .attr("stroke-width", (l: any) => {
+                if (!isAnyNodeSelected) return 2;
+                const sourceId = l.source.id || l.source;
+                const targetId = l.target.id || l.target;
+                return connectedToSelected.has(sourceId) && connectedToSelected.has(targetId) ? 2.5 : 1;
+            })
             .attr("stroke-opacity", (l: any) => {
               if (!isAnyNodeSelected) return 0.6;
               const sourceId = l.source.id || l.source;
               const targetId = l.target.id || l.target;
-              return sourceId === selectedNodeId || targetId === selectedNodeId ? 0.9 : 0.1;
+              return connectedToSelected.has(sourceId) && connectedToSelected.has(targetId) ? 0.9 : 0.1;
             });
     }
 
@@ -288,6 +301,16 @@ export const KnowledgeMap: React.FC<KnowledgeMapProps> = ({ data, onNodeClick, s
             <svg ref={svgRef}></svg>
             <div id="d3-tooltip" className="absolute opacity-0 pointer-events-none bg-gray-800/90 text-white text-xs rounded-md px-2 py-1 shadow-lg transition-opacity duration-200 z-10" style={{ backdropFilter: 'blur(2px)' }}></div>
             <div className="absolute bottom-4 right-4 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-lg shadow-lg flex flex-col overflow-hidden">
+                {selectedNodeId && (
+                    <>
+                        <button onClick={onClearSelection} title="Clear Selection" aria-label="Clear Selection" className="p-2 text-gray-600 hover:bg-gray-100 hover:text-red-500 focus:outline-none focus:ring-2 focus:ring-brand-blue-light transition">
+                            <svg className="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                            </svg>
+                        </button>
+                        <div className="border-t border-gray-200"></div>
+                    </>
+                )}
                 <button onClick={handleZoomIn} title="Zoom In" aria-label="Zoom In" className="p-2 text-gray-600 hover:bg-gray-100 hover:text-brand-blue focus:outline-none focus:ring-2 focus:ring-brand-blue-light transition">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3h-6"></path></svg>
                 </button>
