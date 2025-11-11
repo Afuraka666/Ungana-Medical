@@ -1,11 +1,47 @@
+
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
-import type { PatientCase, KnowledgeMapData, KnowledgeNode, KnowledgeLink } from '../types';
+import type { PatientCase, KnowledgeMapData, KnowledgeNode, KnowledgeLink, TraceableEvidence, FurtherReading } from '../types';
 
-if (!process.env.API_KEY) {
-  throw new Error("API_KEY environment variable is not set");
-}
+const getAiClient = () => {
+    return new GoogleGenAI({ apiKey: process.env.API_KEY });
+};
 
-export const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+/**
+ * A utility function to retry an API call with exponential backoff.
+ * This is useful for handling transient errors like 503 "model overloaded".
+ * @param apiCall The async function to call.
+ * @param maxRetries The maximum number of retries.
+ * @param initialDelay The initial delay in milliseconds.
+ * @returns The result of the API call.
+ */
+export const retryWithBackoff = async <T>(
+  apiCall: () => Promise<T>,
+  maxRetries = 3,
+  initialDelay = 1000
+): Promise<T> => {
+  let attempt = 0;
+  while (attempt < maxRetries) {
+    try {
+      return await apiCall();
+    } catch (error: any) {
+      attempt++;
+      const errorMessage = (JSON.stringify(error) || '').toLowerCase();
+      // Check for retryable server errors (e.g., 500, 503, overloaded, unavailable)
+      const isRetryable = errorMessage.includes("500") || errorMessage.includes("internal server error") || errorMessage.includes("503") || errorMessage.includes("overloaded") || errorMessage.includes("unavailable") || errorMessage.includes("try again later");
+      
+      if (isRetryable && attempt < maxRetries) {
+        const delay = initialDelay * Math.pow(2, attempt - 1) + Math.random() * 1000; // Add jitter
+        console.warn(`API call failed with retryable error (attempt ${attempt}/${maxRetries}). Retrying in ${delay.toFixed(0)}ms...`, error);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      } else {
+        // Not a retryable error or max retries reached, throw
+        throw error;
+      }
+    }
+  }
+  // This part should not be reachable due to the throw in the loop
+  throw new Error("Retry logic failed unexpectedly.");
+};
 
 const diagramNodeSchema = {
     type: Type.OBJECT,
@@ -86,6 +122,35 @@ const patientCaseSchema = {
     patientProfile: { type: Type.STRING, description: "A brief profile of the patient including age, gender, and occupation." },
     presentingComplaint: { type: Type.STRING, description: "The main reason the patient is seeking medical attention." },
     history: { type: Type.STRING, description: "A detailed history of the present illness, past medical history, social history, and family history. This should be a comprehensive narrative." },
+    procedureDetails: {
+        type: Type.OBJECT,
+        description: "Details about the primary procedure performed and the patient's ASA physical status classification.",
+        properties: {
+            procedureName: { type: Type.STRING, description: "The name of the medical or surgical procedure." },
+            asaScore: { 
+                type: Type.STRING, 
+                description: "The ASA score, from '1' to '6', with an optional 'E' for emergency cases (e.g., '2', '3E').",
+                enum: ['1', '2', '3', '4', '5', '6', '1E', '2E', '3E', '4E', '5E', '6E']
+            }
+        },
+        required: ["procedureName", "asaScore"],
+        nullable: true
+    },
+    outcomes: {
+        type: Type.OBJECT,
+        description: "The eventual outcomes for the patient following the conclusion of the case.",
+        properties: {
+            icuAdmission: { type: Type.BOOLEAN, description: "Whether the patient required ICU admission." },
+            lengthOfStayDays: { type: Type.INTEGER, description: "The total length of hospital stay in days." },
+            outcomeSummary: { type: Type.STRING, description: "A brief summary of the patient's final outcome (e.g., 'Discharged home with full recovery')." }
+        },
+        required: ["icuAdmission", "lengthOfStayDays", "outcomeSummary"],
+        nullable: true
+    },
+    biochemicalPathway: {
+        ...educationalContentSchema,
+        description: "A detailed educational section focusing on a single, core biochemical pathway or physiological mechanism directly relevant to the patient's primary condition. This must include a title, a detailed description, a reference, and where applicable, structured diagramData for visualization."
+    },
     multidisciplinaryConnections: {
       type: Type.ARRAY,
       description: "An array of connections between the patient's condition and various medical disciplines.",
@@ -149,7 +214,7 @@ const patientCaseSchema = {
         items: quizQuestionSchema
     }
   },
-  required: ["title", "patientProfile", "presentingComplaint", "history", "multidisciplinaryConnections", "disciplineSpecificConsiderations", "educationalContent", "traceableEvidence", "furtherReadings", "quiz"],
+  required: ["title", "patientProfile", "presentingComplaint", "history", "biochemicalPathway", "multidisciplinaryConnections", "disciplineSpecificConsiderations", "educationalContent", "traceableEvidence", "furtherReadings", "quiz"],
 };
 
 const knowledgeMapSchema = {
@@ -190,22 +255,24 @@ const knowledgeMapSchema = {
 };
 
 export const getConceptAbstract = async (concept: string, caseContext: string, language: string): Promise<string> => {
+    const ai = getAiClient();
     const prompt = `
         In the context of a patient with "${caseContext}", provide a concise, one-paragraph abstract (around 50-70 words) explaining the significance of "${concept}".
         The explanation should be stimulating for a medical student, highlighting its importance and encouraging further exploration of its connections.
         Please provide the response in the following language: ${language}.
     `;
-    const response = await ai.models.generateContent({
+    const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
         model: "gemini-2.5-flash",
         contents: prompt,
         config: {
-            temperature: 0.6,
+            temperature: 0.4,
         },
-    });
+    }));
     return response.text;
 };
 
 export const generateKnowledgeMap = async (patientCase: PatientCase, language: string): Promise<KnowledgeMapData> => {
+    const ai = getAiClient();
     const model = "gemini-2.5-flash";
 
     const fullCaseText = `
@@ -230,7 +297,7 @@ export const generateKnowledgeMap = async (patientCase: PatientCase, language: s
         ---
     `;
 
-    const mapResponse = await ai.models.generateContent({
+    const mapResponse: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
         model: model,
         contents: mapGenerationPrompt,
         config: {
@@ -238,7 +305,7 @@ export const generateKnowledgeMap = async (patientCase: PatientCase, language: s
         responseSchema: knowledgeMapSchema,
         temperature: 0.5,
         },
-    });
+    }));
 
     const rawMapData = JSON.parse(mapResponse.text);
 
@@ -255,8 +322,40 @@ export const generateKnowledgeMap = async (patientCase: PatientCase, language: s
 };
 
 
-export const generatePatientCaseAndMap = async (condition: string, discipline: string, language: string): Promise<{ case: PatientCase; mapData: KnowledgeMapData }> => {
+export const generatePatientCaseAndMap = async (condition: string, discipline: string, difficulty: string, language: string): Promise<{ case: PatientCase; mapData: KnowledgeMapData }> => {
+  const ai = getAiClient();
   const model = "gemini-2.5-flash";
+
+  let difficultyInstructions = '';
+  switch (difficulty.toLowerCase()) {
+      case 'beginner':
+          difficultyInstructions = `
+              **Difficulty Level: Beginner**
+              - The case history should be straightforward with a clear, classic presentation of the condition.
+              - Limit comorbidities to one, if any. The narrative should be easy to follow.
+              - Focus on 2-3 core, high-yield multidisciplinary connections.
+              - The quiz questions should be direct recall questions based on the text.
+          `;
+          break;
+      case 'advanced':
+          difficultyInstructions = `
+              **Difficulty Level: Advanced**
+              - The case must be highly complex, potentially with a rare presentation or multiple significant comorbidities that interact.
+              - Include subtle diagnostic clues and potential "red herring" details that require careful consideration.
+              - Explore at least 5-6 deep multidisciplinary connections, including less obvious psychosocial, ethical, or public health dimensions.
+              - The quiz questions must be challenging, requiring synthesis of multiple concepts, evaluation of management options, and potentially addressing differential diagnoses or nuances.
+          `;
+          break;
+      case 'intermediate':
+      default:
+          difficultyInstructions = `
+              **Difficulty Level: Intermediate**
+              - The case should have moderate complexity, with one or two confounding factors or comorbidities.
+              - Involve 3-5 clear and relevant multidisciplinary connections.
+              - The quiz questions should test comprehension and application of the case details, requiring some synthesis of information.
+          `;
+          break;
+  }
 
   // Step 1: Generate the detailed patient case
   const caseGenerationPrompt = `
@@ -266,23 +365,27 @@ export const generatePatientCaseAndMap = async (condition: string, discipline: s
 
     **Crucially, tailor the case's management plan and key considerations for a student in **${discipline}**.
 
+    ${difficultyInstructions}
+
     **RULES FOR RIGOR - YOU MUST FOLLOW THESE:**
-    1.  **Label Unverified Claims:** For any clinical reasoning that is inferential, speculative, or not based on established evidence, you MUST label it clearly in the text using tags like \`[Inference]\`, \`[Speculation]\`, or \`[Unverified]\`.
-    2.  **Provide Traceable Evidence:** For at least 2-3 key clinical statements, provide a specific source. **Prioritize citing high-quality systematic reviews or major clinical practice guidelines.** Use the format: '(Systematic Review) [Citation]'.
-    3.  **Include Educational Content:** Add 1-2 pieces of rich educational content. For each, provide a title, a detailed text description, and a reference. **Crucially, if the content type is 'Diagram', you MUST also generate the structured \`diagramData\` containing nodes and links for an interactive visualization. If a diagram is not applicable, set \`diagramData\` to null.**
-    4.  **Suggest Further Readings:** List 2-3 high-quality references (e.g., review articles, clinical guidelines) for deeper learning.
-    5.  **Create a Quiz:** Generate a multiple-choice quiz with 3 questions to test understanding of the key multidisciplinary concepts in this case. For each question, provide four string options, the 0-based index of the correct answer, and a brief explanation for the answer.
+    1.  **Stick to Proven Facts:** Do NOT offer opinions, speculations, or unverified synthesis. Every clinical statement and piece of data must be based on established medical facts and evidence. The content must be grounded in the latest available research.
+    2.  **Provide High-Quality Traceable Evidence:** For at least 3-4 key clinical statements, provide a specific source. You MUST cite evidence from high-impact, peer-reviewed sources. Prioritize evidence from the following types, in order of preference: Systematic Reviews, Meta-Analyses, Randomized Controlled Trials (RCTs), and major Clinical Practice Guidelines. Use a clear citation format, e.g., '(Systematic Review) [Citation]' or '(RCT) [Citation]'.
+    3.  **Include a Dedicated Biochemical Pathway Section:** Create a specific section for 'biochemicalPathway'. This section must focus on a single, core biochemical or physiological mechanism central to the case (e.g., for diabetes, focus on the insulin signaling pathway or glycolysis). Provide a title, a detailed explanation for a student, a reference, and if it's a pathway, YOU MUST provide structured 'diagramData' for visualization.
+    4.  **Include Educational Content:** Add 1-2 pieces of rich educational content in the 'educationalContent' array. These should be distinct from the biochemical pathway and can cover other topics like pharmacology, pathophysiology graphs, etc. For each, provide a title, a detailed text description, and a reference. **Crucially, if the content type is 'Diagram', you MUST also generate the structured \`diagramData\` containing nodes and links for an interactive visualization. If a diagram is not applicable, set \`diagramData\` to null.**
+    5.  **Suggest Further Readings:** List 2-3 high-quality references (e.g., review articles, clinical guidelines) for deeper learning.
+    6.  **Create a Quiz:** Generate a multiple-choice quiz with 3 questions to test understanding of the key multidisciplinary concepts in this case. For each question, provide four string options, the 0-based index of the correct answer, and a brief explanation for the answer. The quiz difficulty should match the overall case difficulty.
+    7.  **Include Procedural and Outcome Data:** If applicable, provide plausible details for the main procedure, the patient's ASA physical status, and the final outcome (ICU admission, length of stay, summary).
   `;
 
-  const caseResponse = await ai.models.generateContent({
+  const caseResponse: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
     model: model,
     contents: caseGenerationPrompt,
     config: {
       responseMimeType: "application/json",
       responseSchema: patientCaseSchema,
-      temperature: 0.8,
+      temperature: 0.4,
     },
-  });
+  }));
 
   const patientCase = JSON.parse(caseResponse.text) as PatientCase;
 
@@ -292,17 +395,80 @@ export const generatePatientCaseAndMap = async (condition: string, discipline: s
   return { case: patientCase, mapData };
 };
 
-export const generateVisualAid = async (prompt: string): Promise<string> => {
+export const enrichCaseWithWebSources = async (patientCase: PatientCase, language: string): Promise<{ newEvidence: TraceableEvidence[]; newReadings: FurtherReading[]; groundingSources: any[] }> => {
+    const ai = getAiClient();
+    const model = "gemini-2.5-flash";
+
+    const prompt = `
+        Regarding the patient case titled "${patientCase.title}", which involves "${patientCase.presentingComplaint}", please act as a medical research assistant.
+        Use Google Search to find the most recent, high-quality medical information to provide the following:
+        1.  **Two (2) Traceable Evidence items:** Each item must be a specific clinical claim relevant to the case, supported by a citable source found in your search.
+        2.  **Two (2) Further Reading suggestions:** These should be recent, relevant review articles or clinical guidelines.
+
+        **CRITICAL:** Format your entire response as a single JSON object inside a markdown code block (\`\`\`json ... \`\`\`). Do not include any other text outside this block.
+        The JSON object must have two keys: "traceableEvidence" and "furtherReadings".
+
+        JSON structure example:
+        \`\`\`json
+        {
+          "traceableEvidence": [
+            { "claim": "A relevant clinical claim...", "source": "Citation from a top-tier journal or guideline, e.g., NEJM, The Lancet, UpToDate" },
+            { "claim": "Another relevant clinical claim...", "source": "Another high-quality source" }
+          ],
+          "furtherReadings": [
+            { "topic": "A specific topic for deeper study...", "reference": "Full citation or name of the article/guideline" },
+            { "topic": "Another specific topic...", "reference": "Another reference" }
+          ]
+        }
+        \`\`\`
+
+        Please provide the response in the following language: ${language}.
+    `;
+
+    const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
+        model: model,
+        contents: prompt,
+        config: {
+            tools: [{ googleSearch: {} }],
+            temperature: 0.2,
+        },
+    }));
+
+    const groundingSources = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+
     try {
-        const response = await ai.models.generateImages({
-            model: 'imagen-3.0-generate-002',
+        // Extract JSON from markdown code block
+        const text = response.text;
+        const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/);
+        if (!jsonMatch || !jsonMatch[1]) {
+            throw new Error("Model did not return a valid JSON code block.");
+        }
+        
+        const parsedData = JSON.parse(jsonMatch[1]);
+        const newEvidence = parsedData.traceableEvidence || [];
+        const newReadings = parsedData.furtherReadings || [];
+
+        return { newEvidence, newReadings, groundingSources };
+
+    } catch (error) {
+        console.error("Failed to parse grounded search results:", error);
+        // Return empty arrays but still provide the sources if they exist
+        return { newEvidence: [], newReadings: [], groundingSources };
+    }
+};
+
+export const generateVisualAid = async (prompt: string): Promise<string> => {
+    const ai = getAiClient();
+    try {
+        const response: any = await retryWithBackoff(() => ai.models.generateImages({
+            model: 'imagen-4.0-generate-001',
             prompt: prompt,
             config: {
               numberOfImages: 1,
               outputMimeType: 'image/png',
               aspectRatio: '4:3',
             },
-        });
+        }));
 
         if (response.generatedImages && response.generatedImages.length > 0) {
             return response.generatedImages[0].image.imageBytes;
@@ -313,4 +479,34 @@ export const generateVisualAid = async (prompt: string): Promise<string> => {
         console.error("Error generating visual aid:", error);
         throw new Error("Failed to generate visual aid. The model may have refused the prompt.");
     }
+};
+
+export const checkDrugInteractions = async (drugNames: string[], language: string): Promise<string> => {
+    const ai = getAiClient();
+    const model = "gemini-2.5-flash";
+
+    const prompt = `
+        As an expert clinical pharmacologist, analyze the following list of paediatric drugs for potential interactions. For each clinically significant interaction you identify, provide a concise summary in Markdown format.
+        The user is a medical professional and requires clear, actionable information. Please respond in ${language}.
+
+        Drugs to check:
+        - ${drugNames.join('\n- ')}
+
+        For each interaction, use the following structure:
+        ### Interaction: [Drug A] & [Drug B]
+        **Mechanism:** A brief explanation of the pharmacokinetic or pharmacodynamic mechanism.
+        **Clinical Significance:** Describe the potential clinical outcome (e.g., increased risk of toxicity, reduced efficacy) and provide a brief management recommendation (e.g., "Monitor ECG," "Adjust dose," "Avoid combination if possible").
+
+        If no significant interactions are found, respond with only this exact phrase: "No significant interactions were found for the selected drugs."
+    `;
+
+    const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
+        model: model,
+        contents: prompt,
+        config: {
+            temperature: 0.2,
+        },
+    }));
+
+    return response.text;
 };

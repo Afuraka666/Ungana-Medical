@@ -155,16 +155,23 @@ export const InteractiveDiagram: React.FC<InteractiveDiagramProps> = ({ data }) 
     }
     
     const applySelectionStyles = () => {
+        // De-emphasize non-highlighted elements
         node.transition().duration(200)
-            .style("opacity", d => !isAnythingSelected || highlightedNodeIds.has(d.id) ? 1.0 : 0.3);
+            .style("opacity", d => !isAnythingSelected || highlightedNodeIds.has(d.id) ? 1.0 : 0.25);
+        
+        linkLabelGroups.transition().duration(200)
+            .style("opacity", d => !isAnythingSelected || highlightedLinks.has(d) ? 1.0 : 0.15);
+
+        // Emphasize highlighted elements
         node.select('rect').transition().duration(200)
             .attr("stroke-width", d => isAnythingSelected && highlightedNodeIds.has(d.id) ? 2 : 1)
-            .attr("stroke", d => isAnythingSelected && highlightedNodeIds.has(d.id) ? '#374151' : '#9ca3af');
+            .attr("stroke", d => isAnythingSelected && highlightedNodeIds.has(d.id) ? '#1e3a8a' : '#9ca3af') // Darker brand-blue for stroke
+            .attr("fill", d => isAnythingSelected && highlightedNodeIds.has(d.id) ? '#dbeafe' : '#e5e7eb'); // Lighter blue for fill
 
         link.transition().duration(200)
-            .style("stroke-opacity", d => !isAnythingSelected || highlightedLinks.has(d) ? 0.8 : 0.2);
-        linkLabelGroups.transition().duration(200)
-            .style("opacity", d => !isAnythingSelected || highlightedLinks.has(d) ? 1.0 : 0.2);
+            .style("stroke-opacity", d => !isAnythingSelected || highlightedLinks.has(d) ? 0.9 : 0.15)
+            .attr("stroke-width", d => !isAnythingSelected || highlightedLinks.has(d) ? 2.5 : 1.5)
+            .attr("stroke", d => !isAnythingSelected || highlightedLinks.has(d) ? '#1e3a8a' : '#6b7280'); // Darker brand-blue for stroke
     };
     
     applySelectionStyles();

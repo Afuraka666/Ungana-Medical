@@ -1,6 +1,8 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import type { DisciplineSpecificConsideration } from '../types';
 import { GoogleGenAI, Chat, GenerateContentResponse } from "@google/genai";
+import { retryWithBackoff } from '../services/geminiService';
 
 interface DiscussionModalProps {
     isOpen: boolean;
@@ -33,7 +35,7 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({ isOpen, onClos
 
     useEffect(() => {
         if (isOpen) {
-            const systemInstruction = `You are an expert medical tutor. A student is reviewing a patient case about "${caseTitle}". They want to discuss the following management consideration: "(${topic.aspect}) ${topic.consideration}". Your role is to facilitate a deep, Socratic discussion. Answer their questions clearly, challenge their understanding, and help them explore alternatives and rationale. Keep your responses concise and educational. Respond in the following language: ${language}.`;
+            const systemInstruction = `You are an expert medical tutor. A student is reviewing a patient case about "${caseTitle}". They want to discuss the following management consideration: "(${topic.aspect}) ${topic.consideration}". Your role is to facilitate a deep, Socratic discussion. Answer their questions clearly, challenge their understanding, and help them explore alternatives and rationale. Keep your responses concise and educational. When providing factual information or clinical guidance, you MUST cite traceable, high-quality evidence (e.g., from systematic reviews, RCTs, or major clinical guidelines). Use a clear citation format like '[Source: JAMA 2023]'. Respond in the following language: ${language}.`;
             
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             chatRef.current = ai.chats.create({
@@ -49,7 +51,7 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({ isOpen, onClos
             setIsLoading(false);
             chatRef.current = null;
         }
-    }, [isOpen, topic, caseTitle, language, T.chatWelcomeMessage]);
+    }, [isOpen, topic, caseTitle, language, T]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -65,7 +67,7 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({ isOpen, onClos
         setIsLoading(true);
         
         try {
-            const result = await chatRef.current.sendMessageStream({ message: userInput });
+            const result = await retryWithBackoff<AsyncIterable<GenerateContentResponse>>(() => chatRef.current!.sendMessageStream({ message: userInput }));
             
             let currentResponse = '';
             setMessages(prev => [...prev, { role: 'model', text: '' }]);
@@ -78,9 +80,13 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({ isOpen, onClos
                     return newMessages;
                 });
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error("Chat error:", error);
-            setMessages(prev => [...prev, { role: 'system', text: T.errorChat }]);
+            if (error.message && (error.message.includes("API key not valid") || error.message.includes("Requested entity was not found") || error.message.includes("API_KEY"))) {
+                setMessages(prev => [...prev, { role: 'system', text: T.errorService }]);
+            } else {
+                setMessages(prev => [...prev, { role: 'system', text: T.errorChat }]);
+            }
         } finally {
             setIsLoading(false);
         }
@@ -132,7 +138,7 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({ isOpen, onClos
                             onChange={(e) => setUserInput(e.target.value)}
                             placeholder={T.chatPlaceholder}
                             disabled={isLoading}
-                            className="flex-grow p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-brand-blue-light focus:border-brand-blue-light transition w-full bg-gray-50"
+                            className="flex-grow p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-brand-blue-light focus:border-brand-blue-light transition w-full bg-gray-50 text-black"
                         />
                         <button type="submit" disabled={isLoading || !userInput.trim()} className="bg-brand-blue hover:bg-blue-800 text-white font-bold p-2 rounded-md transition disabled:bg-gray-400 disabled:cursor-not-allowed flex-shrink-0">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">

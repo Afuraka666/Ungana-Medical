@@ -1,10 +1,14 @@
+
 import React, { useState, useEffect } from 'react';
 import type { EducationalContent } from '../types';
 import { generateVisualAid } from '../services/geminiService';
+import { supportedLanguages } from '../i18n';
 
 interface ImageGeneratorProps {
     content: EducationalContent;
     onClose: () => void;
+    language: string;
+    T: Record<string, any>;
 }
 
 const LoadingSpinner: React.FC = () => (
@@ -14,7 +18,7 @@ const LoadingSpinner: React.FC = () => (
     </svg>
 );
 
-export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ content, onClose }) => {
+export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ content, onClose, language, T }) => {
     const [imageData, setImageData] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
@@ -24,24 +28,37 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ content, onClose
             setIsLoading(true);
             setError(null);
             try {
+                const languageName = supportedLanguages[language as keyof typeof supportedLanguages] || language;
                 // Construct a detailed prompt for better results
-                const prompt = `Create a clear, accurate medical illustration for a student. The style should be that of a modern medical textbook diagram: clean lines, clear labels where appropriate, and focused on educational clarity.
+                const prompt = `Create a clear, accurate medical illustration for a student, in the style of a modern medical textbook diagram. The diagram should have clean lines and be focused on educational clarity.
                 
                 Title of illustration: "${content.title}"
                 
-                Detailed description of what to draw: "${content.description}"`;
+                Detailed description of what to draw: "${content.description}"
+
+                **CRITICAL INSTRUCTION FOR LANGUAGE:**
+                All text, including all labels on the diagram, MUST be in **${languageName}**.
+                - Language Name: ${languageName}
+                - Language Code: ${language}
+                - DO NOT use any other language.
+                - DO NOT mix languages. Ensure 100% of the text is in ${languageName}.`;
 
                 const base64Image = await generateVisualAid(prompt);
                 setImageData(`data:image/png;base64,${base64Image}`);
             } catch (err: any) {
-                setError(err.message || 'An unknown error occurred while generating the image.');
+                console.error(err);
+                if (err.message && (err.message.includes("API key not valid") || err.message.includes("Requested entity was not found") || err.message.includes("API_KEY"))) {
+                    setError(T.errorService);
+                } else {
+                    setError(err.message || 'An unknown error occurred while generating the image.');
+                }
             } finally {
                 setIsLoading(false);
             }
         };
 
         generate();
-    }, [content]);
+    }, [content, language, T]);
 
     return (
         <div 

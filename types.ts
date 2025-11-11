@@ -70,11 +70,25 @@ export interface FurtherReading {
   reference: string;
 }
 
+export interface PatientOutcome {
+  icuAdmission: boolean;
+  lengthOfStayDays: number;
+  outcomeSummary: string;
+}
+
+export interface ProcedureDetails {
+  procedureName: string;
+  asaScore: '1' | '2' | '3' | '4' | '5' | '6' | '1E' | '2E' | '3E' | '4E' | '5E' | '6E';
+}
+
 export interface PatientCase {
   title: string;
   patientProfile: string;
   presentingComplaint: string;
   history: string;
+  procedureDetails?: ProcedureDetails;
+  outcomes?: PatientOutcome;
+  biochemicalPathway: EducationalContent;
   multidisciplinaryConnections: MultidisciplinaryConnection[];
   disciplineSpecificConsiderations: DisciplineSpecificConsideration[];
   educationalContent: EducationalContent[];
@@ -98,4 +112,34 @@ export interface KnowledgeLink {
 export interface KnowledgeMapData {
   nodes: KnowledgeNode[];
   links: KnowledgeLink[];
+}
+
+export interface SavedCase {
+  id: string;
+  title: string;
+  savedAt: string;
+  caseData: PatientCase;
+  mapData: KnowledgeMapData;
+}
+
+export interface Snippet {
+  id: string;
+  title: string;
+  content: string;
+  savedAt: string;
+}
+
+export interface InteractionState {
+  caseGenerated: boolean;
+  caseEdited: boolean;
+  caseSaved: boolean;
+  snippetSaved: boolean;
+  nodeClicks: number;
+}
+
+export interface Tip {
+  id: string;
+  title: string;
+  text: string;
+  trigger: (state: InteractionState) => boolean;
 }

@@ -1,13 +1,14 @@
 import React, { useEffect, useRef, useCallback } from 'react';
 import { Discipline } from '../types';
 import type { KnowledgeMapData, KnowledgeNode, KnowledgeLink } from '../types';
+import { ConceptCard } from './ConceptCard';
 
 declare const d3: any;
 
 interface KnowledgeMapProps {
   data: KnowledgeMapData;
   onNodeClick: (node: KnowledgeNode) => void;
-  selectedNodeId: string | null;
+  selectedNodeInfo: { node: KnowledgeNode; abstract: string; loading: boolean } | null;
   onClearSelection: () => void;
   isMapFullscreen: boolean;
   setIsMapFullscreen: (isFullscreen: boolean) => void;
@@ -26,11 +27,12 @@ export const DisciplineColors: Record<Discipline, string> = {
   [Discipline.TREATMENT]: "#22c55e", // green-500
 };
 
-export const KnowledgeMap: React.FC<KnowledgeMapProps> = ({ data, onNodeClick, selectedNodeId, onClearSelection, isMapFullscreen, setIsMapFullscreen }) => {
+export const KnowledgeMap: React.FC<KnowledgeMapProps> = ({ data, onNodeClick, selectedNodeInfo, onClearSelection, isMapFullscreen, setIsMapFullscreen }) => {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const simulationRef = useRef<any>(null);
   const zoomRef = useRef<any>(null);
+  const selectedNodeId = selectedNodeInfo?.node.id || null;
 
   const handleZoomIn = useCallback(() => {
     if (svgRef.current && zoomRef.current) {
@@ -65,17 +67,18 @@ export const KnowledgeMap: React.FC<KnowledgeMapProps> = ({ data, onNodeClick, s
     const { nodes, links } = data;
     const svg = d3.select(svgRef.current);
 
-    svg.on('click', (event: MouseEvent) => {
-      if (event.target === svgRef.current) {
-        onClearSelection();
-      }
-    });
-
     svg.selectAll("*").remove(); 
 
     const defs = svg.append('defs');
-
     defs.html(`
+      <marker id="arrowhead-default" viewBox="0 0 10 10" refX="10" refY="5"
+          markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+        <path d="M 0 2 L 10 5 L 0 8 z" fill="#9ca3af"></path>
+      </marker>
+      <marker id="arrowhead-highlight" viewBox="0 0 10 10" refX="10" refY="5"
+          markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+        <path d="M 0 2 L 10 5 L 0 8 z" fill="#1e3a8a"></path>
+      </marker>
       <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
         <feGaussianBlur stdDeviation="5" result="coloredBlur"></feGaussianBlur>
         <feMerge>
@@ -95,39 +98,32 @@ export const KnowledgeMap: React.FC<KnowledgeMapProps> = ({ data, onNodeClick, s
       </style>
     `);
 
-    const width = containerRef.current.clientWidth;
-    const height = containerRef.current.clientHeight;
-
     const g = svg.append("g");
     const tooltip = d3.select(containerRef.current).select("#d3-tooltip");
     
-    // FIX: Explicitly type the Map and its Sets to prevent type inference issues.
     const adjacency = new Map<string, Set<string>>(nodes.map(node => [node.id, new Set()]));
     links.forEach(link => {
         if (!link.source || !link.target) return;
-        const sourceId = typeof link.source === 'object' && link.source ? (link.source as any).id : link.source;
-        const targetId = typeof link.target === 'object' && link.target ? (link.target as any).id : link.target;
+        const sourceId = typeof link.source === 'object' ? (link.source as any).id : link.source;
+        const targetId = typeof link.target === 'object' ? (link.target as any).id : link.target;
         if (adjacency.has(sourceId)) adjacency.get(sourceId)!.add(targetId);
         if (adjacency.has(targetId)) adjacency.get(targetId)!.add(sourceId);
     });
 
     if (!simulationRef.current) {
-        simulationRef.current = d3.forceSimulation(nodes)
-          .force("link", d3.forceLink(links).id((d: any) => d.id).distance(100))
-          .force("charge", d3.forceManyBody().strength(-350))
-          .on("tick", ticked);
+        simulationRef.current = d3.forceSimulation()
+          .force("link", d3.forceLink().id((d: any) => d.id).distance(100))
+          .force("charge", d3.forceManyBody().strength(-350));
     }
-    
     const simulation = simulationRef.current;
-    simulation.nodes(nodes);
-    simulation.force("link").links(links);
     
     const link = g.append("g")
       .attr("stroke", "#9ca3af")
       .selectAll("line")
       .data(links)
       .join("line")
-      .attr("stroke-width", 2);
+      .attr("stroke-width", 2)
+      .attr("marker-end", "url(#arrowhead-default)");
 
     const node = g.append("g")
       .selectAll("g")
@@ -149,97 +145,11 @@ export const KnowledgeMap: React.FC<KnowledgeMapProps> = ({ data, onNodeClick, s
       .attr("font-weight", "500")
       .style("pointer-events", "none");
 
-    const updateHighlight = () => {
-        const isAnyNodeSelected = selectedNodeId !== null;
-        
-        const connectedToSelected = new Set<string>();
-        if (isAnyNodeSelected && selectedNodeId) {
-            connectedToSelected.add(selectedNodeId);
-            (adjacency.get(selectedNodeId) || new Set<string>()).forEach(neighborId => {
-                connectedToSelected.add(neighborId);
-            });
-        }
-
-        node.transition().duration(200)
-            .style("opacity", (d: KnowledgeNode) => !isAnyNodeSelected || connectedToSelected.has(d.id) ? 1 : 0.3);
-        
-        circles
-           .style("filter", (d: KnowledgeNode) => d.id === selectedNodeId ? "url(#glow)" : null);
-        
-        circles.classed('pulse-animation', (d: KnowledgeNode) => d.id === selectedNodeId);
-
-        circles.transition().duration(200)
-            .attr("r", (d: KnowledgeNode) => d.id === selectedNodeId ? 14 : 12)
-            .attr("stroke-width", (d: KnowledgeNode) => {
-                if (d.id === selectedNodeId) return 3;
-                if (isAnyNodeSelected && connectedToSelected.has(d.id)) return 2;
-                return 0;
-            })
-            .attr("stroke", (d: KnowledgeNode) => d.id === selectedNodeId ? "#111827" : DisciplineColors[d.discipline] || "#6b7280");
-
-        labels.transition().duration(200)
-           .attr("font-size", (d: KnowledgeNode) => d.id === selectedNodeId ? "14px" : "12px")
-           .attr("font-weight", (d: KnowledgeNode) => {
-                if (d.id === selectedNodeId) return "700";
-                return isAnyNodeSelected && connectedToSelected.has(d.id) ? "600" : "500";
-           });
-           
-        link.transition().duration(200)
-            .attr("stroke-width", (l: any) => {
-                if (!isAnyNodeSelected) return 2;
-                const sourceId = l.source.id || l.source;
-                const targetId = l.target.id || l.target;
-                return connectedToSelected.has(sourceId) && connectedToSelected.has(targetId) ? 2.5 : 1;
-            })
-            .attr("stroke-opacity", (l: any) => {
-              if (!isAnyNodeSelected) return 0.6;
-              const sourceId = l.source.id || l.source;
-              const targetId = l.target.id || l.target;
-              return connectedToSelected.has(sourceId) && connectedToSelected.has(targetId) ? 0.9 : 0.1;
-            });
-    }
-
-    node.on("click", (event: any, d: KnowledgeNode) => {
-        event.stopPropagation();
-        onNodeClick(d);
-      })
-      .on("mouseover", (event: any, d: KnowledgeNode) => {
-        tooltip.transition().duration(200).style("opacity", 0.95);
-        tooltip.html(`<strong>${d.label}</strong><br/><span style="font-weight: 500; color: ${DisciplineColors[d.discipline] || '#6b7280'}">${d.discipline}</span>`);
-        
-        const connectedNodes = adjacency.get(d.id) || new Set<string>();
-        connectedNodes.add(d.id);
-        
-        node.style("opacity", (o: KnowledgeNode) => connectedNodes.has(o.id) ? 1 : 0.2);
-        link.attr("stroke-opacity", (l: any) => (l.source === d || l.target === d) ? 0.9 : 0.1);
-      })
-      .on("mousemove", (event: any) => {
-        const [x, y] = d3.pointer(event, containerRef.current);
-        tooltip.style("left", `${x + 15}px`).style("top", `${y + 10}px`);
-      })
-      .on("mouseout", () => {
-        tooltip.transition().duration(300).style("opacity", 0);
-        updateHighlight();
-      });
-
-    link.on("mouseover", (event: any, d: any) => {
-        tooltip.transition().duration(200).style("opacity", 0.95);
-        tooltip.html(`<em>${d.description}</em>`);
-      })
-      .on("mousemove", (event: any) => {
-        const [x, y] = d3.pointer(event, containerRef.current);
-        tooltip.style("left", `${x + 15}px`).style("top", `${y + 10}px`);
-      })
-      .on("mouseout", () => {
-        tooltip.transition().duration(300).style("opacity", 0);
-      });
-    
     const zoom = d3.zoom()
         .scaleExtent([0.2, 5])
         .on("zoom", (event: any) => {
             g.attr("transform", event.transform);
         });
-    
     zoomRef.current = zoom;
     svg.call(zoom);
 
@@ -247,8 +157,22 @@ export const KnowledgeMap: React.FC<KnowledgeMapProps> = ({ data, onNodeClick, s
       link
         .attr("x1", (d: any) => d.source.x)
         .attr("y1", (d: any) => d.source.y)
-        .attr("x2", (d: any) => d.target.x)
-        .attr("y2", (d: any) => d.target.y);
+        .attr("x2", (d: any) => {
+            const dx = d.target.x - d.source.x;
+            const dy = d.target.y - d.source.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist === 0) return d.target.x;
+            const targetRadius = d.target.id === selectedNodeId ? 14 : 12;
+            return d.target.x - (dx / dist) * (targetRadius + 3);
+        })
+        .attr("y2", (d: any) => {
+            const dx = d.target.x - d.source.x;
+            const dy = d.target.y - d.source.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist === 0) return d.target.y;
+            const targetRadius = d.target.id === selectedNodeId ? 14 : 12;
+            return d.target.y - (dy / dist) * (targetRadius + 3);
+        });
       node.attr("transform", (d: any) => `translate(${d.x},${d.y})`);
     }
 
@@ -269,22 +193,128 @@ export const KnowledgeMap: React.FC<KnowledgeMapProps> = ({ data, onNodeClick, s
       }
       return d3.drag().on("start", dragstarted).on("drag", dragged).on("end", dragended);
     }
-    
-    updateHighlight();
-    
+
+    function updateHighlight() {
+        const isAnyNodeSelected = selectedNodeId !== null;
+        const connectedToSelected = new Set<string>();
+        if (isAnyNodeSelected && selectedNodeId) {
+            connectedToSelected.add(selectedNodeId);
+            (adjacency.get(selectedNodeId) || new Set<string>()).forEach(neighborId => {
+                connectedToSelected.add(neighborId);
+            });
+        }
+
+        // Dim or highlight nodes based on selection
+        node.transition().duration(200)
+            .style("opacity", (d: KnowledgeNode) => !isAnyNodeSelected || connectedToSelected.has(d.id) ? 1 : 0.3);
+        
+        // Apply special styles to the selected node
+        circles.style("filter", (d: KnowledgeNode) => d.id === selectedNodeId ? "url(#glow)" : null)
+               .classed('pulse-animation', (d: KnowledgeNode) => d.id === selectedNodeId);
+
+        circles.transition().duration(200)
+            .attr("r", (d: KnowledgeNode) => d.id === selectedNodeId ? 14 : 12)
+            .attr("stroke-width", (d: KnowledgeNode) => d.id === selectedNodeId ? 3 : 0)
+            .attr("stroke", (d: KnowledgeNode) => d.id === selectedNodeId ? "#111827" : DisciplineColors[d.discipline] || "#6b7280");
+
+        labels.transition().duration(200)
+           .attr("font-size", (d: KnowledgeNode) => d.id === selectedNodeId ? "14px" : "12px")
+           .attr("font-weight", (d: KnowledgeNode) => d.id === selectedNodeId ? "700" : "500");
+           
+        // Dim or highlight links
+        link.transition().duration(200)
+            .attr("stroke-width", (l: any) => {
+                if (!isAnyNodeSelected) return 2;
+                const sourceId = l.source.id || l.source;
+                const targetId = l.target.id || l.target;
+                return connectedToSelected.has(sourceId) && connectedToSelected.has(targetId) ? 2.5 : 1;
+            })
+            .attr("stroke-opacity", (l: any) => {
+              if (!isAnyNodeSelected) return 0.6;
+              const sourceId = l.source.id || l.source;
+              const targetId = l.target.id || l.target;
+              return connectedToSelected.has(sourceId) && connectedToSelected.has(targetId) ? 0.9 : 0.3;
+            })
+            .attr("stroke", (l: any) => {
+                if (!isAnyNodeSelected) return "#9ca3af";
+                const sourceId = l.source.id || l.source;
+                const targetId = l.target.id || l.target;
+                return connectedToSelected.has(sourceId) && connectedToSelected.has(targetId) ? "#1e3a8a" : "#9ca3af";
+            })
+            .attr("marker-end", (l: any) => {
+                if (!isAnyNodeSelected) return "url(#arrowhead-default)";
+                const sourceId = l.source.id || l.source;
+                const targetId = l.target.id || l.target;
+                return connectedToSelected.has(sourceId) && connectedToSelected.has(targetId) ? "url(#arrowhead-highlight)" : "url(#arrowhead-default)";
+            });
+    }
+
+    // --- Interaction Logic ---
+    svg.on('click', (event: MouseEvent) => {
+        if (event.defaultPrevented) return;
+        onClearSelection();
+    });
+
+    node.on("click", (event: any, d: KnowledgeNode) => {
+        event.stopPropagation();
+        onNodeClick(d);
+      })
+      .on("mouseover", (event: any, d: KnowledgeNode) => {
+        tooltip.transition().duration(200).style("opacity", 0.95);
+        tooltip.html(`<strong>${d.label}</strong><br/><span style="font-weight: 500; color: ${DisciplineColors[d.discipline] || '#6b7280'}">${d.discipline}</span>`);
+      })
+      .on("mousemove", (event: any) => {
+        const [x, y] = d3.pointer(event, containerRef.current);
+        tooltip.style("left", `${x + 15}px`).style("top", `${y + 10}px`);
+      })
+      .on("mouseout", () => {
+        tooltip.transition().duration(300).style("opacity", 0);
+        updateHighlight(); // Restore selection-based highlight on mouseout
+      });
+
     const handleResize = () => {
-        if (!containerRef.current) return;
-        const newWidth = containerRef.current.clientWidth;
-        const newHeight = containerRef.current.clientHeight;
-        svg.attr("width", newWidth).attr("height", newHeight);
-        simulation.force("center", d3.forceCenter(newWidth / 2, newHeight / 2));
+        if (!containerRef.current || !svgRef.current) return;
+        const width = containerRef.current.clientWidth;
+        const height = containerRef.current.clientHeight;
+        d3.select(svgRef.current).attr("width", width).attr("height", height);
+        simulation.force("center", d3.forceCenter(width / 2, height / 2));
         simulation.alpha(0.3).restart();
     };
 
     const resizeObserver = new ResizeObserver(handleResize);
     resizeObserver.observe(containerRef.current);
-    handleResize(); 
+    
+    // --- Update simulation and apply states ---
+    simulation.nodes(nodes).on("tick", ticked);
+    simulation.force("link").links(links);
+    
+    handleResize();
+    updateHighlight();
 
+    // --- New robust zoom logic ---
+    const simulationNodes = simulation.nodes();
+    const width = containerRef.current.clientWidth;
+    const height = containerRef.current.clientHeight;
+
+    if (selectedNodeId) {
+        const selectedNodeData = simulationNodes.find((n: any) => n.id === selectedNodeId);
+        if (selectedNodeData && typeof selectedNodeData.x === 'number') {
+            const transform = d3.zoomIdentity
+                .translate(width / 2, height / 2)
+                .scale(1.5) // Apply a consistent, moderate zoom
+                .translate(-selectedNodeData.x, -selectedNodeData.y);
+
+            svg.transition()
+                .duration(750)
+                .call(zoom.transform, transform);
+        }
+    } else {
+        // If no node is selected, reset the view.
+        svg.transition()
+            .duration(750)
+            .call(zoom.transform, d3.zoomIdentity);
+    }
+    
     return () => {
       svg.on('click', null);
       resizeObserver.disconnect();
@@ -300,6 +330,19 @@ export const KnowledgeMap: React.FC<KnowledgeMapProps> = ({ data, onNodeClick, s
         <div ref={containerRef} className="w-full h-full bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden relative">
             <svg ref={svgRef}></svg>
             <div id="d3-tooltip" className="absolute opacity-0 pointer-events-none bg-gray-800/90 text-white text-xs rounded-md px-2 py-1 shadow-lg transition-opacity duration-200 z-10" style={{ backdropFilter: 'blur(2px)' }}></div>
+            
+            <div className="absolute top-4 right-4 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-lg shadow-lg p-3 max-w-xs text-left">
+                <h4 className="text-sm font-bold text-gray-800 mb-2">Discipline Key</h4>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                    {Object.entries(DisciplineColors).map(([discipline, color]) => (
+                        <div key={discipline} className="flex items-center">
+                            <span className="w-3 h-3 rounded-full mr-2 flex-shrink-0" style={{ backgroundColor: color }}></span>
+                            <span className="text-xs text-gray-700 capitalize">{discipline.toLowerCase()}</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
             <div className="absolute bottom-4 right-4 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-lg shadow-lg flex flex-col overflow-hidden">
                 {selectedNodeId && (
                     <>
@@ -332,6 +375,12 @@ export const KnowledgeMap: React.FC<KnowledgeMapProps> = ({ data, onNodeClick, s
                 </button>
             </div>
         </div>
+        {selectedNodeInfo && (
+          <ConceptCard 
+            nodeInfo={selectedNodeInfo} 
+            onClose={onClearSelection}
+          />
+        )}
     </div>
   );
 };

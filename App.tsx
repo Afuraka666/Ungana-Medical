@@ -1,205 +1,368 @@
-import React, { useState, useCallback, useEffect } from 'react';
+
+import React, { useState, useEffect, useCallback } from 'react';
+
+// Components
 import { Header } from './components/Header';
 import { ControlPanel } from './components/ControlPanel';
 import { PatientCaseView } from './components/PatientCaseView';
 import { KnowledgeMap } from './components/KnowledgeMap';
-import { ConceptCard } from './components/ConceptCard';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { LoadingOverlay } from './components/LoadingOverlay';
 import { ErrorDisplay } from './components/ErrorDisplay';
+import { SavedWorkModal } from './components/SavedWorkModal';
+import { ShareModal } from './components/ShareModal';
+import { ClinicalToolsModal } from './components/ClinicalToolsModal';
+import { FeedbackModal } from './components/FeedbackModal';
+import { TipsCarousel } from './components/TipsCarousel';
 import { UpdateNotifier } from './components/UpdateNotifier';
 import { EvaluationScreen } from './components/EvaluationScreen';
-import { generatePatientCaseAndMap, generateKnowledgeMap, getConceptAbstract } from './services/geminiService';
-import type { PatientCase, KnowledgeMapData, KnowledgeNode } from './types';
+
+// Services
+import { generatePatientCaseAndMap, getConceptAbstract } from './services/geminiService';
+
+// Types
+import type { PatientCase, KnowledgeMapData, KnowledgeNode, SavedCase, Snippet, InteractionState } from './types';
+
+// i18n
 import { translations, supportedLanguages } from './i18n';
 
+// Helper: Decompresses a URL-safe Base64 string back into a JSON object
+async function decodeAndDecompress(encodedString: string): Promise<any | null> {
+    try {
+        // Make it standard Base64 again
+        const base64 = encodedString.replace(/-/g, '+').replace(/_/g, '/');
+        const binaryString = atob(base64);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
+
+        const stream = new Blob([bytes]).stream();
+        const decompressedStream = stream.pipeThrough(new DecompressionStream('gzip'));
+        const reader = decompressedStream.getReader();
+        const chunks: Uint8Array[] = [];
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            chunks.push(value);
+        }
+        const decompressedBlob = new Blob(chunks);
+        const jsonString = await decompressedBlob.text();
+        return JSON.parse(jsonString);
+    } catch (error) {
+        console.error("Decompression failed:", error);
+        return null;
+    }
+}
+
+
 const App: React.FC = () => {
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [isMapFullscreen, setIsMapFullscreen] = useState<boolean>(false);
-  const [loadingMessage, setLoadingMessage] = useState<string>('');
-  const [error, setError] = useState<string | null>(null);
-  const [patientCase, setPatientCase] = useState<PatientCase | null>(null);
-  const [knowledgeMapData, setKnowledgeMapData] = useState<KnowledgeMapData | null>(null);
-  const [selectedNodeInfo, setSelectedNodeInfo] = useState<{ node: KnowledgeNode; abstract: string; loading: boolean } | null>(null);
-  const [language, setLanguage] = useState<string>(localStorage.getItem('appLanguage') || 'en');
-  const [trialDaysRemaining, setTrialDaysRemaining] = useState<number | null>(null);
-  const [isTrialExpired, setIsTrialExpired] = useState<boolean>(false);
+    // Core App State
+    const [isLoading, setIsLoading] = useState(false);
+    const [loadingMessage, setLoadingMessage] = useState('');
+    const [error, setError] = useState<string | null>(null);
+    const [patientCase, setPatientCase] = useState<PatientCase | null>(null);
+    const [mapData, setMapData] = useState<KnowledgeMapData | null>(null);
 
-  const T = translations[language] || translations.en;
+    // Knowledge Map State
+    const [selectedNodeInfo, setSelectedNodeInfo] = useState<{ node: KnowledgeNode; abstract: string; loading: boolean } | null>(null);
+    const [isMapFullscreen, setIsMapFullscreen] = useState(false);
 
-  useEffect(() => {
-    localStorage.setItem('appLanguage', language);
-    document.documentElement.lang = language;
-  }, [language]);
+    // Internationalization State
+    const [language, setLanguage] = useState(localStorage.getItem('synapsis_language') || 'en');
 
-  useEffect(() => {
-    const TRIAL_DURATION_DAYS = 30;
-    const firstLaunchKey = 'synapsis_first_launch_date';
-    const storedDate = localStorage.getItem(firstLaunchKey);
-    let firstLaunchDate: number;
+    // Modal States
+    const [isSavedWorkOpen, setIsSavedWorkOpen] = useState(false);
+    const [isClinicalToolsOpen, setIsClinicalToolsOpen] = useState(false);
+    const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+    const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
 
-    if (storedDate) {
-        firstLaunchDate = parseInt(storedDate, 10);
-    } else {
-        firstLaunchDate = new Date().getTime();
-        localStorage.setItem(firstLaunchKey, firstLaunchDate.toString());
-    }
+    // Saved Data State
+    const [savedCases, setSavedCases] = useState<SavedCase[]>([]);
+    const [savedSnippets, setSavedSnippets] = useState<Snippet[]>([]);
 
-    const now = new Date().getTime();
-    const daysPassed = (now - firstLaunchDate) / (1000 * 3600 * 24);
+    // User Interaction Tracking for Tips
+    const [interactionState, setInteractionState] = useState<InteractionState>({
+        caseGenerated: false,
+        caseEdited: false,
+        caseSaved: false,
+        snippetSaved: false,
+        nodeClicks: 0,
+    });
     
-    if (daysPassed > TRIAL_DURATION_DAYS) {
-        setIsTrialExpired(true);
-        setTrialDaysRemaining(0);
-    } else {
-        setIsTrialExpired(false);
-        setTrialDaysRemaining(Math.ceil(TRIAL_DURATION_DAYS - daysPassed));
-    }
-  }, []);
+    // Evaluation Screen Logic
+    const [generationCount, setGenerationCount] = useState(0);
+    const [showEvaluationScreen, setShowEvaluationScreen] = useState(false);
 
-  const handleGenerateCase = useCallback(async (condition: string, discipline: string) => {
-    setIsLoading(true);
-    setError(null);
-    setPatientCase(null);
-    setKnowledgeMapData(null);
-    setSelectedNodeInfo(null);
-
-    try {
-      setLoadingMessage(T.generatingCaseMessage(condition, discipline));
-      const result = await generatePatientCaseAndMap(condition, discipline, language);
-      setLoadingMessage(T.buildingMapMessage);
-      
-      setTimeout(() => {
-        setPatientCase(result.case);
-        setKnowledgeMapData(result.mapData);
-        setIsLoading(false);
-      }, 1500);
-
-    } catch (err) {
-      console.error(err);
-      setError(T.errorGenerate);
-      setIsLoading(false);
-    }
-  }, [language, T]);
-  
-  const handleSaveCase = useCallback(async (updatedCase: PatientCase) => {
-    setPatientCase(updatedCase);
-    setIsLoading(true);
-    setLoadingMessage(T.updatingMapMessage);
-    setError(null);
-    setSelectedNodeInfo(null);
-
-    try {
-      const newMapData = await generateKnowledgeMap(updatedCase, language);
-      setKnowledgeMapData(newMapData);
-    } catch (err) {
-      console.error(err);
-      setError(T.errorUpdate);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [language, T]);
-
-  const handleNodeClick = useCallback(async (node: KnowledgeNode) => {
-    if (selectedNodeInfo?.node.id === node.id) {
-        setSelectedNodeInfo(null); // Deselect if clicking the same node
-        return;
-    }
+    const T = translations[language] || translations.en;
     
-    setSelectedNodeInfo({ node, abstract: '', loading: true });
-    try {
-        if (!patientCase) throw new Error("Patient case not available.");
-        const abstract = await getConceptAbstract(node.label, patientCase.title, language);
-        setSelectedNodeInfo({ node, abstract, loading: false });
-    } catch (err) {
-        console.error("Failed to get concept abstract", err);
-        setSelectedNodeInfo({ node, abstract: T.errorAbstract, loading: false });
-    }
-  }, [patientCase, language, T, selectedNodeInfo]);
-  
-  const handleClearSelection = useCallback(() => {
-    setSelectedNodeInfo(null);
-  }, []);
+    // -- EFFECTS --
+    
+    // Load saved data and generation count from localStorage
+    useEffect(() => {
+        try {
+            const cases = JSON.parse(localStorage.getItem('synapsis_saved_cases') || '[]');
+            const snippets = JSON.parse(localStorage.getItem('synapsis_saved_snippets') || '[]');
+            const count = parseInt(localStorage.getItem('synapsis_generation_count') || '0', 10);
+            setSavedCases(cases);
+            setSavedSnippets(snippets);
+            setGenerationCount(count);
+            if (count >= 5) { // Show evaluation after 5 generations
+                setShowEvaluationScreen(true);
+            }
+        } catch (e) {
+            console.error("Failed to load data from localStorage", e);
+        }
+    }, []);
+    
+    // Decompress case data from URL on load
+    useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const caseDataParam = urlParams.get('case');
+        if (caseDataParam) {
+            setIsLoading(true);
+            setLoadingMessage('Loading shared case...');
+            decodeAndDecompress(caseDataParam).then(decodedCase => {
+                if (decodedCase) {
+                    setPatientCase(decodedCase as PatientCase);
+                    // A shared case doesn't include map data, it would need to be regenerated.
+                    // Or the share function could be updated to include it.
+                    // For now, we'll just load the case.
+                    setMapData(null); 
+                } else {
+                    setError('Failed to load the shared case. The link might be invalid.');
+                }
+                setIsLoading(false);
+                // Clean URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+            });
+        }
+    }, []);
 
-  if (isTrialExpired) {
-    return (
-      <div className="flex flex-col min-h-screen bg-gray-50 font-sans text-brand-text">
-        <Header
-          supportedLanguages={supportedLanguages}
-          currentLanguage={language}
-          onLanguageChange={setLanguage}
-          T={T}
-        />
-        <main className="flex-grow flex flex-col p-4 md:p-6 lg:p-8">
-          <EvaluationScreen T={T} />
-        </main>
-        <footer className="text-center py-4 text-sm text-gray-500 border-t border-gray-200 bg-gray-50">
-          <p>&copy; {new Date().getFullYear()} Samuel Sibanda. All rights reserved.</p>
-        </footer>
-      </div>
-    );
-  }
+    // -- HANDLERS --
+    
+    const handleLanguageChange = (langCode: string) => {
+        setLanguage(langCode);
+        localStorage.setItem('synapsis_language', langCode);
+    };
 
-  return (
-    <div className="flex flex-col min-h-screen bg-gray-50 font-sans text-brand-text">
-      <Header 
-        supportedLanguages={supportedLanguages}
-        currentLanguage={language}
-        onLanguageChange={setLanguage}
-        T={T}
-      />
-      <main className="flex-grow flex flex-col p-4 md:p-6 lg:p-8">
-        <ControlPanel onGenerate={handleGenerateCase} disabled={isLoading} T={T} />
-        {error && <ErrorDisplay message={error} />}
+    const handleGenerate = async (condition: string, discipline: string, difficulty: string) => {
+        setError(null);
+        setIsLoading(true);
+        setLoadingMessage(T.generatingCaseMessage(condition, discipline));
+        setPatientCase(null);
+        setMapData(null);
+        setSelectedNodeInfo(null);
         
-        <div className="flex-grow grid grid-cols-1 lg:grid-cols-12 gap-6 mt-6 min-h-0">
-          
-          {!isLoading && !patientCase && !error && (
-             <div className="lg:col-span-12 h-full">
-                <WelcomeScreen T={T} />
-             </div>
-          )}
-          
-          {patientCase && knowledgeMapData && (
-            <>
-              <div className={`lg:col-span-4 min-h-0 animate-fade-in max-h-[70vh] lg:max-h-full h-full overflow-y-auto bg-white rounded-lg shadow-lg border border-gray-200 ${isMapFullscreen ? 'hidden lg:block' : ''}`}>
-                <PatientCaseView patientCase={patientCase} onSave={handleSaveCase} language={language} T={T} />
-              </div>
-              <div className={`flex-grow relative animate-fade-in min-h-[500px] lg:min-h-0 ${isMapFullscreen ? 'lg:col-span-12' : 'lg:col-span-8'}`} style={{ animationDelay: '200ms' }}>
-                {isLoading && <LoadingOverlay message={loadingMessage} />}
-                <KnowledgeMap 
-                  data={knowledgeMapData} 
-                  onNodeClick={handleNodeClick} 
-                  selectedNodeId={selectedNodeInfo?.node.id || null}
-                  onClearSelection={handleClearSelection}
-                  isMapFullscreen={isMapFullscreen}
-                  setIsMapFullscreen={setIsMapFullscreen}
-                />
-                {selectedNodeInfo && !isMapFullscreen && (
-                  <ConceptCard 
-                    nodeInfo={selectedNodeInfo} 
-                    onClose={handleClearSelection}
-                  />
-                )}
-              </div>
-            </>
-          )}
-           {isLoading && patientCase === null && (
-                <div className="lg:col-span-12 relative min-h-[400px]">
-                    <LoadingOverlay message={loadingMessage} />
+        try {
+            const { case: newCase, mapData: newMapData } = await generatePatientCaseAndMap(condition, discipline, difficulty, language);
+            setPatientCase(newCase);
+            setMapData(newMapData);
+            setInteractionState(prev => ({ ...prev, caseGenerated: true, caseEdited: false, caseSaved: false, nodeClicks: 0, snippetSaved: false }));
+            
+            const newCount = generationCount + 1;
+            setGenerationCount(newCount);
+            localStorage.setItem('synapsis_generation_count', String(newCount));
+            if (newCount >= 5) {
+                setShowEvaluationScreen(true);
+            }
+        } catch (err: any) {
+            console.error(err);
+            setError(T.errorService);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleNodeClick = useCallback(async (node: KnowledgeNode) => {
+        if (selectedNodeInfo?.node.id === node.id) {
+            setSelectedNodeInfo(null);
+            return;
+        }
+        
+        setSelectedNodeInfo({ node, abstract: '', loading: true });
+        setInteractionState(prev => ({...prev, nodeClicks: prev.nodeClicks + 1}));
+
+        try {
+            const caseContext = patientCase?.title || '';
+            const abstract = await getConceptAbstract(node.label, caseContext, language);
+            setSelectedNodeInfo({ node, abstract, loading: false });
+        } catch (err: any) {
+            console.error(err);
+            if (err.message && (err.message.includes("API key not valid") || err.message.includes("Requested entity was not found") || err.message.includes("API_KEY"))) {
+                setError(T.errorService);
+                setSelectedNodeInfo(null);
+            } else {
+                setSelectedNodeInfo({ node, abstract: T.errorAbstract, loading: false });
+            }
+        }
+    }, [patientCase, language, T.errorAbstract, selectedNodeInfo, T.errorService]);
+    
+    const handleClearNodeSelection = useCallback(() => {
+        setSelectedNodeInfo(null);
+    }, []);
+    
+    const handleSaveCase = () => {
+        if (!patientCase || !mapData) return;
+        const newSavedCase: SavedCase = {
+            id: crypto.randomUUID(),
+            title: patientCase.title,
+            savedAt: new Date().toISOString(),
+            caseData: patientCase,
+            mapData: mapData,
+        };
+        const updatedCases = [...savedCases, newSavedCase];
+        setSavedCases(updatedCases);
+        localStorage.setItem('synapsis_saved_cases', JSON.stringify(updatedCases));
+        setInteractionState(prev => ({...prev, caseSaved: true }));
+        alert('Case saved successfully!');
+    };
+    
+    const handleLoadCase = (caseId: string) => {
+        const caseToLoad = savedCases.find(c => c.id === caseId);
+        if (caseToLoad) {
+            setPatientCase(caseToLoad.caseData);
+            setMapData(caseToLoad.mapData);
+            setIsSavedWorkOpen(false);
+        }
+    };
+    
+    const handleDeleteCase = (caseId: string) => {
+        const updatedCases = savedCases.filter(c => c.id !== caseId);
+        setSavedCases(updatedCases);
+        localStorage.setItem('synapsis_saved_cases', JSON.stringify(updatedCases));
+    };
+
+    const handleSaveSnippet = (title: string, content: string) => {
+        const newSnippet: Snippet = {
+            id: crypto.randomUUID(),
+            title,
+            content,
+            savedAt: new Date().toISOString(),
+        };
+        const updatedSnippets = [...savedSnippets, newSnippet];
+        setSavedSnippets(updatedSnippets);
+        localStorage.setItem('synapsis_saved_snippets', JSON.stringify(updatedSnippets));
+        setInteractionState(prev => ({ ...prev, snippetSaved: true }));
+    };
+    
+    const handleDeleteSnippet = (snippetId: string) => {
+        const updatedSnippets = savedSnippets.filter(s => s.id !== snippetId);
+        setSavedSnippets(updatedSnippets);
+        localStorage.setItem('synapsis_saved_snippets', JSON.stringify(updatedSnippets));
+    };
+    
+    const handlePatientCaseUpdate = (updatedCase: PatientCase) => {
+        setPatientCase(updatedCase);
+        setInteractionState(prev => ({ ...prev, caseEdited: true }));
+    };
+
+    // -- RENDER LOGIC --
+    if (showEvaluationScreen) {
+        return <EvaluationScreen T={T} />;
+    }
+
+    return (
+        <div className="flex flex-col h-screen bg-gray-100 font-sans">
+            <Header
+                supportedLanguages={supportedLanguages}
+                currentLanguage={language}
+                onLanguageChange={handleLanguageChange}
+                T={T}
+            />
+            
+            <main className="flex-grow p-4 md:p-6 overflow-hidden">
+                <div className="max-w-7xl mx-auto h-full flex flex-col space-y-4">
+                    <ControlPanel
+                        onGenerate={handleGenerate}
+                        disabled={isLoading}
+                        T={T}
+                        onSaveCase={handleSaveCase}
+                        onOpenSavedWork={() => setIsSavedWorkOpen(true)}
+                        onOpenClinicalTools={() => setIsClinicalToolsOpen(true)}
+                        isCaseActive={!!patientCase}
+                    />
+                    
+                    <TipsCarousel interactionState={interactionState} T={T} />
+                    {error && <ErrorDisplay message={error} />}
+
+                    <div className="flex-grow grid grid-cols-1 lg:grid-cols-2 gap-4 h-full min-h-0 relative">
+                        {isLoading && <LoadingOverlay message={loadingMessage} />}
+                        
+                        {!patientCase && !isLoading && !error && (
+                            <div className="lg:col-span-2">
+                                <WelcomeScreen T={T} />
+                            </div>
+                        )}
+                        
+                        {patientCase && (
+                            <div className="bg-white rounded-lg shadow-lg border border-gray-200 overflow-y-auto">
+                                <PatientCaseView 
+                                    patientCase={patientCase}
+                                    onSave={handlePatientCaseUpdate}
+                                    language={language}
+                                    T={T}
+                                    onSaveSnippet={handleSaveSnippet}
+                                    onOpenShare={() => setIsShareModalOpen(true)}
+                                />
+                            </div>
+                        )}
+                        
+                        {mapData && (
+                            <div className={`transition-all duration-500 ease-in-out ${isMapFullscreen ? 'fixed inset-0 z-30' : 'relative min-h-[400px] lg:min-h-0'}`}>
+                                <KnowledgeMap
+                                    data={mapData}
+                                    onNodeClick={handleNodeClick}
+                                    selectedNodeInfo={selectedNodeInfo}
+                                    onClearSelection={handleClearNodeSelection}
+                                    isMapFullscreen={isMapFullscreen}
+                                    setIsMapFullscreen={setIsMapFullscreen}
+                                />
+                            </div>
+                        )}
+                    </div>
                 </div>
-           )}
+            </main>
+            
+            <button
+                onClick={() => setIsFeedbackModalOpen(true)}
+                className="fixed bottom-4 right-4 bg-brand-blue hover:bg-blue-800 text-white font-bold py-2 px-4 rounded-full shadow-lg transition duration-300 z-20"
+                title={T.feedbackButton}
+            >
+                {T.feedbackButton}
+            </button>
+
+            {/* Modals */}
+            <SavedWorkModal 
+                isOpen={isSavedWorkOpen}
+                onClose={() => setIsSavedWorkOpen(false)}
+                savedCases={savedCases}
+                onLoadCase={handleLoadCase}
+                onDeleteCase={handleDeleteCase}
+                savedSnippets={savedSnippets}
+                onDeleteSnippet={handleDeleteSnippet}
+                T={T}
+            />
+            <ShareModal
+                isOpen={isShareModalOpen}
+                onClose={() => setIsShareModalOpen(false)}
+                patientCase={patientCase}
+                T={T}
+            />
+            <ClinicalToolsModal
+                isOpen={isClinicalToolsOpen}
+                onClose={() => setIsClinicalToolsOpen(false)}
+                T={T}
+            />
+            <FeedbackModal
+                isOpen={isFeedbackModalOpen}
+                onClose={() => setIsFeedbackModalOpen(false)}
+                T={T}
+            />
+            
+            <UpdateNotifier />
         </div>
-      </main>
-      <UpdateNotifier />
-      <footer className="text-center py-4 text-sm text-gray-500 border-t border-gray-200 bg-gray-50">
-        {trialDaysRemaining !== null && (
-            <p className="font-semibold text-brand-blue mb-1">{T.trialDaysRemaining(trialDaysRemaining)}</p>
-        )}
-        <p>&copy; {new Date().getFullYear()} Samuel Sibanda. All rights reserved.</p>
-      </footer>
-    </div>
-  );
+    );
 };
 
 export default App;
