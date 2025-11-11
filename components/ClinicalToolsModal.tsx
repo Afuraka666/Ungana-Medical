@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo } from 'react';
 import { checkDrugInteractions } from '../services/geminiService';
 
@@ -1010,6 +1011,70 @@ const FluidManagementCalculator: React.FC<{ T: Record<string, any> }> = ({ T }) 
 
 // --- SCORING SYSTEMS ---
 
+const GcsCalculator: React.FC<{ T: Record<string, any> }> = ({ T }) => {
+    const [scores, setScores] = useState({ eye: 4, verbal: 5, motor: 6 });
+
+    const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const { name, value } = e.target;
+        setScores(prev => ({ ...prev, [name]: parseInt(value) }));
+    };
+
+    const totalScore = scores.eye + scores.verbal + scores.motor;
+    let interpretation = '';
+    if (totalScore <= 8) interpretation = T.gcsSevere;
+    else if (totalScore <= 12) interpretation = T.gcsModerate;
+    else interpretation = T.gcsMild;
+
+    const options = {
+        eye: [
+            { value: 4, text: T.gcsEye4 }, { value: 3, text: T.gcsEye3 },
+            { value: 2, text: T.gcsEye2 }, { value: 1, text: T.gcsEye1 }
+        ],
+        verbal: [
+            { value: 5, text: T.gcsVerbal5 }, { value: 4, text: T.gcsVerbal4 },
+            { value: 3, text: T.gcsVerbal3 }, { value: 2, text: T.gcsVerbal2 },
+            { value: 1, text: T.gcsVerbal1 }
+        ],
+        motor: [
+            { value: 6, text: T.gcsMotor6 }, { value: 5, text: T.gcsMotor5 },
+            { value: 4, text: T.gcsMotor4 }, { value: 3, text: T.gcsMotor3 },
+            { value: 2, text: T.gcsMotor2 }, { value: 1, text: T.gcsMotor1 }
+        ]
+    };
+
+    return (
+        <div>
+            <h3 className="text-md font-bold text-brand-blue mb-2">{T.gcsTitle}</h3>
+            <p className="text-xs text-gray-500 mb-4">{T.gcsSubtitle}</p>
+            <div className="p-4 bg-slate-100 rounded-lg border border-slate-200 space-y-4">
+                <div>
+                    <label className="block text-sm font-medium text-gray-700">{T.gcsEyeResponse}</label>
+                    <select name="eye" value={scores.eye} onChange={handleChange} className="mt-1 block w-full p-2 border border-gray-300 rounded-md text-black bg-white">
+                        {options.eye.map(opt => <option key={opt.value} value={opt.value}>{opt.value} - {opt.text}</option>)}
+                    </select>
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700">{T.gcsVerbalResponse}</label>
+                    <select name="verbal" value={scores.verbal} onChange={handleChange} className="mt-1 block w-full p-2 border border-gray-300 rounded-md text-black bg-white">
+                        {options.verbal.map(opt => <option key={opt.value} value={opt.value}>{opt.value} - {opt.text}</option>)}
+                    </select>
+                </div>
+                 <div>
+                    <label className="block text-sm font-medium text-gray-700">{T.gcsMotorResponse}</label>
+                    <select name="motor" value={scores.motor} onChange={handleChange} className="mt-1 block w-full p-2 border border-gray-300 rounded-md text-black bg-white">
+                        {options.motor.map(opt => <option key={opt.value} value={opt.value}>{opt.value} - {opt.text}</option>)}
+                    </select>
+                </div>
+            </div>
+             <div className="mt-4 p-4 bg-blue-100 border border-blue-300 rounded-lg">
+                <h4 className="font-semibold text-blue-900">{T.gcsResultTitle}</h4>
+                <p className="text-2xl font-bold text-slate-900">{totalScore} / 15</p>
+                <p className="text-md font-semibold text-slate-800 mt-1">{interpretation}</p>
+            </div>
+        </div>
+    );
+};
+
 const PonvCalculator: React.FC<{ T: Record<string, any> }> = ({ T }) => {
     const [riskFactors, setRiskFactors] = useState({ female: false, nonSmoker: false, history: false, opioids: false });
 
@@ -1133,6 +1198,8 @@ const StopBangCalculator: React.FC<{ T: Record<string, any> }> = ({ T }) => {
 
 const ScoringSystems: React.FC<{ T: Record<string, any> }> = ({ T }) => (
     <div className="space-y-8">
+        <GcsCalculator T={T} />
+        <hr className="my-6 border-gray-200" />
         <StopBangCalculator T={T} />
         <hr className="my-6 border-gray-200" />
         <PonvCalculator T={T} />
@@ -1140,6 +1207,52 @@ const ScoringSystems: React.FC<{ T: Record<string, any> }> = ({ T }) => (
 );
 
 // --- ELECTROLYTE CALCULATORS ---
+
+const AnionGapCalculator: React.FC<{ T: Record<string, any> }> = ({ T }) => {
+    const [sodium, setSodium] = useState<number | ''>('');
+    const [chloride, setChloride] = useState<number | ''>('');
+    const [bicarb, setBicarb] = useState<number | ''>('');
+
+    const result = useMemo(() => {
+        if (sodium === '' || chloride === '' || bicarb === '') return null;
+        const gap = sodium - (chloride + bicarb);
+        let interpretation = '';
+        if (gap > 12) interpretation = T.anionGapHigh;
+        else if (gap < 8) interpretation = T.anionGapLow;
+        else interpretation = T.anionGapNormal;
+        return { value: gap.toFixed(0), interpretation };
+    }, [sodium, chloride, bicarb, T]);
+
+    return (
+        <div>
+            <h3 className="text-md font-bold text-brand-blue mb-2">{T.anionGapTitle}</h3>
+            <p className="text-xs text-gray-500 mb-4">{T.anionGapSubtitle}</p>
+            <div className="p-4 bg-slate-100 rounded-lg border border-slate-200">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700">{T.sodiumLabel}</label>
+                        <input type="number" value={sodium} onChange={e => setSodium(e.target.valueAsNumber || (e.target.value === '0' ? 0 : ''))} className="mt-1 block w-full p-2 border border-gray-300 rounded-md text-black bg-white" />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700">{T.chlorideLabel}</label>
+                        <input type="number" value={chloride} onChange={e => setChloride(e.target.valueAsNumber || (e.target.value === '0' ? 0 : ''))} className="mt-1 block w-full p-2 border border-gray-300 rounded-md text-black bg-white" />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700">{T.bicarbonateLabel}</label>
+                        <input type="number" value={bicarb} onChange={e => setBicarb(e.target.valueAsNumber || (e.target.value === '0' ? 0 : ''))} className="mt-1 block w-full p-2 border border-gray-300 rounded-md text-black bg-white" />
+                    </div>
+                </div>
+            </div>
+            {result && (
+                <div className="mt-4 p-4 bg-green-100 border border-green-300 rounded-lg">
+                    <p className="text-sm font-medium text-gray-600">{T.anionGapResult}</p>
+                    <p className="text-xl font-bold text-slate-900">{result.value} mEq/L</p>
+                    <p className="text-xs text-gray-600 mt-1">{result.interpretation}</p>
+                </div>
+            )}
+        </div>
+    );
+};
 
 const CorrectedSodiumCalculator: React.FC<{ T: Record<string, any> }> = ({ T }) => {
     const [measuredNa, setMeasuredNa] = useState<number | ''>('');
@@ -1272,6 +1385,8 @@ const PotassiumReplacementGuide: React.FC<{ T: Record<string, any> }> = ({ T }) 
 
 const ElectrolyteCalculators: React.FC<{ T: Record<string, any> }> = ({ T }) => (
     <div className="space-y-8">
+        <AnionGapCalculator T={T} />
+        <hr className="my-6 border-gray-200" />
         <FreeWaterDeficitCalculator T={T} />
         <hr className="my-6 border-gray-200" />
         <CorrectedSodiumCalculator T={T} />

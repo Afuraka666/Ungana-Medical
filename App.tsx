@@ -16,6 +16,7 @@ import { FeedbackModal } from './components/FeedbackModal';
 import { TipsCarousel } from './components/TipsCarousel';
 import { UpdateNotifier } from './components/UpdateNotifier';
 import { EvaluationScreen } from './components/EvaluationScreen';
+import { Footer } from './components/Footer';
 
 // Services
 import { generatePatientCaseAndMap, getConceptAbstract } from './services/geminiService';
@@ -93,6 +94,8 @@ const App: React.FC = () => {
     // Evaluation Screen Logic
     const [generationCount, setGenerationCount] = useState(0);
     const [showEvaluationScreen, setShowEvaluationScreen] = useState(false);
+    const [evaluationDaysRemaining, setEvaluationDaysRemaining] = useState<number | null>(null);
+    const EVALUATION_PERIOD_DAYS = 14;
 
     const T = translations[language] || translations.en;
     
@@ -107,7 +110,22 @@ const App: React.FC = () => {
             setSavedCases(cases);
             setSavedSnippets(snippets);
             setGenerationCount(count);
-            if (count >= 5) { // Show evaluation after 5 generations
+
+            // Evaluation period logic
+            let startDateStr = localStorage.getItem('synapsis_eval_start_date');
+            if (!startDateStr) {
+                startDateStr = new Date().toISOString();
+                localStorage.setItem('synapsis_eval_start_date', startDateStr);
+            }
+            const startDate = new Date(startDateStr);
+            const endDate = new Date(startDate);
+            endDate.setDate(startDate.getDate() + EVALUATION_PERIOD_DAYS);
+            const today = new Date();
+            const remainingTime = endDate.getTime() - today.getTime();
+            const remainingDays = Math.max(0, Math.ceil(remainingTime / (1000 * 60 * 60 * 24)));
+            setEvaluationDaysRemaining(remainingDays);
+
+            if (remainingDays === 0) { // Show evaluation screen only when the trial period has ended.
                 setShowEvaluationScreen(true);
             }
         } catch (e) {
@@ -163,9 +181,6 @@ const App: React.FC = () => {
             const newCount = generationCount + 1;
             setGenerationCount(newCount);
             localStorage.setItem('synapsis_generation_count', String(newCount));
-            if (newCount >= 5) {
-                setShowEvaluationScreen(true);
-            }
         } catch (err: any) {
             console.error(err);
             setError(T.errorService);
@@ -324,9 +339,11 @@ const App: React.FC = () => {
                 </div>
             </main>
             
+            <Footer T={T} evaluationDaysRemaining={evaluationDaysRemaining} />
+
             <button
                 onClick={() => setIsFeedbackModalOpen(true)}
-                className="fixed bottom-4 right-4 bg-brand-blue hover:bg-blue-800 text-white font-bold py-2 px-4 rounded-full shadow-lg transition duration-300 z-20"
+                className="fixed bottom-16 right-4 bg-brand-blue hover:bg-blue-800 text-white font-bold py-2 px-4 rounded-full shadow-lg transition duration-300 z-20"
                 title={T.feedbackButton}
             >
                 {T.feedbackButton}
