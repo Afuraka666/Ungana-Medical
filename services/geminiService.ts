@@ -271,6 +271,15 @@ const knowledgeMapSchema = {
     required: ["nodes", "links"]
 };
 
+const patientCaseAndMapSchema = {
+    type: Type.OBJECT,
+    properties: {
+        patientCase: patientCaseSchema,
+        knowledgeMap: knowledgeMapSchema
+    },
+    required: ["patientCase", "knowledgeMap"]
+};
+
 export const getConceptAbstract = async (concept: string, caseContext: string, language: string): Promise<string> => {
     const ai = getAiClient();
     const prompt = `
@@ -287,57 +296,6 @@ export const getConceptAbstract = async (concept: string, caseContext: string, l
     }));
     return response.text;
 };
-
-export const generateKnowledgeMap = async (patientCase: PatientCase, language: string): Promise<KnowledgeMapData> => {
-    const ai = getAiClient();
-    const model = "gemini-2.5-flash";
-
-    const fullCaseText = `
-        Title: ${patientCase.title}
-        Profile: ${patientCase.patientProfile}
-        Complaint: ${patientCase.presentingComplaint}
-        History: ${patientCase.history}
-        Connections: ${patientCase.multidisciplinaryConnections.map(c => `${c.discipline}: ${c.connection}`).join('\n')}
-        Educational Content: ${patientCase.educationalContent?.map(e => `${e.title}: ${e.description}`).join('\n') || 'None'}
-    `;
-
-    const mapGenerationPrompt = `
-        Based on the following patient case, extract the key concepts and their relationships to create a knowledge map.
-        Identify at least 8-12 core concepts (nodes) and the causal or influential links between them.
-        Ensure the nodes and links represent the multidisciplinary nature of the case.
-        The goal is to create a visual graph for a medical student to understand the interconnectedness of these concepts.
-        Please provide the response in the following language: ${language}.
-
-        Patient Case Text:
-        ---
-        ${fullCaseText}
-        ---
-    `;
-
-    const mapResponse: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
-        model: model,
-        contents: mapGenerationPrompt,
-        config: {
-        responseMimeType: "application/json",
-        responseSchema: knowledgeMapSchema,
-        temperature: 0.5,
-        },
-    }));
-
-    const rawMapData = JSON.parse(mapResponse.text);
-
-    // Data validation and cleanup
-    const validNodeIds = new Set(rawMapData.nodes.map((n: KnowledgeNode) => n.id));
-    const validLinks = rawMapData.links.filter((l: KnowledgeLink) => validNodeIds.has(l.source) && validNodeIds.has(l.target));
-
-    const mapData: KnowledgeMapData = {
-        nodes: rawMapData.nodes,
-        links: validLinks,
-    };
-
-    return mapData;
-};
-
 
 export const generatePatientCaseAndMap = async (condition: string, discipline: string, difficulty: string, language: string): Promise<{ case: PatientCase; mapData: KnowledgeMapData }> => {
   const ai = getAiClient();
@@ -375,8 +333,7 @@ export const generatePatientCaseAndMap = async (condition: string, discipline: s
           break;
   }
 
-  // Step 1: Generate the detailed patient case
-  const caseGenerationPrompt = `
+  const combinedGenerationPrompt = `
     Create a comprehensive, realistic, and academically rigorous multidisciplinary patient case study for a medical student. The central theme is "${condition}".
     The case must be complex, integrating concepts from various fields. Provide a rich narrative for the patient's history. Involve aspects of rehabilitation, including physiotherapy and occupational therapy where relevant.
     Please provide the entire response in the following language: ${language}.
@@ -395,22 +352,45 @@ export const generatePatientCaseAndMap = async (condition: string, discipline: s
     5.  **Suggest Further Readings:** List 2-3 high-quality references (e.g., review articles, clinical guidelines) for deeper learning.
     6.  **Create a Quiz:** Generate a multiple-choice quiz with 3 questions to test understanding of the key multidisciplinary concepts in this case. For each question, provide four string options, the 0-based index of the correct answer, and a brief explanation for the answer. The quiz difficulty should match the overall case difficulty.
     7.  **Include Procedural and Outcome Data:** If applicable, provide plausible details for the main procedure, the patient's ASA physical status, and the final outcome (ICU admission, length of stay, summary).
+
+    **KNOWLEDGE MAP GENERATION:**
+    Simultaneously, based on the patient case you are creating, you MUST extract the key concepts and their relationships to create a knowledge map.
+    - Identify at least 8-12 core concepts (nodes).
+    - For each node, provide a unique ID, a label, and its primary medical discipline.
+    - Identify the causal or influential links between these nodes. For each link, provide the source ID, target ID, and a brief description of the relationship.
+    - The nodes and links must represent the multidisciplinary nature of the case.
+    - The goal is to create a visual graph for a medical student to understand the interconnectedness of these concepts.
+
+    **FINAL OUTPUT FORMAT:**
+    Your entire response MUST be a single JSON object with two top-level keys: "patientCase" and "knowledgeMap". The content for each key must strictly adhere to their respective schemas.
   `;
 
-  const caseResponse: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
+  const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
     model: model,
-    contents: caseGenerationPrompt,
+    contents: combinedGenerationPrompt,
     config: {
       responseMimeType: "application/json",
-      responseSchema: patientCaseSchema,
+      responseSchema: patientCaseAndMapSchema,
       temperature: 0.4,
     },
   }));
+  
+  const parsedResponse = JSON.parse(response.text);
+  const patientCase = parsedResponse.patientCase as PatientCase;
+  const rawMapData = parsedResponse.knowledgeMap;
+  
+  // Data validation and cleanup for the map
+  if (!rawMapData || !rawMapData.nodes || !rawMapData.links) {
+    throw new Error("Model did not return valid knowledge map data.");
+  }
 
-  const patientCase = JSON.parse(caseResponse.text) as PatientCase;
+  const validNodeIds = new Set(rawMapData.nodes.map((n: KnowledgeNode) => n.id));
+  const validLinks = rawMapData.links.filter((l: KnowledgeLink) => validNodeIds.has(l.source) && validNodeIds.has(l.target));
 
-  // Step 2: Generate the knowledge map from the case
-  const mapData = await generateKnowledgeMap(patientCase, language);
+  const mapData: KnowledgeMapData = {
+      nodes: rawMapData.nodes,
+      links: validLinks,
+  };
 
   return { case: patientCase, mapData };
 };

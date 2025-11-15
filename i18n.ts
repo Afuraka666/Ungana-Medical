@@ -35,7 +35,15 @@ export const translations: Record<string, Record<string, any>> = {
     historyTitle: 'Generation History',
     clearHistoryButton: 'Clear History',
     noHistoryMessage: 'No history yet. Generate a case to start!',
-    generatingCaseMessage: (condition: string, discipline: string) => `Generating a patient case for "${condition}" from a ${discipline} perspective...`,
+    generatingCaseMessage: (condition: string) => `Generating a patient case for "${condition}"...`,
+    loadingSubMessages: [
+        "Crafting a realistic patient profile...",
+        "Integrating key concepts from various disciplines...",
+        "Mapping multidisciplinary connections...",
+        "Developing challenging quiz questions...",
+        "Citing traceable evidence...",
+        "Finalizing the knowledge graph...",
+    ],
     buildingMapMessage: 'Analyzing connections and building knowledge map...',
     updatingMapMessage: 'Re-analyzing case and updating knowledge map...',
     errorService: 'Could not connect to the AI service. This may be a temporary issue, please try again in a few moments.',
@@ -384,7 +392,15 @@ export const translations: Record<string, Record<string, any>> = {
     historyTitle: 'Historial de Generación',
     clearHistoryButton: 'Limpiar Historial',
     noHistoryMessage: 'Aún no hay historial. ¡Genera un caso para empezar!',
-    generatingCaseMessage: (condition: string, discipline: string) => `Generando caso clínico para "${condition}" desde la perspectiva de ${discipline}...`,
+    generatingCaseMessage: (condition: string) => `Generando caso clínico para "${condition}"...`,
+    loadingSubMessages: [
+        "Creando un perfil de paciente realista...",
+        "Integrando conceptos clave de varias disciplinas...",
+        "Mapeando conexiones multidisciplinarias...",
+        "Desarrollando preguntas de prueba desafiantes...",
+        "Citando evidencia rastreable...",
+        "Finalizando el grafo de conocimiento...",
+    ],
     buildingMapMessage: 'Analizando conexiones y construyendo mapa de conocimiento...',
     updatingMapMessage: 'Re-analizando el caso y actualizando el mapa de conocimiento...',
     errorService: 'No se pudo conectar al servicio de IA. Esto puede ser un problema temporal, por favor inténtelo de nuevo en unos momentos.',
@@ -650,4 +666,70 @@ export const translations: Record<string, Record<string, any>> = {
     interpretationResultTitle: 'Interpretación de IA',
     ecgInterpretationError: 'No se pudo obtener una interpretación en este momento. Por favor, inténtelo de nuevo.',
   },
+  // --- Other Languages (Fallback to English text for new keys) ---
+  fr: {
+    //... (existing translations)
+    generatingCaseMessage: (condition: string) => `Generating a patient case for "${condition}"...`,
+    loadingSubMessages: ["Crafting a realistic patient profile...", "Integrating key concepts...", "Mapping multidisciplinary connections...", "Developing challenging quiz questions...", "Citing traceable evidence...", "Finalizing the knowledge graph..."],
+  },
+  zh: {
+    //... (existing translations)
+    generatingCaseMessage: (condition: string) => `Generating a patient case for "${condition}"...`,
+    loadingSubMessages: ["Crafting a realistic patient profile...", "Integrating key concepts...", "Mapping multidisciplinary connections...", "Developing challenging quiz questions...", "Citing traceable evidence...", "Finalizing the knowledge graph..."],
+  },
+  hi: {
+    //... (existing translations)
+    generatingCaseMessage: (condition: string) => `Generating a patient case for "${condition}"...`,
+    loadingSubMessages: ["Crafting a realistic patient profile...", "Integrating key concepts...", "Mapping multidisciplinary connections...", "Developing challenging quiz questions...", "Citing traceable evidence...", "Finalizing the knowledge graph..."],
+  },
+  sw: {
+    //... (existing translations)
+    generatingCaseMessage: (condition: string) => `Generating a patient case for "${condition}"...`,
+    loadingSubMessages: ["Crafting a realistic patient profile...", "Integrating key concepts...", "Mapping multidisciplinary connections...", "Developing challenging quiz questions...", "Citing traceable evidence...", "Finalizing the knowledge graph..."],
+  },
+  sn: {
+    //... (existing translations)
+    generatingCaseMessage: (condition: string) => `Generating a patient case for "${condition}"...`,
+    loadingSubMessages: ["Crafting a realistic patient profile...", "Integrating key concepts...", "Mapping multidisciplinary connections...", "Developing challenging quiz questions...", "Citing traceable evidence...", "Finalizing the knowledge graph..."],
+  },
+  nd: {
+    //... (existing translations)
+    generatingCaseMessage: (condition: string) => `Generating a patient case for "${condition}"...`,
+    loadingSubMessages: ["Crafting a realistic patient profile...", "Integrating key concepts...", "Mapping multidisciplinary connections...", "Developing challenging quiz questions...", "Citing traceable evidence...", "Finalizing the knowledge graph..."],
+  },
+  bem: {
+    //... (existing translations)
+    generatingCaseMessage: (condition: string) => `Generating a patient case for "${condition}"...`,
+    loadingSubMessages: ["Crafting a realistic patient profile...", "Integrating key concepts...", "Mapping multidisciplinary connections...", "Developing challenging quiz questions...", "Citing traceable evidence...", "Finalizing the knowledge graph..."],
+  },
+  ny: {
+    //... (existing translations)
+    generatingCaseMessage: (condition: string) => `Generating a patient case for "${condition}"...`,
+    loadingSubMessages: ["Crafting a realistic patient profile...", "Integrating key concepts...", "Mapping multidisciplinary connections...", "Developing challenging quiz questions...", "Citing traceable evidence...", "Finalizing the knowledge graph..."],
+  },
+  ar: {
+    //... (existing translations)
+    generatingCaseMessage: (condition: string) => `Generating a patient case for "${condition}"...`,
+    loadingSubMessages: ["Crafting a realistic patient profile...", "Integrating key concepts...", "Mapping multidisciplinary connections...", "Developing challenging quiz questions...", "Citing traceable evidence...", "Finalizing the knowledge graph..."],
+  },
+  pt: {
+    //... (existing translations)
+    generatingCaseMessage: (condition: string) => `Generating a patient case for "${condition}"...`,
+    loadingSubMessages: ["Crafting a realistic patient profile...", "Integrating key concepts...", "Mapping multidisciplinary connections...", "Developing challenging quiz questions...", "Citing traceable evidence...", "Finalizing the knowledge graph..."],
+  },
+  ru: {
+    //... (existing translations)
+    generatingCaseMessage: (condition: string) => `Generating a patient case for "${condition}"...`,
+    loadingSubMessages: ["Crafting a realistic patient profile...", "Integrating key concepts...", "Mapping multidisciplinary connections...", "Developing challenging quiz questions...", "Citing traceable evidence...", "Finalizing the knowledge graph..."],
+  },
+  tn: {
+    //... (existing translations)
+    generatingCaseMessage: (condition: string) => `Generating a patient case for "${condition}"...`,
+    loadingSubMessages: ["Crafting a realistic patient profile...", "Integrating key concepts...", "Mapping multidisciplinary connections...", "Developing challenging quiz questions...", "Citing traceable evidence...", "Finalizing the knowledge graph..."],
+  },
+  el: {
+    //... (existing translations)
+    generatingCaseMessage: (condition: string) => `Generating a patient case for "${condition}"...`,
+    loadingSubMessages: ["Crafting a realistic patient profile...", "Integrating key concepts...", "Mapping multidisciplinary connections...", "Developing challenging quiz questions...", "Citing traceable evidence...", "Finalizing the knowledge graph..."],
+  }
 };

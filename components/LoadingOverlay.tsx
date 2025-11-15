@@ -1,8 +1,9 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface LoadingOverlayProps {
     message: string;
+    subMessages: string[];
 }
 
 const LoadingSpinner: React.FC = () => (
@@ -13,11 +14,26 @@ const LoadingSpinner: React.FC = () => (
 );
 
 
-export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ message }) => {
+export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ message, subMessages }) => {
+  const [currentSubMessage, setCurrentSubMessage] = useState(subMessages[0]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentSubMessage(prev => {
+        const currentIndex = subMessages.indexOf(prev);
+        const nextIndex = (currentIndex + 1) % subMessages.length;
+        return subMessages[nextIndex];
+      });
+    }, 2500);
+
+    return () => clearInterval(interval);
+  }, [subMessages]);
+  
   return (
     <div className="absolute inset-0 bg-gray-800 bg-opacity-75 flex flex-col items-center justify-center z-50 rounded-lg">
         <LoadingSpinner />
         <p className="mt-4 text-lg font-semibold text-white text-center px-4">{message}</p>
+        <p className="mt-2 text-sm text-gray-300 transition-opacity duration-500 ease-in-out">{currentSubMessage}</p>
     </div>
   );
 };

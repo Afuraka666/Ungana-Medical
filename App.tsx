@@ -207,7 +207,7 @@ const App: React.FC = () => {
         logEvent('generate_case', { condition, discipline, difficulty });
         setError(null);
         setIsLoading(true);
-        setLoadingMessage(T.generatingCaseMessage(condition, discipline));
+        setLoadingMessage(T.generatingCaseMessage(condition));
         setPatientCase(null);
         setMapData(null);
         setSelectedNodeInfo(null);
@@ -358,7 +358,7 @@ const App: React.FC = () => {
                     {error && <ErrorDisplay message={error} />}
 
                     <div className="flex-grow grid grid-cols-1 lg:grid-cols-2 gap-4 h-full min-h-0 relative">
-                        {isLoading && <LoadingOverlay message={loadingMessage} />}
+                        {isLoading && <LoadingOverlay message={loadingMessage} subMessages={T.loadingSubMessages} />}
                         
                         {patientCase ? (
                             <>
