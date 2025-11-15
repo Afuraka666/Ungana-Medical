@@ -49,14 +49,14 @@ export const QuizView: React.FC<QuizViewProps> = ({ quiz, T, showTitle = true })
                 const isCorrect = oIndex === q.correctAnswerIndex;
                 const isSelected = userAnswers[qIndex] === oIndex;
                 
-                let optionClasses = "w-full text-left p-3 border rounded-md transition text-sm flex items-center";
+                let optionClasses = "w-full text-left p-3 border rounded-md transition text-sm flex items-center text-brand-text";
                 if (!isSubmitted) {
                   optionClasses += isSelected ? " bg-blue-100 border-brand-blue" : " bg-white border-gray-300 hover:bg-gray-100";
                 } else {
                     if (isCorrect) {
-                        optionClasses += " bg-green-100 border-green-400 text-green-800 font-semibold";
+                        optionClasses += " bg-green-100 border-green-400 font-semibold";
                     } else if (isSelected && !isCorrect) {
-                        optionClasses += " bg-red-100 border-red-400 text-red-800";
+                        optionClasses += " bg-red-100 border-red-400";
                     } else {
                         optionClasses += " bg-white border-gray-300 opacity-70";
                     }

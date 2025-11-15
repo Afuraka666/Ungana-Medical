@@ -562,7 +562,6 @@ export const interpretEcg = async (findings: EcgFindings, imageBase64: string | 
 export const generateVisualAid = async (prompt: string): Promise<string> => {
     const ai = getAiClient();
     try {
-        // Fix: Explicitly type the response from retryWithBackoff to resolve property access errors.
         const response = await retryWithBackoff<GenerateImagesResponse>(() => ai.models.generateImages({
             model: 'imagen-4.0-generate-001',
             prompt: prompt,
@@ -617,7 +616,6 @@ export const checkDrugInteractions = async (drugNames: string[], language: strin
 export const generateSpeech = async (text: string, voiceName: string): Promise<string> => {
     const ai = getAiClient();
     try {
-        // Fix: Explicitly type the response from retryWithBackoff to resolve property access errors.
         const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
             model: "gemini-2.5-flash-preview-tts",
             contents: [{ parts: [{ text }] }],

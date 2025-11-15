@@ -28,16 +28,16 @@ const MapControls: React.FC<MapControlsProps> = ({ onZoomIn, onZoomOut, onReset,
     const buttonClasses = "bg-white/80 backdrop-blur-sm hover:bg-white text-gray-700 shadow-md border border-gray-200 rounded-lg w-10 h-10 flex items-center justify-center transition";
     return (
         <div className="absolute top-3 right-3 flex flex-col gap-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-            <button onClick={onZoomIn} title="Zoom In" className={buttonClasses}>
+            <button onClick={() => onZoomIn()} title="Zoom In" className={buttonClasses}>
                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
             </button>
-            <button onClick={onZoomOut} title="Zoom Out" className={buttonClasses}>
+            <button onClick={() => onZoomOut()} title="Zoom Out" className={buttonClasses}>
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" /></svg>
             </button>
-            <button onClick={onReset} title="Reset View" className={buttonClasses}>
+            <button onClick={() => onReset()} title="Reset View" className={buttonClasses}>
                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5 10a5 5 0 1110 0 5 5 0 01-10 0zM2.455 6.09A8.023 8.023 0 014.28 4.282a8.023 8.023 0 013.801-1.825 1 1 0 01.91 1.838A6.023 6.023 0 005.16 8.55a1 1 0 11-1.84 1.01A8.003 8.003 0 012.455 6.09zM15.72 15.718a8.023 8.023 0 01-3.801 1.825 1 1 0 01-.91-1.838 6.023 6.023 0 003.11-2.47 1 1 0 111.84-1.01 8.003 8.003 0 01-2.695 3.504z" clipRule="evenodd" /></svg>
             </button>
-             <button onClick={onToggleFullscreen} title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"} className={buttonClasses}>
+             <button onClick={() => onToggleFullscreen()} title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"} className={buttonClasses}>
                 {isFullscreen ? (
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
                 ) : (
@@ -232,16 +232,17 @@ export const KnowledgeMap: React.FC<KnowledgeMapProps> = ({
 
   const handleResetZoom = useCallback(() => {
     if (svgRef.current && zoomRef.current && containerRef.current) {
-        const { width, height } = containerRef.current.getBoundingClientRect();
         const svg = d3.select(svgRef.current);
         const g = elementsRef.current.g;
 
-        if (!g.node()) return;
+        const parent = svg.node().parentElement;
+        if (!g.node() || !parent) return;
         
         const bounds = g.node().getBBox();
-        const parent = svg.node().parentElement;
         const fullWidth = parent.clientWidth;
         const fullHeight = parent.clientHeight;
+
+        if (bounds.width === 0 || bounds.height === 0) return;
         
         const scale = Math.min(0.9, 0.9 / Math.max(bounds.width / fullWidth, bounds.height / fullHeight));
         const translate = [
@@ -365,7 +366,7 @@ export const KnowledgeMap: React.FC<KnowledgeMapProps> = ({
     });
 
     return () => simulationRef.current.stop();
-  }, [data, componentId, handleResetZoom, onNodeClick, onClearSelection, handleNodeContextMenu]);
+  }, [data, componentId, isMapFullscreen, handleResetZoom, onNodeClick, onClearSelection, handleNodeContextMenu]);
 
   useEffect(() => {
     const { node, link } = elementsRef.current;

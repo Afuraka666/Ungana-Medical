@@ -169,7 +169,6 @@ const formatCaseForClipboard = (patientCase: PatientCase, T: Record<string, any>
     return text;
 };
 
-// Fix: Add T to Section component props to resolve scope issues.
 const Section: React.FC<{
   title: string;
   onCopy: () => void;
@@ -524,9 +523,20 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
         <div className="flex justify-between items-center">
           <h2 className="text-xl sm:text-2xl font-bold text-brand-text truncate pr-2">{patientCase.title}</h2>
           <div className="flex items-center space-x-1">
-            {!isEditing && (
+            {isEditing ? (
               <>
-                 <button onClick={handleDownloadPdf} title={T.downloadPdfButton} className="p-2 rounded-full text-gray-500 hover:bg-gray-100 hover:text-brand-blue transition">
+                <button onClick={undo} disabled={!canUndo} title={T.undoButton} className="p-2 rounded-full text-gray-500 hover:bg-gray-100 hover:text-brand-blue transition disabled:text-gray-300 disabled:cursor-not-allowed">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 2a1 1 0 00-1 1v1.135a4.002 4.002 0 00-2.995 2.562l-1.34-1.34a1 1 0 10-1.414 1.414l1.586 1.586A4.002 4.002 0 008 10a4 4 0 104-4V3a1 1 0 00-1-1zm0 8a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" /><path d="M4.343 5.757a1 1 0 001.414-1.414L4.94 3.525A8.001 8.001 0 0010 2a8 8 0 100 16 8 8 0 008-8h-2c0 3.314-2.686 6-6 6S4 13.314 4 10c0-.212.01-.422.029-.631l.314.314z" /></svg>
+                </button>
+                <button onClick={redo} disabled={!canRedo} title={T.redoButton} className="p-2 rounded-full text-gray-500 hover:bg-gray-100 hover:text-brand-blue transition disabled:text-gray-300 disabled:cursor-not-allowed">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a1 1 0 001-1v-1.135a4.002 4.002 0 002.995-2.562l1.34 1.34a1 1 0 101.414-1.414l-1.586-1.586A4.002 4.002 0 0012 10a4 4 0 10-4 4V17a1 1 0 001 1zm0-8a2 2 0 100 4 2 2 0 000-4z" clipRule="evenodd" /><path d="M15.657 14.243a1 1 0 00-1.414 1.414l.817.817a8.001 8.001 0 00-5.06-14.475V2a8 8 0 100 16c.212 0 .422-.01.631-.029l-.314-.314z" /></svg>
+                </button>
+                <button onClick={handleSave} className="bg-green-600 hover:bg-green-700 text-white font-semibold py-1 px-3 rounded-md transition text-sm">{T.saveButton}</button>
+                <button onClick={handleCancel} className="bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-1 px-3 rounded-md transition text-sm">{T.cancelButton}</button>
+              </>
+            ) : (
+              <>
+                <button onClick={handleDownloadPdf} title={T.downloadPdfButton} className="p-2 rounded-full text-gray-500 hover:bg-gray-100 hover:text-brand-blue transition">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                         <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
                     </svg>
@@ -538,194 +548,129 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
                   {isCopied ? (
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
                   ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" /><path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" /></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M7 9a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2H9a2 2 0 01-2-2V9z" /><path d="M5 3a2 2 0 00-2 2v6a2 2 0 002 2V5h8a2 2 0 00-2-2H5z" /></svg>
                   )}
                 </button>
                 <button onClick={() => setIsEditing(true)} title={T.editButton} className="p-2 rounded-full text-gray-500 hover:bg-gray-100 hover:text-brand-blue transition">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" /></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" /></svg>
                 </button>
-              </>
-            )}
-            {isEditing && (
-              <>
-                <button onClick={undo} disabled={!canUndo} title={T.undoButton} className="p-2 rounded-full text-gray-500 hover:bg-gray-100 hover:text-brand-blue transition disabled:text-gray-300 disabled:cursor-not-allowed">
-                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M7.707 3.293a1 1 0 010 1.414L5.414 7H11a7 7 0 017 7v2a1 1 0 11-2 0v-2a5 5 0 00-5-5H5.414l2.293 2.293a1 1 0 11-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
-                </button>
-                <button onClick={redo} disabled={!canRedo} title={T.redoButton} className="p-2 rounded-full text-gray-500 hover:bg-gray-100 hover:text-brand-blue transition disabled:text-gray-300 disabled:cursor-not-allowed">
-                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M12.293 3.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 9H9a5 5 0 00-5 5v2a1 1 0 11-2 0v-2a7 7 0 017-7h5.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
-                </button>
-                <button onClick={handleCancel} className="bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-1.5 px-3 rounded-md transition text-sm">{T.cancelButton}</button>
-                <button onClick={handleSave} className="bg-brand-blue hover:bg-blue-800 text-white font-bold py-1.5 px-3 rounded-md transition text-sm">{T.saveButton}</button>
               </>
             )}
           </div>
         </div>
       </header>
-      
-      <Section T={T} title={T.patientProfile} onCopy={() => handleCopySection(patientCase.patientProfile)} onSaveSnippet={() => onSaveSnippet(T.patientProfile, patientCase.patientProfile)}>
-        <EditableText value={patientCase.patientProfile} onChange={(e) => handleTextChange(e, 'patientProfile')} isEditing={isEditing} />
-      </Section>
-      
-      <Section T={T} title={T.presentingComplaint} onCopy={() => handleCopySection(patientCase.presentingComplaint)} onSaveSnippet={() => onSaveSnippet(T.presentingComplaint, patientCase.presentingComplaint)}>
-        <EditableText value={patientCase.presentingComplaint} onChange={(e) => handleTextChange(e, 'presentingComplaint')} isEditing={isEditing} />
-      </Section>
-      
-      <Section T={T} title={T.history} onCopy={() => handleCopySection(patientCase.history)} onSaveSnippet={() => onSaveSnippet(T.history, patientCase.history)}>
-         <div className="flex items-center space-x-2">
+
+      <div className="space-y-4">
+        <Section title={T.patientProfile} onCopy={() => handleCopySection(patientCase.patientProfile)} onSaveSnippet={() => onSaveSnippet(T.patientProfile, patientCase.patientProfile)} T={T}>
+            <EditableText value={patientCase.patientProfile} onChange={(e) => handleTextChange(e, 'patientProfile')} isEditing={isEditing} />
+        </Section>
+        <Section title={T.presentingComplaint} onCopy={() => handleCopySection(patientCase.presentingComplaint)} onSaveSnippet={() => onSaveSnippet(T.presentingComplaint, patientCase.presentingComplaint)} T={T}>
+            <EditableText value={patientCase.presentingComplaint} onChange={(e) => handleTextChange(e, 'presentingComplaint')} isEditing={isEditing} />
+        </Section>
+        <Section title={T.history} onCopy={() => handleCopySection(patientCase.history)} onSaveSnippet={() => onSaveSnippet(T.history, patientCase.history)} T={T}>
             <EditableText value={patientCase.history} onChange={(e) => handleTextChange(e, 'history')} isEditing={isEditing} />
-            <TextToSpeechPlayer textToRead={patientCase.history} language={language} />
-        </div>
-      </Section>
-
-      {patientCase.procedureDetails && (
-          <Section T={T} title={T.anestheticDataSection} onCopy={() => handleCopySection(JSON.stringify(patientCase.procedureDetails))} onSaveSnippet={() => onSaveSnippet(T.anestheticDataSection, JSON.stringify(patientCase.procedureDetails))}>
-              <div className="bg-gray-50 p-3 rounded-md border border-gray-200 space-y-2">
-                <div>
-                    <p className="font-semibold text-xs text-gray-500 uppercase">{T.procedureLabel}</p>
-                    <p>{patientCase.procedureDetails.procedureName}</p>
-                </div>
-                 <div>
-                    <p className="font-semibold text-xs text-gray-500 uppercase">{T.asaScoreLabel}</p>
-                    <p>{patientCase.procedureDetails.asaScore}</p>
-                </div>
-              </div>
-          </Section>
-      )}
-
-      {patientCase.outcomes && (
-           <Section T={T} title={T.outcomesSection} onCopy={() => handleCopySection(JSON.stringify(patientCase.outcomes))} onSaveSnippet={() => onSaveSnippet(T.outcomesSection, JSON.stringify(patientCase.outcomes))}>
-               <div className="bg-gray-50 p-3 rounded-md border border-gray-200 grid grid-cols-2 sm:grid-cols-3 gap-4">
-                 <div>
-                    <p className="font-semibold text-xs text-gray-500 uppercase">{T.icuAdmissionLabel}</p>
-                    <p>{patientCase.outcomes.icuAdmission ? T.yes : T.no}</p>
-                </div>
-                <div>
-                    <p className="font-semibold text-xs text-gray-500 uppercase">{T.lengthOfStayLabel}</p>
-                    <p>{patientCase.outcomes.lengthOfStayDays} {T.days}</p>
-                </div>
-                <div className="col-span-2 sm:col-span-1">
-                    <p className="font-semibold text-xs text-gray-500 uppercase">{T.outcomeSummaryLabel}</p>
-                    <p>{patientCase.outcomes.outcomeSummary}</p>
-                </div>
-               </div>
-           </Section>
-      )}
-
-      <Section T={T} title={T.biochemicalPathwaySection} onCopy={() => handleCopySection(`${patientCase.biochemicalPathway.title}\n${patientCase.biochemicalPathway.description}`)} onSaveSnippet={() => onSaveSnippet(patientCase.biochemicalPathway.title, patientCase.biochemicalPathway.description)}>
-        <EducationalContentView content={patientCase.biochemicalPathway} onGenerateImage={setActiveImageGenerator} />
-      </Section>
-      
-      <Section T={T} title={T.multidisciplinaryConnections} onCopy={() => handleCopySection(patientCase.multidisciplinaryConnections.map(c => `${c.discipline}: ${c.connection}`).join('\n'))} onSaveSnippet={() => onSaveSnippet(T.multidisciplinaryConnections, patientCase.multidisciplinaryConnections.map(c => `${c.discipline}: ${c.connection}`).join('\n'))}>
-        <div className="space-y-4">
-            {patientCase.multidisciplinaryConnections.map((conn, index) => (
-                <div key={index} className="flex gap-2">
-                    <div className="bg-gray-50 p-3 rounded-md border border-gray-200 flex-grow">
-                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: `${DisciplineColors[conn.discipline]}20`, color: DisciplineColors[conn.discipline] }}>{conn.discipline}</span>
-                        <EditableText value={conn.connection} onChange={(e) => handleArrayChange(e, index, 'multidisciplinaryConnections', 'connection')} isEditing={isEditing} />
+        </Section>
+        {(patientCase.procedureDetails || patientCase.outcomes) && (
+            <Section title={T.anestheticDataSection} onCopy={() => {}} onSaveSnippet={() => {}} T={T}>
+                {patientCase.procedureDetails && <div className="text-sm"><strong>{T.procedureLabel}:</strong> {patientCase.procedureDetails.procedureName} | <strong>{T.asaScoreLabel}:</strong> {patientCase.procedureDetails.asaScore}</div>}
+                {patientCase.outcomes && <div className="text-sm mt-2"><strong>{T.outcomeSummaryLabel}:</strong> {patientCase.outcomes.outcomeSummary} ({T.icuAdmissionLabel}: {patientCase.outcomes.icuAdmission ? T.yes : T.no}, {T.lengthOfStayLabel}: {patientCase.outcomes.lengthOfStayDays} {T.days})</div>}
+            </Section>
+        )}
+        <Section title={T.biochemicalPathwaySection} onCopy={() => {}} onSaveSnippet={() => onSaveSnippet(patientCase.biochemicalPathway.title, patientCase.biochemicalPathway.description)} T={T}>
+            <div className="flex items-center space-x-2">
+                <h4 className="text-md font-semibold text-gray-800">{patientCase.biochemicalPathway.title}</h4>
+                <TextToSpeechPlayer textToRead={`${patientCase.biochemicalPathway.title}. ${patientCase.biochemicalPathway.description}`} language={language} />
+            </div>
+            <p className="text-xs text-gray-500 italic mb-2">{patientCase.biochemicalPathway.reference}</p>
+            <p className="whitespace-pre-wrap">{patientCase.biochemicalPathway.description}</p>
+            {patientCase.biochemicalPathway.diagramData && <div className="mt-4 h-80 rounded-lg border border-gray-200"><InteractiveDiagram data={patientCase.biochemicalPathway.diagramData} /></div>}
+        </Section>
+        <Section title={T.multidisciplinaryConnections} onCopy={() => {}} onSaveSnippet={() => onSaveSnippet(T.multidisciplinaryConnections, patientCase.multidisciplinaryConnections.map(c => `${c.discipline}: ${c.connection}`).join('\n'))} T={T}>
+            <ul className="space-y-3">
+                {patientCase.multidisciplinaryConnections.map((conn, index) => (
+                    <li key={index} className="flex items-start">
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full mr-3 mt-1" style={{ backgroundColor: `${DisciplineColors[conn.discipline]}20`, color: DisciplineColors[conn.discipline] }}>{conn.discipline}</span>
+                        <p className="flex-1">{conn.connection}</p>
+                    </li>
+                ))}
+            </ul>
+        </Section>
+        <Section title={T.managementConsiderations} onCopy={() => {}} onSaveSnippet={() => onSaveSnippet(T.managementConsiderations, patientCase.disciplineSpecificConsiderations.map(c => `${c.aspect}: ${c.consideration}`).join('\n'))} T={T}>
+            <ul className="space-y-3">
+                {patientCase.disciplineSpecificConsiderations.map((item, index) => (
+                    <li key={index}>
+                        <div className="flex justify-between items-center">
+                            <strong className="text-gray-800">{item.aspect}</strong>
+                            <button onClick={() => setActiveDiscussion(item)} title={T.discussButton} className="text-sm bg-blue-100 hover:bg-blue-200 text-brand-blue font-semibold py-1 px-3 rounded-md transition">{T.discussButton}</button>
+                        </div>
+                        <p className="mt-1">{item.consideration}</p>
+                    </li>
+                ))}
+            </ul>
+        </Section>
+        <Section title={T.educationalContent} onCopy={() => {}} onSaveSnippet={() => onSaveSnippet(T.educationalContent, patientCase.educationalContent.map(c => `${c.title}: ${c.description}`).join('\n\n'))} T={T}>
+             <div className="space-y-4">
+                {patientCase.educationalContent.map((item, index) => (
+                    <div key={index} className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                        <div className="flex justify-between items-start">
+                             <div>
+                                <h4 className="font-semibold text-gray-800">{item.title}</h4>
+                                <p className="text-xs text-gray-500 italic">{item.reference}</p>
+                            </div>
+                            {item.type === EducationalContentType.IMAGE && (
+                                <button onClick={() => setActiveImageGenerator(item)} className="text-sm bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-semibold py-1 px-3 rounded-md transition">Generate Image</button>
+                            )}
+                        </div>
+                        <p className="mt-2">{item.description}</p>
+                         {item.diagramData && <div className="mt-3 h-72 rounded-lg border border-gray-200 bg-white"><InteractiveDiagram data={item.diagramData} /></div>}
                     </div>
-                    {isEditing && (
-                        <button onClick={() => handleDeleteItem('multidisciplinaryConnections', index)} title={T.deleteButtonTitle} className="p-2 h-10 self-center text-red-500 hover:bg-red-100 rounded-full transition">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
-                        </button>
-                    )}
-                </div>
-            ))}
-             {isEditing && <button onClick={() => handleAddItem('multidisciplinaryConnections')} className="text-sm text-brand-blue font-semibold hover:underline">{T.addButton}</button>}
-        </div>
-      </Section>
+                ))}
+            </div>
+        </Section>
+        <Section title={T.evidenceAndReading} onCopy={() => {}} onSaveSnippet={() => {}} T={T} onEnrich={handleEnrichSources} isEnriching={isEnrichingEvidence} groundingSources={[...evidenceSources, ...readingSources]} onSourceClick={setActiveSourceSearch}>
+            <div>
+                <h4 className="font-semibold text-gray-800">{T.traceableEvidence}</h4>
+                <ul className="list-disc list-inside space-y-2 mt-2">
+                    {patientCase.traceableEvidence.map((item, index) => (
+                       <li key={index}><span className="font-medium">"{item.claim}"</span> <button onClick={() => setActiveSourceSearch(item.source)} className="text-blue-600 hover:underline text-xs ml-1">({item.source})</button></li>
+                    ))}
+                </ul>
+            </div>
+            <div className="mt-4">
+                 <h4 className="font-semibold text-gray-800">{T.furtherReading}</h4>
+                 <ul className="list-disc list-inside space-y-2 mt-2">
+                    {patientCase.furtherReadings.map((item, index) => (
+                        <li key={index}><span className="font-medium">{item.topic}:</span> <button onClick={() => setActiveSourceSearch(item.reference)} className="text-blue-600 hover:underline text-xs ml-1">{item.reference}</button></li>
+                    ))}
+                </ul>
+            </div>
+        </Section>
 
-       {patientCase.disciplineSpecificConsiderations?.length > 0 && (
-          <Section T={T} title={T.managementConsiderations} onCopy={() => handleCopySection(patientCase.disciplineSpecificConsiderations.map(c => `${c.aspect}: ${c.consideration}`).join('\n'))} onSaveSnippet={() => onSaveSnippet(T.managementConsiderations, patientCase.disciplineSpecificConsiderations.map(c => `${c.aspect}: ${c.consideration}`).join('\n'))}>
-              <div className="space-y-4">
-                  {patientCase.disciplineSpecificConsiderations.map((item, index) => (
-                      <div key={index} className="flex gap-2">
-                          <div className="bg-gray-50 p-3 rounded-md border border-gray-200 flex-grow">
-                              <div className="flex justify-between items-start">
-                                  <EditableText value={item.aspect} onChange={(e) => handleArrayChange(e, index, 'disciplineSpecificConsiderations', 'aspect')} isEditing={isEditing} />
-                                  {!isEditing && (
-                                     <button onClick={() => setActiveDiscussion(item)} title={T.discussButton} className="ml-2 -mt-1 -mr-1 p-1.5 rounded-full text-gray-400 hover:bg-blue-100 hover:text-brand-blue transition">
-                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.832 8.832 0 01-4.323-.972l-3.35 1.116a.5.5 0 01-.63-.63l1.116-3.35A8.832 8.832 0 012 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM4.445 13.046a.5.5 0 01.373.636l-.743 2.228 2.228-.743a.5.5 0 01.636.373A6.96 6.96 0 0010 16a6 6 0 100-12 6.96 6.96 0 00-2.932.652.5.5 0 01-.636.373l-2.228-.743.743 2.228a.5.5 0 01-.373.636A6.968 6.968 0 004 10a6.968 6.968 0 00.445 3.046z" clipRule="evenodd" /></svg>
-                                     </button>
-                                  )}
-                              </div>
-                              <EditableText value={item.consideration} onChange={(e) => handleArrayChange(e, index, 'disciplineSpecificConsiderations', 'consideration')} isEditing={isEditing} />
-                          </div>
-                           {isEditing && (
-                              <button onClick={() => handleDeleteItem('disciplineSpecificConsiderations', index)} title={T.deleteButtonTitle} className="p-2 h-10 self-center text-red-500 hover:bg-red-100 rounded-full transition"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg></button>
-                           )}
-                      </div>
-                  ))}
-                  {isEditing && <button onClick={() => handleAddItem('disciplineSpecificConsiderations')} className="text-sm text-brand-blue font-semibold hover:underline">{T.addButton}</button>}
-              </div>
-          </Section>
+        <QuizView quiz={patientCase.quiz} T={T} />
+      </div>
+
+      {activeImageGenerator && <ImageGenerator content={activeImageGenerator} onClose={() => setActiveImageGenerator(null)} language={language} T={T} />}
+      
+      {activeDiscussion && (
+          <DiscussionModal
+            isOpen={!!activeDiscussion}
+            onClose={() => setActiveDiscussion(null)}
+            topic={activeDiscussion}
+            caseTitle={patientCase.title}
+            language={language}
+            T={T}
+          />
       )}
 
-      <Section T={T} title={T.educationalContent} onCopy={() => handleCopySection(patientCase.educationalContent.map(c => `${c.title}\n${c.description}`).join('\n\n'))} onSaveSnippet={() => onSaveSnippet(T.educationalContent, patientCase.educationalContent.map(c => `${c.title}\n${c.description}`).join('\n\n'))}>
-        <div className="space-y-4">
-            {patientCase.educationalContent.map((item, index) => <EducationalContentView key={index} content={item} onGenerateImage={setActiveImageGenerator} />)}
-        </div>
-      </Section>
-      
-      <Section T={T} title={T.traceableEvidence} onCopy={() => handleCopySection(patientCase.traceableEvidence.map(e => `Claim: ${e.claim}\nSource: ${e.source}`).join('\n\n'))} onSaveSnippet={() => onSaveSnippet(T.traceableEvidence, patientCase.traceableEvidence.map(e => `Claim: ${e.claim}\nSource: ${e.source}`).join('\n\n'))} onEnrich={handleEnrichSources} isEnriching={isEnrichingEvidence} groundingSources={evidenceSources}>
-          {patientCase.traceableEvidence.map((item, index) => (
-             <div key={index} className="flex gap-2">
-                 <div className="bg-gray-50 p-3 rounded-md border border-gray-200 flex-grow">
-                     <EditableText value={item.claim} onChange={(e) => handleArrayChange(e, index, 'traceableEvidence', 'claim')} isEditing={isEditing} />
-                     <div className="flex items-center">
-                        <p className="text-xs text-gray-500 mt-1 italic flex-grow">Source: {item.source}</p>
-                        <button onClick={() => setActiveSourceSearch(item.source)} className="ml-2 text-xs text-blue-600 hover:underline">Verify</button>
-                     </div>
-                 </div>
-                 {isEditing && (<button onClick={() => handleDeleteItem('traceableEvidence', index)} title={T.deleteButtonTitle} className="p-2 h-10 self-center text-red-500 hover:bg-red-100 rounded-full transition"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg></button>)}
-             </div>
-          ))}
-          {isEditing && <button onClick={() => handleAddItem('traceableEvidence')} className="text-sm text-brand-blue font-semibold hover:underline mt-2">{T.addButton}</button>}
-      </Section>
-      
-      <Section T={T} title={T.furtherReading} onCopy={() => handleCopySection(patientCase.furtherReadings.map(r => `${r.topic}: ${r.reference}`).join('\n'))} onSaveSnippet={() => onSaveSnippet(T.furtherReading, patientCase.furtherReadings.map(r => `${r.topic}: ${r.reference}`).join('\n'))} groundingSources={readingSources}>
-          <ul className="list-disc list-inside space-y-2">
-              {patientCase.furtherReadings.map((item, index) => (
-                   <li key={index} className="flex gap-2 items-start">
-                       <div className="flex-grow">
-                           <span className="font-semibold">{item.topic}:</span> {item.reference}
-                       </div>
-                       {isEditing && (<button onClick={() => handleDeleteItem('furtherReadings', index)} title={T.deleteButtonTitle} className="p-1 text-red-500 hover:bg-red-100 rounded-full transition"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg></button>)}
-                   </li>
-              ))}
-          </ul>
-           {isEditing && <button onClick={() => handleAddItem('furtherReadings')} className="text-sm text-brand-blue font-semibold hover:underline mt-2">{T.addButton}</button>}
-      </Section>
-      
-      <QuizView quiz={patientCase.quiz} T={T} />
-
-       {activeImageGenerator && <ImageGenerator content={activeImageGenerator} onClose={() => setActiveImageGenerator(null)} language={language} T={T} />}
-       {activeDiscussion && <DiscussionModal isOpen={!!activeDiscussion} onClose={() => setActiveDiscussion(null)} topic={activeDiscussion} caseTitle={patientCase.title} language={language} T={T} />}
-       {activeSourceSearch && <SourceSearchModal isOpen={!!activeSourceSearch} onClose={() => setActiveSourceSearch(null)} sourceQuery={activeSourceSearch} language={language} T={T} />}
+      {activeSourceSearch && (
+          <SourceSearchModal
+            isOpen={!!activeSourceSearch}
+            onClose={() => setActiveSourceSearch(null)}
+            sourceQuery={activeSourceSearch}
+            language={language}
+            T={T}
+          />
+      )}
     </div>
   );
-};
-
-const EducationalContentView: React.FC<{ content: EducationalContent, onGenerateImage: (content: EducationalContent) => void }> = ({ content, onGenerateImage }) => {
-    return (
-        <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
-            <div className="flex justify-between items-center">
-                <h4 className="font-semibold text-gray-800">{content.title}</h4>
-                <span className="text-xs font-medium bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">{content.type}</span>
-            </div>
-            <p className="mt-2 text-sm text-gray-600">{content.description}</p>
-            {content.reference && <p className="text-xs text-gray-500 mt-2 italic">Reference: {content.reference}</p>}
-
-            {(content.type === EducationalContentType.IMAGE || content.type === EducationalContentType.GRAPH || content.type === EducationalContentType.FORMULA) && (
-                <button onClick={() => onGenerateImage(content)} className="mt-3 text-sm bg-brand-blue-light/10 text-brand-blue hover:bg-brand-blue-light/20 font-semibold py-1 px-3 rounded-md transition">
-                    Generate Visual Aid
-                </button>
-            )}
-
-            {content.type === EducationalContentType.DIAGRAM && content.diagramData && (
-                <div className="mt-3 h-64 w-full rounded-md border border-gray-300 bg-white overflow-hidden">
-                    <InteractiveDiagram data={content.diagramData} />
-                </div>
-            )}
-        </div>
-    );
 };

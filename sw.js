@@ -4,14 +4,15 @@ self.addEventListener('message', event => {
   }
 });
 
-const CACHE_NAME = 'synapsis-medical-cache-v4';
+const CACHE_NAME = 'synapsis-medical-cache-v17';
 const URLS_TO_CACHE = [
   '/',
   '/index.html',
   '/index.tsx',
-  '/icon.svg',
+  '/favicon.svg?v=3',
   'https://cdn.tailwindcss.com',
   'https://d3js.org/d3.v7.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
   'https://esm.sh/react@^19.1.1',
   'https://esm.sh/react-dom@^19.1.1/client',
   'https://esm.sh/@google/genai@^1.14.0'
@@ -22,55 +23,33 @@ self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
-        console.log('Opened cache');
+        console.log('Opened cache and caching app shell v17');
         return cache.addAll(URLS_TO_CACHE);
       })
   );
 });
 
-// Intercept fetch requests and serve from cache if available
+// Use a "cache, falling back to network" strategy.
 self.addEventListener('fetch', event => {
-  // We only want to cache GET requests for our static assets
-  if (event.request.method !== 'GET' || !URLS_TO_CACHE.some(url => event.request.url.startsWith(url))) {
-    // For non-GET requests or API calls, pass them through to the network
+  // We only cache GET requests.
+  if (event.request.method !== 'GET') {
     return;
   }
 
   event.respondWith(
     caches.match(event.request)
-      .then(response => {
-        // Cache hit - return response from cache
-        if (response) {
-          return response;
+      .then(cachedResponse => {
+        // Return the cached response if it exists.
+        if (cachedResponse) {
+          return cachedResponse;
         }
 
-        // Not in cache - fetch from network, and cache it for next time
-        return fetch(event.request).then(
-          networkResponse => {
-            // Check if we received a valid response
-            if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-              if (networkResponse.type.startsWith('opaque')) { // Handle opaque responses from CDNs
-                 const responseToCache = networkResponse.clone();
-                 caches.open(CACHE_NAME).then(cache => {
-                     cache.put(event.request, responseToCache);
-                 });
-              }
-              return networkResponse;
-            }
-
-            const responseToCache = networkResponse.clone();
-            
-            caches.open(CACHE_NAME)
-              .then(cache => {
-                cache.put(event.request, responseToCache);
-              });
-
-            return networkResponse;
-          }
-        );
+        // If the request is not in the cache, fetch it from the network.
+        return fetch(event.request);
       })
   );
 });
+
 
 // Clean up old caches on activation
 self.addEventListener('activate', event => {
@@ -80,6 +59,7 @@ self.addEventListener('activate', event => {
       return Promise.all(
         cacheNames.map(cacheName => {
           if (cacheWhitelist.indexOf(cacheName) === -1) {
+            console.log('Deleting old cache:', cacheName);
             return caches.delete(cacheName);
           }
         })
