@@ -29,19 +29,24 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ content, onClose
             setError(null);
             try {
                 const languageName = supportedLanguages[language as keyof typeof supportedLanguages] || language;
-                // Construct a detailed prompt for better results
-                const prompt = `Create a clear, accurate medical illustration for a student, in the style of a modern medical textbook diagram. The diagram should have clean lines and be focused on educational clarity.
-                
-                Title of illustration: "${content.title}"
-                
-                Detailed description of what to draw: "${content.description}"
+                const prompt = `
+Create a professional, clean, and high-contrast medical illustration diagram for an educational app. The style should be modern and minimalist, prioritizing clarity and readability, similar to a high-quality textbook illustration.
 
-                **CRITICAL INSTRUCTION FOR LANGUAGE:**
-                All text, including all labels on the diagram, MUST be in **${languageName}**.
-                - Language Name: ${languageName}
-                - Language Code: ${language}
-                - DO NOT use any other language.
-                - DO NOT mix languages. Ensure 100% of the text is in ${languageName}.`;
+Topic to illustrate: "${content.title}"
+Key information to include: "${content.description}"
+
+**CRITICAL STYLING REQUIREMENTS (MUST FOLLOW):**
+1.  **LIGHT THEME ONLY:** The diagram MUST have a clean white (#FFFFFF) or very light gray (#F8F9FA) background. **Absolutely NO dark backgrounds.**
+2.  **HIGH CONTRAST TEXT:** ALL text inside nodes and on labels MUST be black (#000000) or a very dark gray (#212529) to ensure maximum readability.
+3.  **PROFESSIONAL COLORS:** Use a professional and harmonious color palette for the nodes/elements (e.g., a combination of muted blues, teals, and grays). Colors must be light enough to contrast sharply with the dark text. Avoid overly saturated or neon colors.
+4.  **CLEAR CONNECTIONS (MANDATORY):**
+    *   All connections between elements MUST be represented by solid black lines terminating in a clear, visible arrowhead.
+    *   The arrowhead must be drawn completely inside the element it points to, with its base on the element's border.
+    *   **Every connection line must have an arrowhead.**
+    *   Do not write text labels directly on the connection lines.
+5.  **CLEAN LAYOUT:** The layout must be logical, spacious, and uncluttered. The final image must look sharp and professional, suitable for a modern medical education platform.
+
+Language for all text and labels: ${languageName}.`;
 
                 const base64Image = await generateVisualAid(prompt);
                 setImageData(`data:image/png;base64,${base64Image}`);
@@ -56,58 +61,40 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ content, onClose
                 setIsLoading(false);
             }
         };
-
         generate();
     }, [content, language, T]);
 
     return (
-        <div 
-            className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 animate-fade-in"
-            aria-modal="true"
-            role="dialog"
-        >
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-                <div className="p-4 border-b border-gray-200 flex justify-between items-center">
-                    <h2 className="text-lg font-bold text-gray-800">AI-Generated Visual Aid</h2>
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 animate-fade-in" onClick={onClose}>
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[95vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                <header className="p-4 border-b border-gray-200 flex justify-between items-center">
+                    <h2 className="text-lg font-bold text-gray-800">{content.title}</h2>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition" aria-label="Close">
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                     </button>
-                </div>
-                
-                <div className="p-5 overflow-y-auto flex-grow">
-                    <div className="mb-4">
-                        <h3 className="font-semibold text-gray-700">{content.title}</h3>
-                        <p className="text-sm text-gray-600 mt-1">{content.description}</p>
-                    </div>
-
-                    <div className="aspect-[4/3] w-full bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200">
-                        {isLoading && (
-                            <div className="text-center">
-                                <LoadingSpinner />
-                                <p className="mt-3 text-gray-600 font-medium">Generating visual aid...</p>
-                                <p className="text-sm text-gray-500">This may take a moment.</p>
-                            </div>
-                        )}
-                        {error && (
-                            <div className="text-center text-red-600 p-4">
-                                <h4 className="font-bold">Generation Failed</h4>
-                                <p className="text-sm">{error}</p>
-                            </div>
-                        )}
-                        {imageData && (
-                            <img src={imageData} alt={content.title} className="w-full h-full object-contain rounded-lg" />
-                        )}
-                    </div>
-                </div>
-
-                <div className="p-4 border-t border-gray-200 text-right">
-                    <button 
-                        onClick={onClose} 
-                        className="bg-brand-blue hover:bg-blue-800 text-white font-bold py-2 px-6 rounded-md transition duration-300"
-                    >
-                        Close
+                </header>
+                <main className="p-6 flex-grow flex items-center justify-center bg-gray-50/50 min-h-[300px]">
+                    {isLoading && (
+                        <div className="text-center">
+                            <LoadingSpinner />
+                            <p className="mt-4 text-gray-600">Generating visual aid...</p>
+                        </div>
+                    )}
+                    {error && (
+                        <div className="text-center text-red-600">
+                            <h3 className="font-semibold">Generation Failed</h3>
+                            <p className="text-sm mt-1">{error}</p>
+                        </div>
+                    )}
+                    {imageData && !isLoading && (
+                        <img src={imageData} alt={content.title} className="max-w-full max-h-[70vh] object-contain rounded-md" />
+                    )}
+                </main>
+                 <footer className="p-3 border-t border-gray-200 text-right bg-gray-50">
+                    <button onClick={onClose} className="bg-brand-blue hover:bg-blue-800 text-white font-bold py-2 px-6 rounded-md transition duration-300">
+                        {T.closeButton}
                     </button>
-                </div>
+                </footer>
             </div>
         </div>
     );

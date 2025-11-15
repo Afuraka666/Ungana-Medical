@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 interface HeaderProps {
@@ -12,8 +13,8 @@ export const Header: React.FC<HeaderProps> = ({ supportedLanguages, currentLangu
     <header className="bg-brand-blue shadow-md text-white">
       <div className="container mx-auto px-4 md:px-6 py-3 flex items-center justify-between">
         <div className="flex items-center space-x-3">
-          <img src="/icon.svg" alt="Synapsis Medical Logo" className="w-10 h-10" />
-          <h1 className="text-xl md:text-2xl font-bold tracking-tight">Synapsis Medical</h1>
+          <img src="/icon.svg" alt="Synapsis Medical Logo" className="w-8 h-8 sm:w-10 sm:h-10" />
+          <h1 className="text-lg sm:text-xl font-bold tracking-tight">Synapsis <span className="hidden sm:inline">Medical</span></h1>
         </div>
         <div className="flex items-center space-x-4">
           <p className="text-sm text-blue-200 hidden md:block">{T.headerSubtitle}</p>
@@ -22,7 +23,7 @@ export const Header: React.FC<HeaderProps> = ({ supportedLanguages, currentLangu
               value={currentLanguage}
               onChange={(e) => onLanguageChange(e.target.value)}
               aria-label="Select language"
-              className="bg-brand-blue-light/50 text-white text-sm rounded-md pl-3 pr-8 py-1 border border-transparent hover:bg-brand-blue-light/75 focus:outline-none focus:ring-2 focus:ring-white/50 transition appearance-none"
+              className="bg-brand-blue-light/50 text-white text-xs sm:text-sm rounded-md pl-2 pr-7 py-1.5 border border-transparent hover:bg-brand-blue-light/75 focus:outline-none focus:ring-2 focus:ring-white/50 transition appearance-none"
             >
               {Object.entries(supportedLanguages).map(([code, name]) => (
                 <option key={code} value={code} className="bg-brand-blue text-white">{name}</option>

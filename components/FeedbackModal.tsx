@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 
 // IMPORTANT: Replace with your actual Google Form details for feedback
@@ -74,7 +75,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose, T
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 animate-fade-in" aria-modal="true" role="dialog">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[95vh] sm:max-h-[80vh] flex flex-col">
                 <header className="p-4 border-b border-gray-200 flex justify-between items-center">
                     <h2 className="text-lg font-bold text-gray-800">{T.feedbackTitle}</h2>
                     <button onClick={handleCloseAndReset} className="text-gray-400 hover:text-gray-600 transition" aria-label="Close">

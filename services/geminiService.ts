@@ -1,5 +1,6 @@
 
-import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
+
+import { GoogleGenAI, Type, GenerateContentResponse, Modality, GenerateImagesResponse } from "@google/genai";
 import type { PatientCase, KnowledgeMapData, KnowledgeNode, KnowledgeLink, TraceableEvidence, FurtherReading } from '../types';
 
 const getAiClient = () => {
@@ -16,8 +17,8 @@ const getAiClient = () => {
  */
 export const retryWithBackoff = async <T>(
   apiCall: () => Promise<T>,
-  maxRetries = 3,
-  initialDelay = 1000
+  maxRetries = 5,
+  initialDelay = 500
 ): Promise<T> => {
   let attempt = 0;
   while (attempt < maxRetries) {
@@ -25,7 +26,23 @@ export const retryWithBackoff = async <T>(
       return await apiCall();
     } catch (error: any) {
       attempt++;
-      const errorMessage = (JSON.stringify(error) || '').toLowerCase();
+      
+      // Create a searchable string from the error. This is more robust because it properly
+      // serializes properties of Error objects, which JSON.stringify alone does not do.
+      let searchableString = error?.message || '';
+      try {
+        const stringified = JSON.stringify(error, Object.getOwnPropertyNames(error));
+        if (stringified !== '{}') {
+          searchableString += ` ${stringified}`;
+        }
+      } catch (e) {
+        // Fallback for non-serializable errors
+        if (!searchableString) {
+          searchableString = String(error);
+        }
+      }
+
+      const errorMessage = searchableString.toLowerCase();
       // Check for retryable server errors (e.g., 500, 503, overloaded, unavailable)
       const isRetryable = errorMessage.includes("500") || errorMessage.includes("internal server error") || errorMessage.includes("503") || errorMessage.includes("overloaded") || errorMessage.includes("unavailable") || errorMessage.includes("try again later");
       
@@ -160,7 +177,7 @@ const patientCaseSchema = {
           discipline: {
             type: Type.STRING,
             description: "The medical discipline (e.g., Pharmacology, Psychology, Sociology).",
-            enum: ["Biochemistry", "Pharmacology", "Physiology", "Psychology", "Sociology", "Pathology", "Immunology", "Genetics", "Diagnostics", "Treatment"]
+            enum: ["Biochemistry", "Pharmacology", "Physiology", "Psychology", "Sociology", "Pathology", "Immunology", "Genetics", "Diagnostics", "Treatment", "Physiotherapy", "Occupational Therapy"]
           },
           connection: { type: Type.STRING, description: "A detailed explanation of how this discipline connects to the patient's case." },
         },
@@ -231,7 +248,7 @@ const knowledgeMapSchema = {
                     discipline: { 
                         type: Type.STRING, 
                         description: "The primary medical discipline this concept belongs to.",
-                        enum: ["Biochemistry", "Pharmacology", "Physiology", "Psychology", "Sociology", "Pathology", "Immunology", "Genetics", "Diagnostics", "Treatment"]
+                        enum: ["Biochemistry", "Pharmacology", "Physiology", "Psychology", "Sociology", "Pathology", "Immunology", "Genetics", "Diagnostics", "Treatment", "Physiotherapy", "Occupational Therapy"]
                     },
                 },
                 required: ["id", "label", "discipline"]
@@ -360,7 +377,7 @@ export const generatePatientCaseAndMap = async (condition: string, discipline: s
   // Step 1: Generate the detailed patient case
   const caseGenerationPrompt = `
     Create a comprehensive, realistic, and academically rigorous multidisciplinary patient case study for a medical student. The central theme is "${condition}".
-    The case must be complex, integrating concepts from various fields. Provide a rich narrative for the patient's history.
+    The case must be complex, integrating concepts from various fields. Provide a rich narrative for the patient's history. Involve aspects of rehabilitation, including physiotherapy and occupational therapy where relevant.
     Please provide the entire response in the following language: ${language}.
 
     **Crucially, tailor the case's management plan and key considerations for a student in **${discipline}**.
@@ -457,10 +474,96 @@ export const enrichCaseWithWebSources = async (patientCase: PatientCase, languag
     }
 };
 
+export const searchForSource = async (sourceQuery: string, language: string): Promise<{ summary: string; sources: any[] }> => {
+    const ai = getAiClient();
+    const model = "gemini-2.5-flash";
+
+    const prompt = `
+        Please act as a medical research assistant. Use Google Search to find information about the following medical source: "${sourceQuery}".
+
+        Provide a brief summary (2-3 sentences) of this source. If possible, identify its type (e.g., Randomized Controlled Trial, Systematic Review, Clinical Guideline) and its main conclusions or purpose.
+
+        If you can find direct links to the source, please prioritize them.
+
+        Respond in the following language: ${language}.
+    `;
+
+    const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
+        model: model,
+        contents: prompt,
+        config: {
+            tools: [{ googleSearch: {} }],
+            temperature: 0.1,
+        },
+    }));
+
+    const summary = response.text;
+    const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+
+    return { summary, sources };
+};
+
+export interface EcgFindings {
+    rate?: string;
+    rhythm?: string;
+    pr?: string;
+    qrs?: string;
+    qtc?: string;
+    stSegment?: string;
+    other?: string;
+}
+
+export const interpretEcg = async (findings: EcgFindings, imageBase64: string | null, imageMimeType: string | null, language: string): Promise<string> => {
+    const ai = getAiClient();
+
+    const textParts = [
+        `You are an expert cardiologist providing an educational interpretation of an ECG for a medical professional. Provide a systematic, step-by-step interpretation based on the provided data. Your response should be in Markdown format, using headings for each section.`,
+        `## ECG Findings Provided:`,
+        `- **Rate:** ${findings.rate || 'Not provided'} bpm`,
+        `- **Rhythm:** ${findings.rhythm || 'Not provided'}`,
+        `- **PR Interval:** ${findings.pr || 'Not provided'} ms`,
+        `- **QRS Duration:** ${findings.qrs || 'Not provided'} ms`,
+        `- **QTc Interval:** ${findings.qtc || 'Not provided'} ms`,
+        `- **ST Segment:** ${findings.stSegment || 'Not provided'}`,
+        `- **Other Findings/Context:** ${findings.other || 'None'}`,
+        `\n## Systematic Interpretation Request:`,
+        `Based on the data and the provided ECG image (if any), please generate a report covering:`,
+        `1.  **Rhythm and Rate:** Analyze the rhythm and confirm the rate.`,
+        `2.  **Axis:** Determine the axis if possible from the image.`,
+        `3.  **Intervals:** Analyze PR, QRS, and QTc intervals.`,
+        `4.  **Morphology:** Systematically comment on P waves, QRS complexes, ST segments, and T waves.`,
+        `5.  **Summary / Impression:** Provide a primary interpretation and list 2-3 likely differential diagnoses.`,
+        `\n**Disclaimer:** This is an AI-generated interpretation for educational purposes and should not be used for clinical decision-making. All findings must be verified by a qualified human physician.`,
+        `\nPlease provide the entire response in ${language}.`
+    ];
+    const textPrompt = textParts.join('\n');
+
+    const contentParts: any[] = [{ text: textPrompt }];
+
+    if (imageBase64 && imageMimeType) {
+        contentParts.push({
+            inlineData: {
+                data: imageBase64,
+                mimeType: imageMimeType,
+            },
+        });
+    }
+
+    const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: { parts: contentParts },
+        config: { temperature: 0.3 }
+    }));
+
+    return response.text;
+};
+
+
 export const generateVisualAid = async (prompt: string): Promise<string> => {
     const ai = getAiClient();
     try {
-        const response: any = await retryWithBackoff(() => ai.models.generateImages({
+        // Fix: Explicitly type the response from retryWithBackoff to resolve property access errors.
+        const response = await retryWithBackoff<GenerateImagesResponse>(() => ai.models.generateImages({
             model: 'imagen-4.0-generate-001',
             prompt: prompt,
             config: {
@@ -508,5 +611,52 @@ export const checkDrugInteractions = async (drugNames: string[], language: strin
         },
     }));
 
+    return response.text;
+};
+
+export const generateSpeech = async (text: string, voiceName: string): Promise<string> => {
+    const ai = getAiClient();
+    try {
+        // Fix: Explicitly type the response from retryWithBackoff to resolve property access errors.
+        const response = await retryWithBackoff<GenerateContentResponse>(() => ai.models.generateContent({
+            model: "gemini-2.5-flash-preview-tts",
+            contents: [{ parts: [{ text }] }],
+            config: {
+                responseModalities: [Modality.AUDIO],
+                speechConfig: {
+                    voiceConfig: {
+                        prebuiltVoiceConfig: { voiceName },
+                    },
+                },
+            },
+        }));
+        
+        const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+        if (!base64Audio) {
+            throw new Error("No audio data received from API.");
+        }
+        return base64Audio;
+
+    } catch (error) {
+        console.error("Error generating speech:", error);
+        throw new Error("Failed to generate audio. Please try again.");
+    }
+};
+
+export const getConceptConnectionExplanation = async (conceptA: string, conceptB: string, caseContext: string, language: string): Promise<string> => {
+    const ai = getAiClient();
+    const prompt = `
+        For a medical student studying a patient case about "${caseContext}", explain the pathophysiological or clinical connection between "${conceptA}" and "${conceptB}".
+        Keep the explanation concise (2-3 sentences, around 70-90 words) and focused on the most critical link between them in this specific medical context.
+        The tone should be educational and clear.
+        Please provide the response in the following language: ${language}.
+    `;
+    const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+        config: {
+            temperature: 0.4,
+        },
+    }));
     return response.text;
 };

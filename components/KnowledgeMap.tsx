@@ -1,386 +1,450 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { Discipline } from '../types';
-import type { KnowledgeMapData, KnowledgeNode, KnowledgeLink } from '../types';
+import type { KnowledgeMapData, KnowledgeNode } from '../types';
 import { ConceptCard } from './ConceptCard';
+import { getConceptConnectionExplanation } from '../services/geminiService';
 
 declare const d3: any;
 
+// --- Helper Components ---
+const LoadingSpinner: React.FC = () => (
+    <div className="flex justify-center items-center h-full p-4">
+        <svg className="animate-spin h-8 w-8 text-brand-blue" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+    </div>
+);
+
+interface MapControlsProps {
+    onZoomIn: () => void;
+    onZoomOut: () => void;
+    onReset: () => void;
+    onToggleFullscreen: () => void;
+    isFullscreen: boolean;
+}
+
+const MapControls: React.FC<MapControlsProps> = ({ onZoomIn, onZoomOut, onReset, onToggleFullscreen, isFullscreen }) => {
+    const buttonClasses = "bg-white/80 backdrop-blur-sm hover:bg-white text-gray-700 shadow-md border border-gray-200 rounded-lg w-10 h-10 flex items-center justify-center transition";
+    return (
+        <div className="absolute top-3 right-3 flex flex-col gap-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+            <button onClick={onZoomIn} title="Zoom In" className={buttonClasses}>
+                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
+            </button>
+            <button onClick={onZoomOut} title="Zoom Out" className={buttonClasses}>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" /></svg>
+            </button>
+            <button onClick={onReset} title="Reset View" className={buttonClasses}>
+                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5 10a5 5 0 1110 0 5 5 0 01-10 0zM2.455 6.09A8.023 8.023 0 014.28 4.282a8.023 8.023 0 013.801-1.825 1 1 0 01.91 1.838A6.023 6.023 0 005.16 8.55a1 1 0 11-1.84 1.01A8.003 8.003 0 012.455 6.09zM15.72 15.718a8.023 8.023 0 01-3.801 1.825 1 1 0 01-.91-1.838 6.023 6.023 0 003.11-2.47 1 1 0 111.84-1.01 8.003 8.003 0 01-2.695 3.504z" clipRule="evenodd" /></svg>
+            </button>
+             <button onClick={onToggleFullscreen} title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"} className={buttonClasses}>
+                {isFullscreen ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 8a1 1 0 011-1h4a1 1 0 110 2H5v3a1 1 0 11-2 0V8zm14 4a1 1 0 01-1 1h-4a1 1 0 110-2h3V8a1 1 0 112 0v4z" clipRule="evenodd" /></svg>
+                )}
+            </button>
+        </div>
+    );
+};
+
+interface ContextMenuProps {
+    position: { x: number, y: number } | null;
+    onClose: () => void;
+    onExplainConnection: (targetNode: KnowledgeNode) => void;
+    sourceNode: KnowledgeNode | null;
+    allNodes: KnowledgeNode[];
+}
+
+const ContextMenu: React.FC<ContextMenuProps> = ({ position, onClose, onExplainConnection, sourceNode, allNodes }) => {
+    const menuRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+                onClose();
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [onClose]);
+
+    if (!position || !sourceNode) return null;
+
+    return (
+        <div ref={menuRef} style={{ top: position.y, left: position.x }} className="absolute bg-white rounded-lg shadow-2xl border border-gray-200 w-56 z-20 animate-fade-in text-sm">
+            <div className="p-2 border-b">
+                <p className="font-semibold text-gray-800 truncate">{sourceNode.label}</p>
+            </div>
+            <div className="max-h-60 overflow-y-auto">
+                <p className="text-xs font-semibold uppercase text-gray-400 px-3 pt-2 pb-1">Explain connection to...</p>
+                <ul>
+                    {allNodes.filter(n => n.id !== sourceNode.id).map(targetNode => (
+                         <li key={targetNode.id}>
+                             <button onClick={() => { onExplainConnection(targetNode); onClose(); }} className="w-full text-left px-3 py-1.5 text-gray-700 hover:bg-gray-100 transition truncate">
+                                 {targetNode.label}
+                             </button>
+                         </li>
+                    ))}
+                </ul>
+            </div>
+        </div>
+    );
+};
+
+interface ConnectionExplanationModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    sourceNode: KnowledgeNode | null;
+    targetNode: KnowledgeNode | null;
+    caseTitle: string;
+    language: string;
+    T: Record<string, any>;
+}
+
+const ConnectionExplanationModal: React.FC<ConnectionExplanationModalProps> = ({ isOpen, onClose, sourceNode, targetNode, caseTitle, language, T }) => {
+    const [explanation, setExplanation] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    
+    useEffect(() => {
+        if (isOpen && sourceNode && targetNode) {
+            const fetchExplanation = async () => {
+                setIsLoading(true);
+                setExplanation('');
+                try {
+                    const result = await getConceptConnectionExplanation(sourceNode.label, targetNode.label, caseTitle, language);
+                    setExplanation(result);
+                } catch (error) {
+                    console.error("Failed to get connection explanation", error);
+                    setExplanation(T.errorAbstract);
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+            fetchExplanation();
+        }
+    }, [isOpen, sourceNode, targetNode, caseTitle, language, T]);
+
+    if (!isOpen) return null;
+
+    return (
+         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-40 p-4 animate-fade-in" onClick={onClose}>
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
+                 <header className="p-4 border-b border-gray-200">
+                    <h2 className="text-lg font-bold text-gray-800">{T.connectionExplanationTitle}</h2>
+                    <p className="text-sm text-gray-500 mt-1">{sourceNode?.label} &rarr; {targetNode?.label}</p>
+                 </header>
+                 <main className="p-6 min-h-[120px]">
+                    {isLoading ? (
+                        <div className="flex flex-col items-center justify-center text-gray-500">
+                           <svg className="animate-spin h-6 w-6 text-brand-blue mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                           <span>{T.explainingConnection}</span>
+                        </div>
+                    ) : (
+                        <p className="text-sm text-gray-700">{explanation}</p>
+                    )}
+                 </main>
+                 <footer className="p-3 border-t border-gray-200 text-right bg-gray-50">
+                    <button onClick={onClose} className="bg-brand-blue hover:bg-blue-800 text-white font-bold py-2 px-6 rounded-md transition duration-300">
+                        {T.closeButton}
+                    </button>
+                </footer>
+            </div>
+         </div>
+    );
+};
+
+
+// --- COLOR MAPPING ---
+export const DisciplineColors: Record<Discipline, string> = {
+  [Discipline.BIOCHEMISTRY]: '#ef4444', // Red
+  [Discipline.PHARMACOLOGY]: '#3b82f6', // Blue
+  [Discipline.PHYSIOLOGY]: '#10b981', // Emerald
+  [Discipline.PSYCHOLOGY]: '#8b5cf6', // Violet
+  [Discipline.SOCIOLOGY]: '#f97316', // Orange
+  [Discipline.PATHOLOGY]: '#6366f1', // Indigo
+  [Discipline.IMMUNOLOGY]: '#14b8a6', // Teal
+  [Discipline.GENETICS]: '#d946ef', // Fuchsia
+  [Discipline.DIAGNOSTICS]: '#6b7280', // Gray
+  [Discipline.TREATMENT]: '#22c55e', // Green
+  [Discipline.PHYSIOTHERAPY]: '#0ea5e9', // Sky
+  [Discipline.OCCUPATIONAL_THERAPY]: '#f59e0b', // Amber
+};
+
+// --- MAIN COMPONENT ---
 interface KnowledgeMapProps {
-  data: KnowledgeMapData;
+  data: KnowledgeMapData | null;
   onNodeClick: (node: KnowledgeNode) => void;
   selectedNodeInfo: { node: KnowledgeNode; abstract: string; loading: boolean } | null;
   onClearSelection: () => void;
   isMapFullscreen: boolean;
-  setIsMapFullscreen: (isFullscreen: boolean) => void;
+  setIsMapFullscreen: (isMapFullscreen: boolean) => void;
+  caseTitle: string;
+  language: string;
+  T: Record<string, any>;
 }
 
-export const DisciplineColors: Record<Discipline, string> = {
-  [Discipline.BIOCHEMISTRY]: "#3b82f6", // blue-500
-  [Discipline.PHARMACOLOGY]: "#8b5cf6", // violet-500
-  [Discipline.PHYSIOLOGY]: "#10b981", // emerald-500
-  [Discipline.PSYCHOLOGY]: "#ec4899", // pink-500
-  [Discipline.SOCIOLOGY]: "#f97316", // orange-500
-  [Discipline.PATHOLOGY]: "#ef4444", // red-500
-  [Discipline.IMMUNOLOGY]: "#14b8a6", // teal-500
-  [Discipline.GENETICS]: "#d946ef", // fuchsia-500
-  [Discipline.DIAGNOSTICS]: "#6366f1", // indigo-500
-  [Discipline.TREATMENT]: "#22c55e", // green-500
-};
-
-export const KnowledgeMap: React.FC<KnowledgeMapProps> = ({ data, onNodeClick, selectedNodeInfo, onClearSelection, isMapFullscreen, setIsMapFullscreen }) => {
+export const KnowledgeMap: React.FC<KnowledgeMapProps> = ({
+  data,
+  onNodeClick,
+  selectedNodeInfo,
+  onClearSelection,
+  isMapFullscreen,
+  setIsMapFullscreen,
+  caseTitle,
+  language,
+  T,
+}) => {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const simulationRef = useRef<any>(null);
-  const zoomRef = useRef<any>(null);
-  const selectedNodeId = selectedNodeInfo?.node.id || null;
+  const simulationRef = useRef<any>();
+  const zoomRef = useRef<any>();
+  const elementsRef = useRef<{ g?: any, node?: any, link?: any, linkpath?: any, linklabel?: any }>({});
+  const componentId = `map-${useRef(Math.random().toString(36).substr(2, 9)).current}`;
+
+  const [filteredNodes, setFilteredNodes] = useState<KnowledgeNode[] | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const [contextMenu, setContextMenu] = useState<{ position: { x: number, y: number }, sourceNode: KnowledgeNode } | null>(null);
+  const [connectionToExplain, setConnectionToExplain] = useState<{ source: KnowledgeNode, target: KnowledgeNode } | null>(null);
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const term = e.target.value;
+      setSearchTerm(term);
+      if (!term) {
+          setFilteredNodes(null);
+      } else if (data) {
+          setFilteredNodes(data.nodes.filter(n => n.label.toLowerCase().includes(term.toLowerCase())));
+      }
+  };
 
   const handleZoomIn = useCallback(() => {
     if (svgRef.current && zoomRef.current) {
-        d3.select(svgRef.current)
-          .transition()
-          .duration(250)
-          .call(zoomRef.current.scaleBy, 1.2);
+        d3.select(svgRef.current).transition().duration(250).call(zoomRef.current.scaleBy, 1.2);
     }
   }, []);
 
   const handleZoomOut = useCallback(() => {
     if (svgRef.current && zoomRef.current) {
-        d3.select(svgRef.current)
-          .transition()
-          .duration(250)
-          .call(zoomRef.current.scaleBy, 0.8);
+        d3.select(svgRef.current).transition().duration(250).call(zoomRef.current.scaleBy, 0.8);
     }
   }, []);
 
   const handleResetZoom = useCallback(() => {
-    if (svgRef.current && zoomRef.current) {
-        d3.select(svgRef.current)
-          .transition()
-          .duration(250)
-          .call(zoomRef.current.transform, d3.zoomIdentity);
+    if (svgRef.current && zoomRef.current && containerRef.current) {
+        const { width, height } = containerRef.current.getBoundingClientRect();
+        const svg = d3.select(svgRef.current);
+        const g = elementsRef.current.g;
+
+        if (!g.node()) return;
+        
+        const bounds = g.node().getBBox();
+        const parent = svg.node().parentElement;
+        const fullWidth = parent.clientWidth;
+        const fullHeight = parent.clientHeight;
+        
+        const scale = Math.min(0.9, 0.9 / Math.max(bounds.width / fullWidth, bounds.height / fullHeight));
+        const translate = [
+            fullWidth / 2 - scale * (bounds.x + bounds.width / 2),
+            fullHeight / 2 - scale * (bounds.y + bounds.height / 2)
+        ];
+
+        const transform = d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale);
+
+        svg.transition().duration(750).call(zoomRef.current.transform, transform);
     }
   }, []);
+
+  const handleNodeContextMenu = useCallback((event: MouseEvent, d: KnowledgeNode) => {
+      event.preventDefault();
+      onNodeClick(d);
+      setContextMenu({
+          position: { x: event.clientX, y: event.clientY },
+          sourceNode: d
+      });
+  }, [onNodeClick]);
+  
+  const handleExplainConnection = useCallback((targetNode: KnowledgeNode) => {
+      if (contextMenu?.sourceNode) {
+          setConnectionToExplain({ source: contextMenu.sourceNode, target: targetNode });
+      }
+  }, [contextMenu]);
 
   useEffect(() => {
     if (!data || !svgRef.current || !containerRef.current) return;
 
     const { nodes, links } = data;
-    const svg = d3.select(svgRef.current);
+    if (!nodes || nodes.length === 0) return;
 
-    svg.selectAll("*").remove(); 
+    const svg = d3.select(svgRef.current);
+    svg.selectAll("*").remove();
 
     const defs = svg.append('defs');
     defs.html(`
-      <marker id="arrowhead-default" viewBox="0 0 10 10" refX="10" refY="5"
-          markerWidth="4" markerHeight="4" orient="auto-start-reverse">
-        <path d="M 0 2 L 10 5 L 0 8 z" fill="#9ca3af"></path>
+      <marker id="arrow-${componentId}" viewBox="0 -5 10 10" refX="10" refY="0" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M0,-5L10,0L0,5" fill="#6B7280"></path>
       </marker>
-      <marker id="arrowhead-highlight" viewBox="0 0 10 10" refX="10" refY="5"
-          markerWidth="4" markerHeight="4" orient="auto-start-reverse">
-        <path d="M 0 2 L 10 5 L 0 8 z" fill="#1e3a8a"></path>
+      <marker id="arrow-selected-${componentId}" viewBox="0 -5 10 10" refX="10" refY="0" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M0,-5L10,0L0,5" fill="#1e3a8a"></path>
       </marker>
-      <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <filter id="glow-${componentId}" x="-50%" y="-50%" width="200%" height="200%">
         <feGaussianBlur stdDeviation="5" result="coloredBlur"></feGaussianBlur>
         <feMerge>
           <feMergeNode in="coloredBlur"></feMergeNode>
           <feMergeNode in="SourceGraphic"></feMergeNode>
         </feMerge>
       </filter>
-      <style type="text/css">
-        @keyframes pulse {
-          0% { r: 14; }
-          50% { r: 18; }
-          100% { r: 14; }
-        }
-        .pulse-animation {
-          animation: pulse 2s ease-in-out infinite;
-        }
-      </style>
     `);
 
+    simulationRef.current = d3.forceSimulation(nodes)
+      .force("link", d3.forceLink(links).id((d: any) => d.id).distance(150).strength(0.6))
+      .force("charge", d3.forceManyBody().strength(-400))
+      .force("center", d3.forceCenter(containerRef.current.clientWidth / 2, containerRef.current.clientHeight / 2))
+      .force("collision", d3.forceCollide().radius((d: any) => d.label.length / 2 + 25));
+    
     const g = svg.append("g");
-    const tooltip = d3.select(containerRef.current).select("#d3-tooltip");
+    elementsRef.current.g = g;
+
+    const link = g.append("g").selectAll("g").data(links).join("g");
+    const linkpath = link.append("path").attr("fill", "none").attr("stroke-width", 2).attr("stroke", "#9ca3af").attr("marker-end", `url(#arrow-${componentId})`);
+    const linklabel = link.append("text").text((d: any) => d.description).attr("dy", "-5").attr("text-anchor", "middle").attr("font-size", "9px").attr("fill", "#4b5563");
+    elementsRef.current.link = link;
+    elementsRef.current.linkpath = linkpath;
+    elementsRef.current.linklabel = linklabel;
+
+    const node = g.append("g").selectAll("g").data(nodes).join("g").attr("cursor", "pointer");
+    const getRadius = (d: any) => d.label.length / 2 + 10;
+    node.append("circle").attr("r", getRadius).attr("stroke", "#fff").attr("stroke-width", 3).attr("fill", (d: any) => DisciplineColors[d.discipline] || '#ccc');
+    node.append("text").text((d: any) => d.label).attr("text-anchor", "middle").attr("dy", ".3em").attr("font-size", "11px").attr("font-weight", "600").attr("fill", "#000").style("pointer-events", "none");
+    elementsRef.current.node = node;
+
+    const drag = d3.drag().on("start", (event: any, d: any) => { if (!event.active) simulationRef.current.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; }).on("drag", (event: any, d: any) => { d.fx = event.x; d.fy = event.y; }).on("end", (event: any, d: any) => { if (!event.active) simulationRef.current.alphaTarget(0); d.fx = null; d.fy = null; });
+    node.call(drag);
     
-    const adjacency = new Map<string, Set<string>>(nodes.map(node => [node.id, new Set()]));
-    links.forEach(link => {
-        if (!link.source || !link.target) return;
-        const sourceId = typeof link.source === 'object' ? (link.source as any).id : link.source;
-        const targetId = typeof link.target === 'object' ? (link.target as any).id : link.target;
-        if (adjacency.has(sourceId)) adjacency.get(sourceId)!.add(targetId);
-        if (adjacency.has(targetId)) adjacency.get(targetId)!.add(sourceId);
-    });
-
-    if (!simulationRef.current) {
-        simulationRef.current = d3.forceSimulation()
-          .force("link", d3.forceLink().id((d: any) => d.id).distance(100))
-          .force("charge", d3.forceManyBody().strength(-350));
-    }
-    const simulation = simulationRef.current;
+    zoomRef.current = d3.zoom().scaleExtent([0.1, 2.5]).on("zoom", (event: any) => g.attr("transform", event.transform));
+    svg.call(zoomRef.current);
     
-    const link = g.append("g")
-      .attr("stroke", "#9ca3af")
-      .selectAll("line")
-      .data(links)
-      .join("line")
-      .attr("stroke-width", 2)
-      .attr("marker-end", "url(#arrowhead-default)");
-
-    const node = g.append("g")
-      .selectAll("g")
-      .data(nodes)
-      .join("g")
-      .attr("cursor", "pointer")
-      .call(drag(simulation));
-
-    const circles = node.append("circle")
-      .attr("r", 12)
-      .attr("fill", (d: KnowledgeNode) => DisciplineColors[d.discipline] || "#6b7280");
-
-    const labels = node.append("text")
-      .text((d: KnowledgeNode) => d.label)
-      .attr("x", 16)
-      .attr("y", 4)
-      .attr("font-size", "12px")
-      .attr("fill", "#1f2937")
-      .attr("font-weight", "500")
-      .style("pointer-events", "none");
-
-    const zoom = d3.zoom()
-        .scaleExtent([0.2, 5])
-        .on("zoom", (event: any) => {
-            g.attr("transform", event.transform);
-        });
-    zoomRef.current = zoom;
-    svg.call(zoom);
-
-    function ticked() {
-      link
-        .attr("x1", (d: any) => d.source.x)
-        .attr("y1", (d: any) => d.source.y)
-        .attr("x2", (d: any) => {
-            const dx = d.target.x - d.source.x;
-            const dy = d.target.y - d.source.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist === 0) return d.target.x;
-            const targetRadius = d.target.id === selectedNodeId ? 14 : 12;
-            return d.target.x - (dx / dist) * (targetRadius + 3);
-        })
-        .attr("y2", (d: any) => {
-            const dx = d.target.x - d.source.x;
-            const dy = d.target.y - d.source.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist === 0) return d.target.y;
-            const targetRadius = d.target.id === selectedNodeId ? 14 : 12;
-            return d.target.y - (dy / dist) * (targetRadius + 3);
-        });
-      node.attr("transform", (d: any) => `translate(${d.x},${d.y})`);
-    }
-
-    function drag(simulation: any) {
-      function dragstarted(event: any, d: any) {
-        if (!event.active) simulation.alphaTarget(0.3).restart();
-        d.fx = d.x;
-        d.fy = d.y;
-      }
-      function dragged(event: any, d: any) {
-        d.fx = event.x;
-        d.fy = event.y;
-      }
-      function dragended(event: any, d: any) {
-        if (!event.active) simulation.alphaTarget(0);
-        d.fx = null;
-        d.fy = null;
-      }
-      return d3.drag().on("start", dragstarted).on("drag", dragged).on("end", dragended);
-    }
-
-    function updateHighlight() {
-        const isAnyNodeSelected = selectedNodeId !== null;
-        const connectedToSelected = new Set<string>();
-        if (isAnyNodeSelected && selectedNodeId) {
-            connectedToSelected.add(selectedNodeId);
-            (adjacency.get(selectedNodeId) || new Set<string>()).forEach(neighborId => {
-                connectedToSelected.add(neighborId);
-            });
-        }
-
-        // Dim or highlight nodes based on selection
-        node.transition().duration(200)
-            .style("opacity", (d: KnowledgeNode) => !isAnyNodeSelected || connectedToSelected.has(d.id) ? 1 : 0.3);
-        
-        // Apply special styles to the selected node
-        circles.style("filter", (d: KnowledgeNode) => d.id === selectedNodeId ? "url(#glow)" : null)
-               .classed('pulse-animation', (d: KnowledgeNode) => d.id === selectedNodeId);
-
-        circles.transition().duration(200)
-            .attr("r", (d: KnowledgeNode) => d.id === selectedNodeId ? 14 : 12)
-            .attr("stroke-width", (d: KnowledgeNode) => d.id === selectedNodeId ? 3 : 0)
-            .attr("stroke", (d: KnowledgeNode) => d.id === selectedNodeId ? "#111827" : DisciplineColors[d.discipline] || "#6b7280");
-
-        labels.transition().duration(200)
-           .attr("font-size", (d: KnowledgeNode) => d.id === selectedNodeId ? "14px" : "12px")
-           .attr("font-weight", (d: KnowledgeNode) => d.id === selectedNodeId ? "700" : "500");
-           
-        // Dim or highlight links
-        link.transition().duration(200)
-            .attr("stroke-width", (l: any) => {
-                if (!isAnyNodeSelected) return 2;
-                const sourceId = l.source.id || l.source;
-                const targetId = l.target.id || l.target;
-                return connectedToSelected.has(sourceId) && connectedToSelected.has(targetId) ? 2.5 : 1;
-            })
-            .attr("stroke-opacity", (l: any) => {
-              if (!isAnyNodeSelected) return 0.6;
-              const sourceId = l.source.id || l.source;
-              const targetId = l.target.id || l.target;
-              return connectedToSelected.has(sourceId) && connectedToSelected.has(targetId) ? 0.9 : 0.3;
-            })
-            .attr("stroke", (l: any) => {
-                if (!isAnyNodeSelected) return "#9ca3af";
-                const sourceId = l.source.id || l.source;
-                const targetId = l.target.id || l.target;
-                return connectedToSelected.has(sourceId) && connectedToSelected.has(targetId) ? "#1e3a8a" : "#9ca3af";
-            })
-            .attr("marker-end", (l: any) => {
-                if (!isAnyNodeSelected) return "url(#arrowhead-default)";
-                const sourceId = l.source.id || l.source;
-                const targetId = l.target.id || l.target;
-                return connectedToSelected.has(sourceId) && connectedToSelected.has(targetId) ? "url(#arrowhead-highlight)" : "url(#arrowhead-default)";
-            });
-    }
-
-    // --- Interaction Logic ---
-    svg.on('click', (event: MouseEvent) => {
-        if (event.defaultPrevented) return;
-        onClearSelection();
-    });
-
-    node.on("click", (event: any, d: KnowledgeNode) => {
-        event.stopPropagation();
+    handleResetZoom();
+    
+    node.on("click", (event: any, d: any) => {
         onNodeClick(d);
-      })
-      .on("mouseover", (event: any, d: KnowledgeNode) => {
-        tooltip.transition().duration(200).style("opacity", 0.95);
-        tooltip.html(`<strong>${d.label}</strong><br/><span style="font-weight: 500; color: ${DisciplineColors[d.discipline] || '#6b7280'}">${d.discipline}</span>`);
-      })
-      .on("mousemove", (event: any) => {
-        const [x, y] = d3.pointer(event, containerRef.current);
-        tooltip.style("left", `${x + 15}px`).style("top", `${y + 10}px`);
-      })
-      .on("mouseout", () => {
-        tooltip.transition().duration(300).style("opacity", 0);
-        updateHighlight(); // Restore selection-based highlight on mouseout
-      });
+        setContextMenu(null);
+    });
 
-    const handleResize = () => {
-        if (!containerRef.current || !svgRef.current) return;
-        const width = containerRef.current.clientWidth;
-        const height = containerRef.current.clientHeight;
-        d3.select(svgRef.current).attr("width", width).attr("height", height);
-        simulation.force("center", d3.forceCenter(width / 2, height / 2));
-        simulation.alpha(0.3).restart();
-    };
+    node.on("contextmenu", handleNodeContextMenu);
+    svg.on("click", () => {
+        onClearSelection();
+        setContextMenu(null);
+    });
 
-    const resizeObserver = new ResizeObserver(handleResize);
-    resizeObserver.observe(containerRef.current);
-    
-    // --- Update simulation and apply states ---
-    simulation.nodes(nodes).on("tick", ticked);
-    simulation.force("link").links(links);
-    
-    handleResize();
-    updateHighlight();
+    simulationRef.current.on("tick", () => {
+        node.attr("transform", (d: any) => `translate(${d.x},${d.y})`);
 
-    // --- New robust zoom logic ---
-    const simulationNodes = simulation.nodes();
-    const width = containerRef.current.clientWidth;
-    const height = containerRef.current.clientHeight;
+        linkpath.attr('d', (d: any) => {
+            const dx = d.target.x - d.source.x;
+            const dy = d.target.y - d.source.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
 
-    if (selectedNodeId) {
-        const selectedNodeData = simulationNodes.find((n: any) => n.id === selectedNodeId);
-        if (selectedNodeData && typeof selectedNodeData.x === 'number') {
-            const transform = d3.zoomIdentity
-                .translate(width / 2, height / 2)
-                .scale(1.5) // Apply a consistent, moderate zoom
-                .translate(-selectedNodeData.x, -selectedNodeData.y);
+            if (dist === 0) return `M${d.source.x},${d.source.y}L${d.target.x},${d.target.y}`;
 
-            svg.transition()
-                .duration(750)
-                .call(zoom.transform, transform);
-        }
-    } else {
-        // If no node is selected, reset the view.
-        svg.transition()
-            .duration(750)
-            .call(zoom.transform, d3.zoomIdentity);
-    }
-    
-    return () => {
-      svg.on('click', null);
-      resizeObserver.disconnect();
-    };
-
-  }, [data, onNodeClick, selectedNodeId, onClearSelection]);
-  
-  return (
-    <div className={isMapFullscreen
-        ? "fixed inset-0 bg-black/70 z-40 p-4 sm:p-8 animate-fade-in flex items-center justify-center"
-        : "w-full h-full relative"
-    }>
-        <div ref={containerRef} className="w-full h-full bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden relative">
-            <svg ref={svgRef}></svg>
-            <div id="d3-tooltip" className="absolute opacity-0 pointer-events-none bg-gray-800/90 text-white text-xs rounded-md px-2 py-1 shadow-lg transition-opacity duration-200 z-10" style={{ backdropFilter: 'blur(2px)' }}></div>
+            const sourceRadius = getRadius(d.source) + 2; // +2 for stroke width buffer
+            const targetRadius = getRadius(d.target) + 5; // +5 to account for arrowhead size
             
-            <div className="absolute top-4 right-4 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-lg shadow-lg p-3 max-w-xs text-left">
-                <h4 className="text-sm font-bold text-gray-800 mb-2">Discipline Key</h4>
-                <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-                    {Object.entries(DisciplineColors).map(([discipline, color]) => (
-                        <div key={discipline} className="flex items-center">
-                            <span className="w-3 h-3 rounded-full mr-2 flex-shrink-0" style={{ backgroundColor: color }}></span>
-                            <span className="text-xs text-gray-700 capitalize">{discipline.toLowerCase()}</span>
-                        </div>
-                    ))}
-                </div>
-            </div>
+            const startX = d.source.x + (dx / dist) * sourceRadius;
+            const startY = d.source.y + (dy / dist) * sourceRadius;
 
-            <div className="absolute bottom-4 right-4 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-lg shadow-lg flex flex-col overflow-hidden">
-                {selectedNodeId && (
-                    <>
-                        <button onClick={onClearSelection} title="Clear Selection" aria-label="Clear Selection" className="p-2 text-gray-600 hover:bg-gray-100 hover:text-red-500 focus:outline-none focus:ring-2 focus:ring-brand-blue-light transition">
-                            <svg className="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                            </svg>
-                        </button>
-                        <div className="border-t border-gray-200"></div>
-                    </>
-                )}
-                <button onClick={handleZoomIn} title="Zoom In" aria-label="Zoom In" className="p-2 text-gray-600 hover:bg-gray-100 hover:text-brand-blue focus:outline-none focus:ring-2 focus:ring-brand-blue-light transition">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3h-6"></path></svg>
-                </button>
-                <div className="border-t border-gray-200"></div>
-                <button onClick={handleZoomOut} title="Zoom Out" aria-label="Zoom Out" className="p-2 text-gray-600 hover:bg-gray-100 hover:text-brand-blue focus:outline-none focus:ring-2 focus:ring-brand-blue-light transition">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10H7"></path></svg>
-                </button>
-                <div className="border-t border-gray-200"></div>
-                <button onClick={handleResetZoom} title="Reset Zoom" aria-label="Reset Zoom" className="p-2 text-gray-600 hover:bg-gray-100 hover:text-brand-blue focus:outline-none focus:ring-2 focus:ring-brand-blue-light transition">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h5M20 20v-5h-5M4 20h5v-5M20 4h-5v5"></path></svg>
-                </button>
-                <div className="border-t border-gray-200"></div>
-                <button onClick={() => setIsMapFullscreen(!isMapFullscreen)} title={isMapFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"} aria-label={isMapFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"} className="p-2 text-gray-600 hover:bg-gray-100 hover:text-brand-blue focus:outline-none focus:ring-2 focus:ring-brand-blue-light transition">
-                    {isMapFullscreen ? (
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 3h6v6m-2-2L13 9M9 21H3v-6m2 2l6-6"></path></svg>
-                    ) : (
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4h4m12 4V4h-4M4 16v4h4m12 0v-4h-4"></path></svg>
+            const endX = d.target.x - (dx / dist) * targetRadius;
+            const endY = d.target.y - (dy / dist) * targetRadius;
+            
+            return `M${startX},${startY}L${endX},${endY}`;
+        });
+
+        linklabel.attr("transform", function(d: any) {
+             return `translate(${(d.source.x + d.target.x) / 2},${(d.source.y + d.target.y) / 2})`;
+        });
+    });
+
+    return () => simulationRef.current.stop();
+  }, [data, componentId, handleResetZoom, onNodeClick, onClearSelection, handleNodeContextMenu]);
+
+  useEffect(() => {
+    const { node, link } = elementsRef.current;
+    if (!node || !link) return;
+
+    const isAnySelected = !!selectedNodeInfo;
+    const selectedId = selectedNodeInfo?.node.id;
+
+    node.transition().duration(200)
+      .style("opacity", (d: any) => !isAnySelected || d.id === selectedId ? 1.0 : 0.3)
+      .style("filter", (d: any) => d.id === selectedId ? `url(#glow-${componentId})` : null);
+    
+    node.select('circle').transition().duration(200)
+        .attr('stroke', d => d.id === selectedId ? DisciplineColors[d.discipline as Discipline] : '#fff');
+
+    link.transition().duration(200)
+      .style("opacity", (d: any) => {
+          const isConnected = d.source.id === selectedId || d.target.id === selectedId;
+          return !isAnySelected || isConnected ? 1.0 : 0.2;
+      });
+    
+    link.select('path').transition().duration(200)
+        .attr('stroke', d => (d.source.id === selectedId || d.target.id === selectedId) ? '#1e3a8a' : '#9ca3af')
+        .attr("marker-end", d => (d.source.id === selectedId || d.target.id === selectedId) ? `url(#arrow-selected-${componentId})` : `url(#arrow-${componentId})`);
+
+  }, [selectedNodeInfo, componentId]);
+
+  return (
+    <div ref={containerRef} className="bg-white rounded-lg shadow-lg border border-gray-200 w-full h-full overflow-hidden relative group">
+      {!data ? <LoadingSpinner /> : (
+        <>
+            <div className="absolute top-0 left-0 p-3 z-10 w-full sm:w-72">
+                 <div className="relative">
+                    <input
+                        type="text"
+                        placeholder={T.searchNodes}
+                        value={searchTerm}
+                        onChange={handleSearchChange}
+                        className="w-full p-2 pl-8 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-brand-blue-light transition bg-white/80 backdrop-blur-sm"
+                    />
+                    <div className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" /></svg>
+                    </div>
+                     {searchTerm && (
+                        <div className="absolute mt-1 w-full bg-white rounded-lg shadow-lg border border-gray-200 max-h-48 overflow-y-auto">
+                            {filteredNodes && filteredNodes.length > 0 ? (
+                                filteredNodes.map(node => (
+                                    <button key={node.id} onClick={() => onNodeClick(node)} className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 transition truncate">
+                                        {node.label}
+                                    </button>
+                                ))
+                            ) : (
+                                <p className="p-3 text-sm text-gray-500">{T.noResults}</p>
+                            )}
+                        </div>
                     )}
-                </button>
+                 </div>
             </div>
-        </div>
-        {selectedNodeInfo && (
-          <ConceptCard 
-            nodeInfo={selectedNodeInfo} 
-            onClose={onClearSelection}
-          />
-        )}
+          <svg ref={svgRef} className="w-full h-full"></svg>
+          <MapControls onZoomIn={handleZoomIn} onZoomOut={handleZoomOut} onReset={handleResetZoom} onToggleFullscreen={() => setIsMapFullscreen(!isMapFullscreen)} isFullscreen={isMapFullscreen} />
+          {selectedNodeInfo && <ConceptCard nodeInfo={selectedNodeInfo} onClose={onClearSelection} />}
+           <ContextMenu
+                position={contextMenu?.position || null}
+                onClose={() => setContextMenu(null)}
+                onExplainConnection={handleExplainConnection}
+                sourceNode={contextMenu?.sourceNode || null}
+                allNodes={data?.nodes || []}
+            />
+             <ConnectionExplanationModal
+                isOpen={!!connectionToExplain}
+                onClose={() => setConnectionToExplain(null)}
+                sourceNode={connectionToExplain?.source || null}
+                targetNode={connectionToExplain?.target || null}
+                caseTitle={caseTitle}
+                language={language}
+                T={T}
+            />
+        </>
+      )}
     </div>
   );
 };

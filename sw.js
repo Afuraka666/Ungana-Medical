@@ -4,7 +4,7 @@ self.addEventListener('message', event => {
   }
 });
 
-const CACHE_NAME = 'synapsis-medical-cache-v3';
+const CACHE_NAME = 'synapsis-medical-cache-v4';
 const URLS_TO_CACHE = [
   '/',
   '/index.html',

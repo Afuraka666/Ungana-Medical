@@ -29,7 +29,7 @@ export const QuizView: React.FC<QuizViewProps> = ({ quiz, T, showTitle = true })
   }, 0);
 
   return (
-    <div className="mt-1">
+    <div className="mt-1 relative pb-24">
       {showTitle && <h3 className="text-lg font-bold text-brand-blue border-b-2 border-brand-blue/30 pb-1 mb-3">{T.quizTitle}</h3>}
       {isSubmitted && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 text-center">
@@ -78,11 +78,11 @@ export const QuizView: React.FC<QuizViewProps> = ({ quiz, T, showTitle = true })
         ))}
       </div>
       {!isSubmitted && (
-        <div className="mt-6 text-center">
+        <div className="sticky bottom-0 -mx-4 sm:-mx-6 mt-6 py-4 bg-white/90 backdrop-blur-sm border-t border-gray-200 text-center z-10">
           <button 
             onClick={handleSubmit} 
             disabled={Object.keys(userAnswers).length !== quiz.length}
-            className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-md transition duration-300 ease-in-out disabled:bg-gray-400 disabled:cursor-not-allowed"
+            className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-md transition duration-300 ease-in-out disabled:bg-gray-400 disabled:cursor-not-allowed shadow-lg"
           >
             {T.quizSubmit}
           </button>

@@ -2,14 +2,16 @@
 
 import React, { useState, useMemo } from 'react';
 import { checkDrugInteractions } from '../services/geminiService';
+import { EcgInterpreter } from './EcgInterpreter';
 
 interface ClinicalToolsModalProps {
     isOpen: boolean;
     onClose: () => void;
     T: Record<string, any>;
+    language: string;
 }
 
-type ActiveTab = 'drug' | 'fluid' | 'scoring' | 'electrolytes';
+type ActiveTab = 'drug' | 'fluid' | 'scoring' | 'electrolytes' | 'ecg';
 
 // --- DRUG DOSE CALCULATOR ---
 
@@ -723,7 +725,7 @@ const drugDatabase: Drug[] = [
     }
 ].sort((a, b) => a.name.localeCompare(b.name)); // Sort alphabetically
 
-const DrugDoseCalculator: React.FC<{ T: Record<string, any> }> = ({ T }) => {
+const DrugDoseCalculator: React.FC<{ T: Record<string, any>, language: string }> = ({ T, language }) => {
     const [weight, setWeight] = useState<number | ''>('');
     const [selectedDrug, setSelectedDrug] = useState<Drug | null>(null);
     const [selectedInteractionDrugs, setSelectedInteractionDrugs] = useState<string[]>([]);
@@ -759,7 +761,7 @@ const DrugDoseCalculator: React.FC<{ T: Record<string, any> }> = ({ T }) => {
         setInteractionResult(null);
         setInteractionError(null);
         try {
-            const result = await checkDrugInteractions(selectedInteractionDrugs, 'en'); // Assuming 'en' for now, can be dynamic
+            const result = await checkDrugInteractions(selectedInteractionDrugs, language);
             setInteractionResult(result);
         } catch (error) {
             console.error("Interaction check failed:", error);
@@ -1398,14 +1400,14 @@ const ElectrolyteCalculators: React.FC<{ T: Record<string, any> }> = ({ T }) => 
 
 // --- MAIN MODAL COMPONENT ---
 
-export const ClinicalToolsModal: React.FC<ClinicalToolsModalProps> = ({ isOpen, onClose, T }) => {
+export const ClinicalToolsModal: React.FC<ClinicalToolsModalProps> = ({ isOpen, onClose, T, language }) => {
     const [activeTab, setActiveTab] = useState<ActiveTab>('drug');
 
     if (!isOpen) return null;
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 animate-fade-in" aria-modal="true" role="dialog">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[95vh] sm:max-h-[90vh] flex flex-col">
                 <header className="p-4 border-b border-gray-200 flex justify-between items-center">
                     <h2 className="text-lg font-bold text-gray-800">{T.clinicalToolsTitle}</h2>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition" aria-label="Close">
@@ -1427,6 +1429,9 @@ export const ClinicalToolsModal: React.FC<ClinicalToolsModalProps> = ({ isOpen, 
                         <button onClick={() => setActiveTab('electrolytes')} className={`${activeTab === 'electrolytes' ? 'border-brand-blue text-brand-blue' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm`}>
                            {T.electrolytesTab}
                         </button>
+                         <button onClick={() => setActiveTab('ecg')} className={`${activeTab === 'ecg' ? 'border-brand-blue text-brand-blue' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm`}>
+                           {T.ecgInterpretationTab}
+                        </button>
                     </nav>
                 </div>
 
@@ -1439,10 +1444,11 @@ export const ClinicalToolsModal: React.FC<ClinicalToolsModalProps> = ({ isOpen, 
                             <strong className="font-semibold">Disclaimer:</strong> {T.calculatorDisclaimer}
                         </div>
                     </div>
-                    {activeTab === 'drug' && <DrugDoseCalculator T={T} />}
+                    {activeTab === 'drug' && <DrugDoseCalculator T={T} language={language} />}
                     {activeTab === 'fluid' && <FluidManagementCalculator T={T} />}
                     {activeTab === 'scoring' && <ScoringSystems T={T} />}
                     {activeTab === 'electrolytes' && <ElectrolyteCalculators T={T} />}
+                    {activeTab === 'ecg' && <EcgInterpreter T={T} language={language} />}
                 </main>
                  <footer className="p-3 border-t border-gray-200 text-right bg-gray-50">
                     <button onClick={onClose} className="bg-brand-blue hover:bg-blue-800 text-white font-bold py-2 px-6 rounded-md transition duration-300">

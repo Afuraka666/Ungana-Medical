@@ -1,18 +1,7 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 
 // IMPORTANT: Replace with your actual Google Form details
-// 1. Create a Google Form with questions matching the form fields below.
-// 2. Get the pre-filled link to find your Form ID and entry IDs.
-// 3. Replace the GOOGLE_FORM_URL with `https://docs.google.com/forms/d/e/YOUR_UNIQUE_FORM_ID_HERE/formResponse`
-// 4. Replace the entry IDs below with the 'entry.xxxx' numbers from your form.
-//
-// --- Directing Responses to Google Drive ---
-// To save all form submissions to a specific folder in your Google Drive:
-// a. Open your Google Form and go to the "Responses" tab.
-// b. Click the "Link to Sheets" icon (a green spreadsheet icon).
-// c. Choose "Create a new spreadsheet". Name it "Synapsis Medical Evaluation Responses".
-// d. Click "Create". This will automatically save all future responses to this new Google Sheet.
-// e. Go to your Google Drive, create a new folder named "Synapsis Medical Evaluation", and move the newly created spreadsheet into it.
 const GOOGLE_FORM_URL = "https://docs.google.com/forms/d/e/YOUR_UNIQUE_FORM_ID_HERE/formResponse";
 const ENTRY_IDS = {
   respondentId: "entry.1000000",
@@ -34,43 +23,8 @@ const ENTRY_IDS = {
 
 interface EvaluationScreenProps {
     T: Record<string, any>;
+    onFeedbackSubmitted: () => void;
 }
-
-const susQuestions = [
-    { key: 'sus1', text: "I think that I would like to use this app frequently." },
-    { key: 'sus2', text: "I found the app unnecessarily complex." },
-    { key: 'sus3', text: "I thought the app was easy to use." },
-    { key: 'sus4', text: "I think I would need technical support to use this app." },
-    { key: 'sus5', text: "I found the functions in the app were well integrated." },
-    { key: 'sus6', text: "I thought there was too much inconsistency in the app." },
-    { key: 'sus7', text: "I would imagine most people would learn to use this app quickly." },
-    { key: 'sus8', text: "I found the app very cumbersome to use." },
-    { key: 'sus9', text: "I felt very confident using the app." },
-    { key: 'sus10', text: "I needed to learn many things before I could get going with the app." },
-];
-
-const mauqQuestions = [
-    { key: 'mauq1', text: "The app is easy to navigate." },
-    { key: 'mauq2', text: "It is easy to learn how to use the app." },
-    { key: 'mauq3', text: "I am satisfied with how the app functions." },
-    { key: 'mauq4', text: "The app’s information is logically arranged." },
-    { key: 'mauq5', text: "The interface design is clear and visually appealing." },
-    { key: 'mauq6', text: "The icons and text are easy to read." },
-    { key: 'mauq7', text: "The app supports my clinical decision-making process." },
-    { key: 'mauq8', text: "The information provided is accurate and clinically relevant." },
-    { key: 'mauq9', text: "The app helps me perform tasks more efficiently." },
-    { key: 'mauq10', text: "Using the app would improve patient safety." },
-    { key: 'mauq11', text: "The app fits well within my existing workflow." },
-    { key: 'mauq12', text: "I would use this app in my clinical practice." },
-    { key: 'mauq13', text: "I would recommend this app to my colleagues." },
-];
-
-const satisfactionQuestions = [
-    { key: 'satisfaction1', text: "Overall, I am satisfied with this app." },
-    { key: 'satisfaction2', text: "I trust the data provided by this app." },
-    { key: 'satisfaction3', text: "This app could be integrated into clinical training or workflow." },
-    { key: 'satisfaction4', text: "I would continue using this app if available." },
-];
 
 const FormSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
     <div className="space-y-4 border-t border-gray-200 pt-6 mt-6">
@@ -91,7 +45,7 @@ const LinearScale: React.FC<{ scale: number; value: number; onChange: (value: nu
                     key={num}
                     type="button"
                     onClick={() => onChange(num)}
-                    className={`h-10 border rounded transition text-sm ${num <= value ? 'bg-brand-blue text-white' : 'bg-gray-100 hover:bg-gray-200'}`}
+                    className={`h-8 sm:h-10 border rounded transition text-sm ${num <= value ? 'bg-brand-blue text-white' : 'bg-gray-100 hover:bg-gray-200'}`}
                 >
                     {num}
                 </button>
@@ -100,7 +54,7 @@ const LinearScale: React.FC<{ scale: number; value: number; onChange: (value: nu
     </div>
 );
 
-export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ T }) => {
+export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ T, onFeedbackSubmitted }) => {
     const [respondentId, setRespondentId] = useState('');
     const [consent, setConsent] = useState('');
     const [isSubmitted, setIsSubmitted] = useState(false);
@@ -112,6 +66,25 @@ export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ T }) => {
         satisfaction1: 0, satisfaction2: 0, satisfaction3: 0, satisfaction4: 0,
         feedbackMostUseful: '', feedbackImprovements: '', feedbackBugs: '', feedbackFeatures: '', feedbackAdditional: '',
     });
+    
+    const susQuestions = useMemo(() => [
+        { key: 'sus1', text: T.sus1 }, { key: 'sus2', text: T.sus2 }, { key: 'sus3', text: T.sus3 },
+        { key: 'sus4', text: T.sus4 }, { key: 'sus5', text: T.sus5 }, { key: 'sus6', text: T.sus6 },
+        { key: 'sus7', text: T.sus7 }, { key: 'sus8', text: T.sus8 }, { key: 'sus9', text: T.sus9 }, { key: 'sus10', text: T.sus10 },
+    ], [T]);
+
+    const mauqQuestions = useMemo(() => [
+        { key: 'mauq1', text: T.mauq1 }, { key: 'mauq2', text: T.mauq2 }, { key: 'mauq3', text: T.mauq3 },
+        { key: 'mauq4', text: T.mauq4 }, { key: 'mauq5', text: T.mauq5 }, { key: 'mauq6', text: T.mauq6 },
+        { key: 'mauq7', text: T.mauq7 }, { key: 'mauq8', text: T.mauq8 }, { key: 'mauq9', text: T.mauq9 },
+        { key: 'mauq10', text: T.mauq10 }, { key: 'mauq11', text: T.mauq11 }, { key: 'mauq12', text: T.mauq12 }, { key: 'mauq13', text: T.mauq13 },
+    ], [T]);
+
+    const satisfactionQuestions = useMemo(() => [
+        { key: 'satisfaction1', text: T.satisfaction1 }, { key: 'satisfaction2', text: T.satisfaction2 },
+        { key: 'satisfaction3', text: T.satisfaction3 }, { key: 'satisfaction4', text: T.satisfaction4 },
+    ], [T]);
+
 
     useEffect(() => {
         let id = localStorage.getItem('synapsis_respondent_id');
@@ -138,7 +111,7 @@ export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ T }) => {
         if (mauqQuestions.some(q => formData[q.key] === 0)) return false;
         if (satisfactionQuestions.some(q => formData[q.key] === 0)) return false;
         return true;
-    }, [formData]);
+    }, [formData, susQuestions, mauqQuestions, satisfactionQuestions]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -158,17 +131,17 @@ export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ T }) => {
         
         const submissionUrl = `${GOOGLE_FORM_URL}?${params.toString()}`;
         
-        // This submits in the background. Google Forms will return an error, but the data will be submitted.
         fetch(submissionUrl, { mode: 'no-cors' }).finally(() => {
             setIsSubmitting(false);
             setIsSubmitted(true);
+            onFeedbackSubmitted();
         });
     };
 
     if (isSubmitted) {
         return (
-             <div className="flex-grow flex items-center justify-center p-8 bg-white rounded-lg shadow-lg border border-gray-200 text-center">
-                <div>
+             <div className="h-screen w-screen flex items-center justify-center bg-gray-100 p-4">
+                <div className="bg-white rounded-lg shadow-lg border border-gray-200 text-center p-8 max-w-lg">
                     <svg className="mx-auto h-16 w-16 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
@@ -180,64 +153,65 @@ export const EvaluationScreen: React.FC<EvaluationScreenProps> = ({ T }) => {
     }
     
     return (
-        <div className="flex-grow flex items-center justify-center p-4 sm:p-8 animate-fade-in">
-             <div className="bg-white rounded-lg shadow-xl border border-gray-200 p-6 sm:p-8 w-full max-w-4xl">
-                <h2 className="text-2xl font-bold text-gray-800 text-center">Evaluation of Synapsis Medical: Clinical Usability and Acceptability Study</h2>
-                <p className="mt-2 text-sm text-gray-600 text-center">You are invited to participate in a research study evaluating the usability and clinical applicability of Synapsis Medical. Your participation is voluntary and anonymous. Estimated time: 8–10 minutes. By proceeding, you consent to participate.</p>
-                
-                <form onSubmit={handleSubmit} className="mt-8">
-                    {/* Section A: Consent */}
-                    <div className="space-y-2">
-                        <label className="block text-sm font-medium text-gray-700">Do you consent to participate in this study? *</label>
-                        <div className="flex items-center space-x-4">
-                           <label className="flex items-center"><input type="radio" name="consent" value="yes" onChange={(e) => setConsent(e.target.value)} className="mr-2" /> Yes, I consent.</label>
-                           <label className="flex items-center"><input type="radio" name="consent" value="no" onChange={(e) => setConsent(e.target.value)} className="mr-2" /> No, I do not consent.</label>
-                        </div>
-                    </div>
-                    { consent === 'no' && <p className="mt-4 text-center text-gray-600">Thank you for your time. You may now close this window.</p>}
+        <div className="h-screen w-screen bg-gray-100 overflow-y-auto">
+            <div className="flex-grow flex items-center justify-center p-4 sm:p-8 animate-fade-in">
+                <div className="bg-white rounded-lg shadow-xl border border-gray-200 p-6 sm:p-8 w-full max-w-4xl">
+                    <h2 className="text-2xl font-bold text-gray-800 text-center">{T.evalStudyTitle}</h2>
+                    <p className="mt-2 text-sm text-gray-600 text-center">{T.evalStudyDescription}</p>
                     
-                    { consent === 'yes' && (
-                        <>
-                         <FormSection title="Section B: Demographics">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div><label className="block text-sm font-medium text-gray-700">What is your current professional role? *</label><select name="professionalRole" value={formData.professionalRole} onChange={handleChange} required className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm text-black"><option value="" disabled>Select role...</option><option>Consultant anaesthesiologist</option><option>Registrar/resident</option><option>Medical officer</option><option>Nurse anaesthetist</option><option value="Other">Other (please specify)</option></select></div>
-                                <div><label className="block text-sm font-medium text-gray-700">Years of clinical experience *</label><select name="yearsExperience" value={formData.yearsExperience} onChange={handleChange} required className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm text-black"><option value="" disabled>Select years...</option><option>{"<2 years"}</option><option>2–5 years</option><option>6–10 years</option><option>{">10 years"}</option></select></div>
-                                <div><label className="block text-sm font-medium text-gray-700">Experience using medical or decision-support apps *</label><select name="appExperience" value={formData.appExperience} onChange={handleChange} required className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm text-black"><option value="" disabled>Select experience...</option><option>None</option><option>Occasional use</option><option>Regular use</option><option>Daily use in clinical settings</option></select></div>
-                                <div><label className="block text-sm font-medium text-gray-700">Device used for testing *</label><select name="deviceUsed" value={formData.deviceUsed} onChange={handleChange} required className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm text-black"><option value="" disabled>Select device...</option><option>Android phone</option><option>iPhone</option><option>Tablet (Android/iPad)</option><option value="Other">Other (specify)</option></select></div>
-                                {formData.deviceUsed === 'Other' && <div><label className="block text-sm font-medium text-gray-700">Please specify other device *</label><input type="text" name="otherDevice" value={formData.otherDevice} onChange={handleChange} required className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm text-black" /></div>}
-                                <div><label className="block text-sm font-medium text-gray-700">Approximate time spent using the app before evaluation *</label><select name="durationOfUse" value={formData.durationOfUse} onChange={handleChange} required className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm text-black"><option value="" disabled>Select duration...</option><option>{"<10 minutes"}</option><option>10–30 minutes</option><option>30–60 minutes</option><option>{">1 hour"}</option></select></div>
+                    <form onSubmit={handleSubmit} className="mt-8">
+                        <div className="space-y-2">
+                            <label className="block text-sm font-medium text-gray-700">{T.evalConsentLabel}</label>
+                            <div className="flex items-center space-x-4">
+                            <label className="flex items-center"><input type="radio" name="consent" value="yes" onChange={(e) => setConsent(e.target.value)} className="mr-2" /> {T.evalConsentYes}</label>
+                            <label className="flex items-center"><input type="radio" name="consent" value="no" onChange={(e) => setConsent(e.target.value)} className="mr-2" /> {T.evalConsentNo}</label>
                             </div>
-                        </FormSection>
-
-                        <FormSection title="Section C: System Usability Scale (SUS)">
-                            {susQuestions.map(({key, text}) => (<div key={key}><label className="block text-sm font-medium text-gray-700 mb-2">{text} *</label><LinearScale scale={5} value={formData[key]} onChange={(v) => handleScaleChange(key, v)} startLabel="Strongly Disagree" endLabel="Strongly Agree" /></div>))}
-                        </FormSection>
-                        
-                        <FormSection title="Section D: Mobile App Usability Questionnaire (MAUQ)">
-                             {mauqQuestions.map(({key, text}) => (<div key={key}><label className="block text-sm font-medium text-gray-700 mb-2">{text} *</label><LinearScale scale={7} value={formData[key]} onChange={(v) => handleScaleChange(key, v)} startLabel="Strongly Disagree" endLabel="Strongly Agree" /></div>))}
-                        </FormSection>
-
-                         <FormSection title="Section E: Satisfaction">
-                             {satisfactionQuestions.map(({key, text}) => (<div key={key}><label className="block text-sm font-medium text-gray-700 mb-2">{text} *</label><LinearScale scale={5} value={formData[key]} onChange={(v) => handleScaleChange(key, v)} startLabel="Strongly Disagree" endLabel="Strongly Agree" /></div>))}
-                        </FormSection>
-
-                        <FormSection title="Section F: Feedback">
-                            <div><label htmlFor="feedbackMostUseful" className="block text-sm font-medium text-gray-700">What aspects of the app did you find most useful?</label><textarea id="feedbackMostUseful" name="feedbackMostUseful" value={formData.feedbackMostUseful} onChange={handleChange} rows={3} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm text-black" /></div>
-                            <div><label htmlFor="feedbackImprovements" className="block text-sm font-medium text-gray-700">What aspects of the app need improvement?</label><textarea id="feedbackImprovements" name="feedbackImprovements" value={formData.feedbackImprovements} onChange={handleChange} rows={3} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm text-black" /></div>
-                            <div><label htmlFor="feedbackBugs" className="block text-sm font-medium text-gray-700">Did you encounter any bugs, errors, or crashes? Please describe.</label><input type="text" id="feedbackBugs" name="feedbackBugs" value={formData.feedbackBugs} onChange={handleChange} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm text-black" /></div>
-                            <div><label htmlFor="feedbackFeatures" className="block text-sm font-medium text-gray-700">Are there any features you would like to see added?</label><textarea id="feedbackFeatures" name="feedbackFeatures" value={formData.feedbackFeatures} onChange={handleChange} rows={3} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm text-black" /></div>
-                            <div><label htmlFor="feedbackAdditional" className="block text-sm font-medium text-gray-700">Any additional comments or suggestions?</label><textarea id="feedbackAdditional" name="feedbackAdditional" value={formData.feedbackAdditional} onChange={handleChange} rows={3} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm text-black" /></div>
-                        </FormSection>
-
-                        <div className="text-center pt-6 mt-6 border-t">
-                            <button type="submit" disabled={!isFormComplete || isSubmitting} className="w-full sm:w-auto bg-brand-blue hover:bg-blue-800 text-white font-bold py-3 px-10 rounded-md transition duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed">
-                                {isSubmitting ? 'Submitting...' : T.evalSubmitButton}
-                            </button>
                         </div>
-                        </>
-                    )}
-                </form>
-             </div>
+                        { consent === 'no' && <p className="mt-4 text-center text-gray-600">{T.evalConsentNoMessage}</p>}
+                        
+                        { consent === 'yes' && (
+                            <>
+                            <FormSection title={T.evalSectionB}>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div><label className="block text-sm font-medium text-gray-700">{T.evalRoleLabel}</label><select name="professionalRole" value={formData.professionalRole} onChange={handleChange} required className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm text-black"><option value="" disabled>{T.evalSelectOption}</option><option>{T.evalRoleConsultant}</option><option>{T.evalRoleRegistrar}</option><option>{T.evalRoleMO}</option><option>{T.evalRoleNurseAnaesthetist}</option><option value="Other">{T.evalRoleOther}</option></select></div>
+                                    <div><label className="block text-sm font-medium text-gray-700">{T.evalYearsExperienceLabel}</label><select name="yearsExperience" value={formData.yearsExperience} onChange={handleChange} required className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm text-black"><option value="" disabled>Select...</option>{T.evalYearsExperienceOptions.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}</select></div>
+                                    <div><label className="block text-sm font-medium text-gray-700">{T.evalAppExperienceLabel}</label><select name="appExperience" value={formData.appExperience} onChange={handleChange} required className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm text-black"><option value="" disabled>Select...</option>{T.evalAppExperienceOptions.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}</select></div>
+                                    <div><label className="block text-sm font-medium text-gray-700">{T.evalDeviceUsedLabel}</label><select name="deviceUsed" value={formData.deviceUsed} onChange={handleChange} required className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm text-black"><option value="" disabled>Select...</option>{T.evalDeviceUsedOptions.map((opt: string) => <option key={opt} value={opt.includes('Other') ? 'Other' : opt}>{opt}</option>)}</select></div>
+                                    {formData.deviceUsed === 'Other' && <div><label className="block text-sm font-medium text-gray-700">{T.evalSpecifyDeviceLabel}</label><input type="text" name="otherDevice" value={formData.otherDevice} onChange={handleChange} required className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm text-black" /></div>}
+                                    <div><label className="block text-sm font-medium text-gray-700">{T.evalDurationOfUseLabel}</label><select name="durationOfUse" value={formData.durationOfUse} onChange={handleChange} required className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm text-black"><option value="" disabled>Select...</option>{T.evalDurationOfUseOptions.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}</select></div>
+                                </div>
+                            </FormSection>
+
+                            <FormSection title={T.evalSectionC}>
+                                {susQuestions.map(({key, text}) => (<div key={key}><label className="block text-sm font-medium text-gray-700 mb-2">{text} *</label><LinearScale scale={5} value={formData[key]} onChange={(v) => handleScaleChange(key, v)} startLabel={T.evalSUSScaleStart} endLabel={T.evalSUSScaleEnd} /></div>))}
+                            </FormSection>
+                            
+                            <FormSection title={T.evalSectionD}>
+                                {mauqQuestions.map(({key, text}) => (<div key={key}><label className="block text-sm font-medium text-gray-700 mb-2">{text} *</label><LinearScale scale={7} value={formData[key]} onChange={(v) => handleScaleChange(key, v)} startLabel={T.evalMAUQScaleStart} endLabel={T.evalMAUQScaleEnd} /></div>))}
+                            </FormSection>
+
+                            <FormSection title={T.evalSectionE}>
+                                {satisfactionQuestions.map(({key, text}) => (<div key={key}><label className="block text-sm font-medium text-gray-700 mb-2">{text} *</label><LinearScale scale={5} value={formData[key]} onChange={(v) => handleScaleChange(key, v)} startLabel={T.evalSUSScaleStart} endLabel={T.evalSUSScaleEnd} /></div>))}
+                            </FormSection>
+
+                            <FormSection title={T.evalSectionF}>
+                                <div><label htmlFor="feedbackMostUseful" className="block text-sm font-medium text-gray-700">{T.evalFeedbackMostUseful}</label><textarea id="feedbackMostUseful" name="feedbackMostUseful" value={formData.feedbackMostUseful} onChange={handleChange} rows={3} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm text-black" /></div>
+                                <div><label htmlFor="feedbackImprovements" className="block text-sm font-medium text-gray-700">{T.evalFeedbackImprovements}</label><textarea id="feedbackImprovements" name="feedbackImprovements" value={formData.feedbackImprovements} onChange={handleChange} rows={3} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm text-black" /></div>
+                                <div><label htmlFor="feedbackBugs" className="block text-sm font-medium text-gray-700">{T.evalFeedbackBugs}</label><input type="text" id="feedbackBugs" name="feedbackBugs" value={formData.feedbackBugs} onChange={handleChange} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm text-black" /></div>
+                                <div><label htmlFor="feedbackFeatures" className="block text-sm font-medium text-gray-700">{T.evalFeedbackFeatures}</label><textarea id="feedbackFeatures" name="feedbackFeatures" value={formData.feedbackFeatures} onChange={handleChange} rows={3} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm text-black" /></div>
+                                <div><label htmlFor="feedbackAdditional" className="block text-sm font-medium text-gray-700">{T.evalFeedbackAdditional}</label><textarea id="feedbackAdditional" name="feedbackAdditional" value={formData.feedbackAdditional} onChange={handleChange} rows={3} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm text-black" /></div>
+                            </FormSection>
+
+                            <div className="text-center pt-6 mt-6 border-t">
+                                <button type="submit" disabled={!isFormComplete || isSubmitting} className="w-full sm:w-auto bg-brand-blue hover:bg-blue-800 text-white font-bold py-3 px-10 rounded-md transition duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed">
+                                    {isSubmitting ? 'Submitting...' : T.evalSubmitButton}
+                                </button>
+                            </div>
+                            </>
+                        )}
+                    </form>
+                </div>
+            </div>
         </div>
     );
 };

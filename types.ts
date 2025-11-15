@@ -9,6 +9,8 @@ export enum Discipline {
   GENETICS = "Genetics",
   DIAGNOSTICS = "Diagnostics",
   TREATMENT = "Treatment",
+  PHYSIOTHERAPY = "Physiotherapy",
+  OCCUPATIONAL_THERAPY = "Occupational Therapy",
 }
 
 export enum EducationalContentType {
@@ -142,4 +144,16 @@ export interface Tip {
   title: string;
   text: string;
   trigger: (state: InteractionState) => boolean;
+}
+
+export interface LoggedEvent {
+  id: number;
+  name: string;
+  params: Record<string, any>;
+  timestamp: string;
+}
+
+export interface AnalyticsContextType {
+  logEvent: (eventName: string, params?: Record<string, any>) => void;
+  eventLog: LoggedEvent[];
 }
