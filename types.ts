@@ -43,6 +43,7 @@ export interface EducationalContent {
   description: string; // AI-generated description of the visual content
   reference: string;
   diagramData?: DiagramData;
+  imageData?: string;
 }
 
 export interface QuizQuestion {

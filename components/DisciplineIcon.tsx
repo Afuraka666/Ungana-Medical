@@ -1,0 +1,28 @@
+import React from 'react';
+import { Discipline } from '../types';
+
+interface DisciplineIconProps {
+    discipline: Discipline;
+    className?: string;
+    style?: React.CSSProperties;
+}
+
+export const DisciplineIcon: React.FC<DisciplineIconProps> = ({ discipline, className = "h-6 w-6", style }) => {
+    // Using heroicons and custom icons for a consistent, professional look
+    const icons: Record<Discipline, React.ReactNode> = {
+        [Discipline.BIOCHEMISTRY]: <svg style={style} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.83-5.83M11.42 15.17l2.472-2.472a3.375 3.375 0 00-4.773-4.773L6.75 11.42m5.83-5.83l-2.472 2.472a3.375 3.375 0 00-4.773 4.773L6.75 11.42m-5.83 5.83l5.83-5.83" /></svg>,
+        [Discipline.PHARMACOLOGY]: <svg style={style} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0h18M12 14.25h.008v.008H12v-.008z" /></svg>,
+        [Discipline.PHYSIOLOGY]: <svg style={style} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M21.75 17.25v-.228a4.5 4.5 0 00-.12-1.03l-2.268-9.64a3.375 3.375 0 00-3.285-2.602H7.92a3.375 3.375 0 00-3.285 2.602l-2.268 9.64a4.5 4.5 0 00-.12 1.03v.228m15.54 0a2.25 2.25 0 01-2.25 2.25h-5.1a2.25 2.25 0 01-2.25-2.25m3.75-9a2.25 2.25 0 00-4.5 0v.75a.75.75 0 01-1.5 0v-.75a3.75 3.75 0 117.5 0v.75a.75.75 0 01-1.5 0v-.75z" /></svg>,
+        [Discipline.PSYCHOLOGY]: <svg style={style} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8.25c-2.485 0-4.5 1.5-4.5 3.375s2.015 3.375 4.5 3.375 4.5-1.5 4.5-3.375S14.485 8.25 12 8.25zM12 15a2.25 2.25 0 00-2.25 2.25v.75m4.5-.75a2.25 2.25 0 01-2.25 2.25v.75m-4.5 0a2.25 2.25 0 00-2.25-2.25v-.75m11.25.75c.621 0 1.22-.128 1.769-.362a4.486 4.486 0 003.48-2.196.5.5 0 00-.23-.683A4.5 4.5 0 0012 12.75a4.5 4.5 0 00-4.523 2.76.5.5 0 00-.23.682 4.486 4.486 0 003.48 2.196A4.49 4.49 0 0012 18.75z" /></svg>,
+        [Discipline.SOCIOLOGY]: <svg style={style} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m-7.5-2.962a3.75 3.75 0 100-7.5 3.75 3.75 0 000 7.5zM10.5 18.75a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" /></svg>,
+        [Discipline.PATHOLOGY]: <svg style={style} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" /></svg>,
+        [Discipline.IMMUNOLOGY]: <svg style={style} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.286zm0 13.036h.008v.008h-.008v-.008z" /></svg>,
+        [Discipline.GENETICS]: <svg style={style} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>,
+        [Discipline.DIAGNOSTICS]: <svg style={style} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>,
+        [Discipline.TREATMENT]: <svg style={style} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+        [Discipline.PHYSIOTHERAPY]: <svg style={style} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M12.75 3.75l-4.5 4.5m0 0l4.5 4.5m-4.5-4.5h15m-15 0L3.75 8.25m9 12l-4.5-4.5m0 0l4.5-4.5m-4.5 4.5h15m-15 0l-4.5 4.5" /></svg>,
+        [Discipline.OCCUPATIONAL_THERAPY]: <svg style={style} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" /></svg>,
+    };
+    
+    return icons[discipline] || null;
+};

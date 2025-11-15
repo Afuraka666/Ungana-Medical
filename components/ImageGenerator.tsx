@@ -9,6 +9,7 @@ interface ImageGeneratorProps {
     onClose: () => void;
     language: string;
     T: Record<string, any>;
+    onImageGenerated: (imageBase64: string) => void;
 }
 
 const LoadingSpinner: React.FC = () => (
@@ -18,7 +19,7 @@ const LoadingSpinner: React.FC = () => (
     </svg>
 );
 
-export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ content, onClose, language, T }) => {
+export const ImageGenerator: React.FC<ImageGeneratorProps> = ({ content, onClose, language, T, onImageGenerated }) => {
     const [imageData, setImageData] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
@@ -50,6 +51,7 @@ Language for all text and labels: ${languageName}.`;
 
                 const base64Image = await generateVisualAid(prompt);
                 setImageData(`data:image/png;base64,${base64Image}`);
+                onImageGenerated(base64Image);
             } catch (err: any) {
                 console.error(err);
                 if (err.message && (err.message.includes("API key not valid") || err.message.includes("Requested entity was not found") || err.message.includes("API_KEY"))) {
@@ -62,7 +64,7 @@ Language for all text and labels: ${languageName}.`;
             }
         };
         generate();
-    }, [content, language, T]);
+    }, [content, language, T, onImageGenerated]);
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 animate-fade-in" onClick={onClose}>

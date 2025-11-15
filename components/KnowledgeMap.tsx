@@ -27,7 +27,7 @@ interface MapControlsProps {
 const MapControls: React.FC<MapControlsProps> = ({ onZoomIn, onZoomOut, onReset, onToggleFullscreen, isFullscreen }) => {
     const buttonClasses = "bg-white/80 backdrop-blur-sm hover:bg-white text-gray-700 shadow-md border border-gray-200 rounded-lg w-10 h-10 flex items-center justify-center transition";
     return (
-        <div className="absolute top-3 right-3 flex flex-col gap-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+        <div className="absolute bottom-3 right-3 flex flex-col gap-2 z-10">
             <button onClick={() => onZoomIn()} title="Zoom In" className={buttonClasses}>
                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
             </button>
@@ -204,9 +204,17 @@ export const KnowledgeMap: React.FC<KnowledgeMapProps> = ({
 
   const [filteredNodes, setFilteredNodes] = useState<KnowledgeNode[] | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [activeDisciplineFilters, setActiveDisciplineFilters] = useState<Discipline[]>([]);
 
   const [contextMenu, setContextMenu] = useState<{ position: { x: number, y: number }, sourceNode: KnowledgeNode } | null>(null);
   const [connectionToExplain, setConnectionToExplain] = useState<{ source: KnowledgeNode, target: KnowledgeNode } | null>(null);
+
+  const availableDisciplines = useMemo(() => {
+    if (!data?.nodes) return [];
+    const disciplines = new Set<Discipline>();
+    data.nodes.forEach(node => disciplines.add(node.discipline));
+    return Array.from(disciplines).sort((a, b) => a.localeCompare(b));
+  }, [data]);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const term = e.target.value;
@@ -216,6 +224,18 @@ export const KnowledgeMap: React.FC<KnowledgeMapProps> = ({
       } else if (data) {
           setFilteredNodes(data.nodes.filter(n => n.label.toLowerCase().includes(term.toLowerCase())));
       }
+  };
+
+  const handleFilterToggle = (discipline: Discipline) => {
+    setActiveDisciplineFilters(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(discipline)) {
+            newSet.delete(discipline);
+        } else {
+            newSet.add(discipline);
+        }
+        return Array.from(newSet);
+    });
   };
 
   const handleZoomIn = useCallback(() => {
@@ -316,6 +336,10 @@ export const KnowledgeMap: React.FC<KnowledgeMapProps> = ({
     const node = g.append("g").selectAll("g").data(nodes).join("g").attr("cursor", "pointer");
     const getRadius = (d: any) => d.label.length / 2 + 10;
     node.append("circle").attr("r", getRadius).attr("stroke", "#fff").attr("stroke-width", 3).attr("fill", (d: any) => DisciplineColors[d.discipline] || '#ccc');
+    
+    // Add tooltip with node label and discipline
+    node.append("title").text((d: any) => `${d.label}\nDiscipline: ${d.discipline}`);
+
     node.append("text").text((d: any) => d.label).attr("text-anchor", "middle").attr("dy", ".3em").attr("font-size", "11px").attr("font-weight", "600").attr("fill", "#000").style("pointer-events", "none");
     elementsRef.current.node = node;
 
@@ -369,33 +393,58 @@ export const KnowledgeMap: React.FC<KnowledgeMapProps> = ({
   }, [data, componentId, isMapFullscreen, handleResetZoom, onNodeClick, onClearSelection, handleNodeContextMenu]);
 
   useEffect(() => {
-    const { node, link } = elementsRef.current;
-    if (!node || !link) return;
+    const { node, link, linkpath } = elementsRef.current;
+    if (!node || !link || !linkpath) return;
 
-    const isAnySelected = !!selectedNodeInfo;
     const selectedId = selectedNodeInfo?.node.id;
+    const hasActiveFilters = activeDisciplineFilters.length > 0;
+    const activeFilterSet = new Set(activeDisciplineFilters);
 
+    // --- Node Styles ---
     node.transition().duration(200)
-      .style("opacity", (d: any) => !isAnySelected || d.id === selectedId ? 1.0 : 0.3)
-      .style("filter", (d: any) => d.id === selectedId ? `url(#glow-${componentId})` : null);
-    
+        .style("opacity", (d: any) => {
+            if (selectedId) {
+                // Selection logic takes precedence
+                return d.id === selectedId ? 1.0 : 0.3;
+            }
+            if (hasActiveFilters) {
+                // Filter logic
+                return activeFilterSet.has(d.discipline) ? 1.0 : 0.15;
+            }
+            // Default: all visible
+            return 1.0;
+        })
+        .style("filter", (d: any) => d.id === selectedId ? `url(#glow-${componentId})` : null);
+
     node.select('circle').transition().duration(200)
-        .attr('stroke', d => d.id === selectedId ? DisciplineColors[d.discipline as Discipline] : '#fff');
+        .attr('stroke', (d: any) => d.id === selectedId ? DisciplineColors[d.discipline as Discipline] : '#fff');
 
+    // --- Link Styles ---
     link.transition().duration(200)
-      .style("opacity", (d: any) => {
-          const isConnected = d.source.id === selectedId || d.target.id === selectedId;
-          return !isAnySelected || isConnected ? 1.0 : 0.2;
-      });
-    
-    link.select('path').transition().duration(200)
-        .attr('stroke', d => (d.source.id === selectedId || d.target.id === selectedId) ? '#1e3a8a' : '#9ca3af')
-        .attr("marker-end", d => (d.source.id === selectedId || d.target.id === selectedId) ? `url(#arrow-selected-${componentId})` : `url(#arrow-${componentId})`);
+        .style("opacity", (d: any) => {
+            if (selectedId) {
+                // Selection logic
+                const isConnected = d.source.id === selectedId || d.target.id === selectedId;
+                return isConnected ? 1.0 : 0.2;
+            }
+            if (hasActiveFilters) {
+                // Filter logic: link is visible if both its nodes are visible
+                const sourceInFilter = activeFilterSet.has(d.source.discipline);
+                const targetInFilter = activeFilterSet.has(d.target.discipline);
+                return (sourceInFilter && targetInFilter) ? 1.0 : 0.1;
+            }
+            // Default: all visible
+            return 1.0;
+        });
 
-  }, [selectedNodeInfo, componentId]);
+    linkpath.transition().duration(200)
+        .attr('stroke', (d: any) => (selectedId && (d.source.id === selectedId || d.target.id === selectedId)) ? '#1e3a8a' : '#9ca3af')
+        .attr("marker-end", (d: any) => (selectedId && (d.source.id === selectedId || d.target.id === selectedId)) ? `url(#arrow-selected-${componentId})` : `url(#arrow-${componentId})`);
+
+}, [selectedNodeInfo, activeDisciplineFilters, componentId]);
 
   return (
-    <div ref={containerRef} className="bg-white rounded-lg shadow-lg border border-gray-200 w-full h-full overflow-hidden relative group">
+    <div ref={containerRef} className="bg-white rounded-lg shadow-lg border border-gray-200 w-full h-full overflow-hidden relative">
       {!data ? <LoadingSpinner /> : (
         <>
             <div className="absolute top-0 left-0 p-3 z-10 w-full sm:w-72">
@@ -424,6 +473,35 @@ export const KnowledgeMap: React.FC<KnowledgeMapProps> = ({
                         </div>
                     )}
                  </div>
+            </div>
+             <div className="absolute top-16 left-3 z-10 flex flex-wrap gap-1.5 max-w-md">
+                {availableDisciplines.map(discipline => {
+                    const isActive = activeDisciplineFilters.includes(discipline);
+                    return (
+                        <button
+                            key={discipline}
+                            onClick={() => handleFilterToggle(discipline)}
+                            className={`px-2 py-0.5 text-xs font-semibold rounded-full flex items-center gap-1.5 transition border shadow-sm ${
+                                isActive
+                                ? 'bg-white text-brand-blue border-brand-blue-light ring-2 ring-brand-blue-light/50'
+                                : 'bg-white/80 backdrop-blur-sm border-gray-200 text-gray-700 hover:border-gray-400'
+                            }`}
+                        >
+                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: DisciplineColors[discipline] }}></span>
+                            {discipline}
+                        </button>
+                    );
+                })}
+                {activeDisciplineFilters.length > 0 && (
+                    <button
+                        onClick={() => setActiveDisciplineFilters([])}
+                        title="Clear filters"
+                        className="px-2 py-0.5 text-xs font-semibold rounded-full flex items-center gap-1.5 transition border shadow-sm bg-red-100 text-red-700 border-red-200 hover:bg-red-200"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                        Clear
+                    </button>
+                )}
             </div>
           <svg ref={svgRef} className="w-full h-full"></svg>
           <MapControls onZoomIn={handleZoomIn} onZoomOut={handleZoomOut} onReset={handleResetZoom} onToggleFullscreen={() => setIsMapFullscreen(!isMapFullscreen)} isFullscreen={isMapFullscreen} />

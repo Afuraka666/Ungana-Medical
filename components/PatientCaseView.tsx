@@ -9,6 +9,7 @@ import { DiscussionModal } from './DiscussionModal';
 import { InteractiveDiagram } from './InteractiveDiagram';
 import { SourceSearchModal } from './SourceSearchModal';
 import { enrichCaseWithWebSources } from '../services/geminiService';
+import { DisciplineIcon } from './DisciplineIcon';
 
 declare const jspdf: any;
 declare global {
@@ -263,9 +264,10 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
   const { state: patientCase, setState: setPatientCase, undo, redo, canUndo, canRedo, resetState } = useHistoryState<PatientCase>(initialPatientCase);
   const [isEditing, setIsEditing] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
-  const [activeImageGenerator, setActiveImageGenerator] = useState<EducationalContent | null>(null);
+  const [activeImageGenerator, setActiveImageGenerator] = useState<{ content: EducationalContent; index: number } | null>(null);
   const [activeDiscussion, setActiveDiscussion] = useState<DisciplineSpecificConsideration | null>(null);
   const [activeSourceSearch, setActiveSourceSearch] = useState<string | null>(null);
+  const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
   
   const [isEnrichingEvidence, setIsEnrichingEvidence] = useState(false);
   const [evidenceSources, setEvidenceSources] = useState<any[]>([]);
@@ -327,6 +329,18 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
   const handleCopySection = (content: string) => {
     navigator.clipboard.writeText(content);
   };
+
+  const handleImageGenerated = useCallback((itemIndex: number, imageBase64: string) => {
+    setPatientCase(prevCase => {
+        const newEducationalContent = [...prevCase.educationalContent];
+        newEducationalContent[itemIndex] = {
+            ...newEducationalContent[itemIndex],
+            imageData: imageBase64,
+        };
+        return { ...prevCase, educationalContent: newEducationalContent };
+    });
+    setActiveImageGenerator(null);
+  }, [setPatientCase]);
 
   const handleEnrichSources = async () => {
     setIsEnrichingEvidence(true);
@@ -560,14 +574,19 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
             {patientCase.biochemicalPathway.diagramData && <div className="mt-4 h-80 rounded-lg border border-gray-200"><InteractiveDiagram data={patientCase.biochemicalPathway.diagramData} /></div>}
         </Section>
         <Section title={T.multidisciplinaryConnections} onCopy={() => {}} onSaveSnippet={() => onSaveSnippet(T.multidisciplinaryConnections, patientCase.multidisciplinaryConnections.map(c => `${c.discipline}: ${c.connection}`).join('\n'))} T={T}>
-            <ul className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {patientCase.multidisciplinaryConnections.map((conn, index) => (
-                    <li key={index} className="flex items-start">
-                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full mr-3 mt-1" style={{ backgroundColor: `${DisciplineColors[conn.discipline]}20`, color: DisciplineColors[conn.discipline] }}>{conn.discipline}</span>
-                        <p className="flex-1">{conn.connection}</p>
-                    </li>
+                    <div key={index} className="bg-gray-50 border border-gray-200 rounded-lg p-4 transition hover:shadow-md hover:border-blue-200">
+                        <div className="flex items-center mb-2">
+                            <div className="p-2 rounded-full mr-3" style={{ backgroundColor: `${DisciplineColors[conn.discipline]}20` }}>
+                                <DisciplineIcon discipline={conn.discipline} className="h-5 w-5" style={{ color: DisciplineColors[conn.discipline] }} />
+                            </div>
+                            <h5 className="font-bold" style={{ color: DisciplineColors[conn.discipline] }}>{conn.discipline}</h5>
+                        </div>
+                        <p className="text-sm text-gray-700 leading-relaxed">{conn.connection}</p>
+                    </div>
                 ))}
-            </ul>
+            </div>
         </Section>
         <Section title={T.managementConsiderations} onCopy={() => {}} onSaveSnippet={() => onSaveSnippet(T.managementConsiderations, patientCase.disciplineSpecificConsiderations.map(c => `${c.aspect}: ${c.consideration}`).join('\n'))} T={T}>
             <ul className="space-y-3">
@@ -586,17 +605,37 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
              <div className="space-y-4">
                 {patientCase.educationalContent.map((item, index) => (
                     <div key={index} className="bg-gray-50 p-3 rounded-lg border border-gray-200">
-                        <div className="flex justify-between items-start">
+                        <div className="flex justify-between items-start gap-2">
                              <div>
                                 <h4 className="font-semibold text-gray-800">{item.title}</h4>
                                 <p className="text-xs text-gray-500 italic">{item.reference}</p>
                             </div>
-                            {item.type === EducationalContentType.IMAGE && (
-                                <button onClick={() => setActiveImageGenerator(item)} className="text-sm bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-semibold py-1 px-3 rounded-md transition">Generate Image</button>
-                            )}
+                            <div className="flex-shrink-0 flex items-center space-x-2">
+                                {item.type === EducationalContentType.IMAGE && !item.imageData && (
+                                    <button onClick={() => setActiveImageGenerator({ content: item, index })} className="text-sm bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-semibold py-1 px-3 rounded-md transition">Generate Image</button>
+                                )}
+                                <button 
+                                    onClick={() => setActiveDiscussion({ aspect: item.title, consideration: item.description })} 
+                                    title={T.discussButton} 
+                                    className="text-sm bg-blue-100 hover:bg-blue-200 text-brand-blue font-semibold py-1 px-3 rounded-md transition"
+                                >
+                                    {T.discussButton}
+                                </button>
+                            </div>
                         </div>
                         <p className="mt-2">{item.description}</p>
-                         {item.diagramData && <div className="mt-3 h-72 rounded-lg border border-gray-200 bg-white"><InteractiveDiagram data={item.diagramData} /></div>}
+                        {item.diagramData && <div className="mt-3 h-72 rounded-lg border border-gray-200 bg-white"><InteractiveDiagram data={item.diagramData} /></div>}
+                        {item.imageData && (
+                            <div className="mt-3">
+                                <img 
+                                    src={`data:image/png;base64,${item.imageData}`} 
+                                    alt={item.title}
+                                    onClick={() => setEnlargedImage(item.imageData!)}
+                                    className="rounded-md border border-gray-200 cursor-pointer hover:shadow-lg transition-shadow"
+                                    style={{ maxWidth: '100%', height: 'auto' }}
+                                />
+                            </div>
+                        )}
                     </div>
                 ))}
             </div>
@@ -623,7 +662,7 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
         <QuizView quiz={patientCase.quiz} T={T} />
       </div>
 
-      {activeImageGenerator && <ImageGenerator content={activeImageGenerator} onClose={() => setActiveImageGenerator(null)} language={language} T={T} />}
+      {activeImageGenerator && <ImageGenerator content={activeImageGenerator.content} onClose={() => setActiveImageGenerator(null)} language={language} T={T} onImageGenerated={(imageData) => handleImageGenerated(activeImageGenerator.index, imageData)} />}
       
       {activeDiscussion && (
           <DiscussionModal
@@ -644,6 +683,29 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
             language={language}
             T={T}
           />
+      )}
+      
+      {enlargedImage && (
+        <div 
+            className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4 animate-fade-in"
+            onClick={() => setEnlargedImage(null)}
+            role="dialog"
+            aria-modal="true"
+        >
+            <img 
+                src={`data:image/png;base64,${enlargedImage}`} 
+                alt="Enlarged view"
+                className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+            />
+            <button 
+                onClick={() => setEnlargedImage(null)} 
+                className="absolute top-4 right-4 text-white hover:text-gray-300 transition"
+                aria-label="Close"
+            >
+                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
       )}
     </div>
   );
