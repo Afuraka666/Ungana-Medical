@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import type { PatientCase } from '../types';
 
@@ -35,9 +34,28 @@ async function compressAndEncode(object: object): Promise<string> {
 // Helper: Formats the case data into a readable text string for download
 const formatCaseForTextFile = (patientCase: PatientCase, T: Record<string, any>): string => {
     let text = `Title: ${patientCase.title}\r\n\r\n`;
-    text += `## ${T.patientProfile}\r\n${patientCase.patientProfile}\r\n\r\n`;
-    text += `## ${T.presentingComplaint}\r\n${patientCase.presentingComplaint}\r\n\r\n`;
-    text += `## ${T.history}\r\n${patientCase.history}\r\n\r\n`;
+
+    text += `## ${T.patientProfile}\r\n`;
+    text += `${patientCase.patientProfile}\r\n\r\n`;
+
+    text += `## ${T.presentingComplaint}\r\n`;
+    text += `${patientCase.presentingComplaint}\r\n\r\n`;
+
+    text += `## ${T.history}\r\n`;
+    text += `${patientCase.history}\r\n\r\n`;
+
+    if (patientCase.procedureDetails) {
+        text += `## ${T.anestheticDataSection}\r\n`;
+        text += `- **${T.procedureLabel}:** ${patientCase.procedureDetails.procedureName}\r\n`;
+        text += `- **${T.asaScoreLabel}:** ${patientCase.procedureDetails.asaScore}\r\n\r\n`;
+    }
+
+    if (patientCase.outcomes) {
+        text += `## ${T.outcomesSection}\r\n`;
+        text += `- **${T.icuAdmissionLabel}:** ${patientCase.outcomes.icuAdmission ? 'Yes' : 'No'}\r\n`;
+        text += `- **${T.lengthOfStayLabel}:** ${patientCase.outcomes.lengthOfStayDays} days\r\n`;
+        text += `- **${T.outcomeSummaryLabel}:** ${patientCase.outcomes.outcomeSummary}\r\n\r\n`;
+    }
 
     if (patientCase.biochemicalPathway) {
         text += `## ${T.biochemicalPathwaySection}\r\n`;
@@ -48,8 +66,56 @@ const formatCaseForTextFile = (patientCase: PatientCase, T: Record<string, any>)
 
     text += `## ${T.multidisciplinaryConnections}\r\n`;
     patientCase.multidisciplinaryConnections.forEach(conn => {
-        text += `- ${conn.discipline}: ${conn.connection}\r\n`;
+        text += `- **${conn.discipline}:** ${conn.connection}\r\n`;
     });
+    text += '\r\n';
+
+    if (patientCase.disciplineSpecificConsiderations?.length > 0) {
+        text += `## ${T.managementConsiderations}\r\n`;
+        patientCase.disciplineSpecificConsiderations.forEach(item => {
+            text += `- **${item.aspect}:** ${item.consideration}\r\n`;
+        });
+        text += '\r\n';
+    }
+
+    if (patientCase.educationalContent?.length > 0) {
+        text += `## ${T.educationalContent}\r\n`;
+        patientCase.educationalContent.forEach(item => {
+            text += `### ${item.title} (${item.type})\r\n`;
+            text += `${item.description}\r\n`;
+            text += `Reference: ${item.reference}\r\n\r\n`;
+        });
+    }
+
+    if (patientCase.traceableEvidence?.length > 0) {
+        text += `## ${T.traceableEvidence}\r\n`;
+        patientCase.traceableEvidence.forEach(item => {
+            text += `- **Claim:** "${item.claim}"\r\n`;
+            text += `  **Source:** ${item.source}\r\n`;
+        });
+        text += '\r\n';
+    }
+    
+    if (patientCase.furtherReadings?.length > 0) {
+        text += `## ${T.furtherReading}\r\n`;
+        patientCase.furtherReadings.forEach(item => {
+            text += `- **${item.topic}:** ${item.reference}\r\n`;
+        });
+        text += '\r\n';
+    }
+
+    if (patientCase.quiz?.length > 0) {
+        text += `## ${T.quizTitle}\r\n`;
+        patientCase.quiz.forEach((q, i) => {
+            text += `${i + 1}. ${q.question}\r\n`;
+            q.options.forEach((opt, oIndex) => {
+                text += `   ${String.fromCharCode(65 + oIndex)}. ${opt}\r\n`;
+            });
+            text += `   **Answer:** ${q.options[q.correctAnswerIndex]}\r\n`;
+            text += `   **Explanation:** ${q.explanation}\r\n\r\n`;
+        });
+    }
+
     return text;
 };
 

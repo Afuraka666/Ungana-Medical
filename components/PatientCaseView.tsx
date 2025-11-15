@@ -11,6 +11,12 @@ import { SourceSearchModal } from './SourceSearchModal';
 import { enrichCaseWithWebSources } from '../services/geminiService';
 
 declare const jspdf: any;
+declare global {
+    interface Window {
+        jspdf: any;
+    }
+}
+
 
 interface PatientCaseViewProps {
   patientCase: PatientCase;
@@ -352,149 +358,117 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
 
     const { jsPDF } = jspdf;
     const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+    const autoTable = (window as any).jspdf.autoTable;
 
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 15;
-    const contentWidth = doc.internal.pageSize.getWidth() - margin * 2;
-    let y = margin;
+    const brandColor = '#1e3a8a';
+    const textColor = '#111827';
+    
+    const pageHeader = (data: any) => {
+        doc.setFontSize(10);
+        doc.setTextColor('#4a5568');
+        doc.text('Synapsis Medical Case Study', data.settings.margin.left, 10);
+    };
 
-    const checkPageBreak = (heightNeeded: number = 10) => {
-        if (y + heightNeeded > pageHeight - margin) {
-            doc.addPage();
-            y = margin;
+    const pageFooter = (data: any) => {
+        const pageCount = (doc as any).internal.getNumberOfPages();
+        doc.setFontSize(10);
+        doc.setTextColor('#4a5568');
+        doc.text(`Page ${data.pageNumber} of ${pageCount}`, data.settings.margin.left, doc.internal.pageSize.height - 10);
+    };
+
+    // --- Title ---
+    autoTable(doc, {
+        body: [[patientCase.title]],
+        startY: 15,
+        theme: 'plain',
+        styles: {
+            fontSize: 22,
+            fontStyle: 'bold',
+            halign: 'center',
+            textColor: brandColor,
+        },
+        didDrawPage: pageHeader, // Add header to first page
+    });
+
+    // --- Helper for simple text block sections ---
+    const addSection = (title: string, content: string) => {
+        if (!content) return;
+        autoTable(doc, {
+            startY: (doc as any).lastAutoTable.finalY + 8,
+            body: [[content]],
+            head: [[title]],
+            theme: 'grid',
+            headStyles: { fillColor: brandColor, fontSize: 14 },
+            bodyStyles: { textColor: textColor, fontSize: 10, cellPadding: 3 },
+            didDrawPage: (data: any) => { pageHeader(data); pageFooter(data); },
+        });
+    };
+
+    // --- Add all sections ---
+    addSection(T.patientProfile, patientCase.patientProfile);
+    addSection(T.presentingComplaint, patientCase.presentingComplaint);
+    addSection(T.history, patientCase.history);
+
+    if (patientCase.procedureDetails || patientCase.outcomes) {
+        let content = '';
+        if (patientCase.procedureDetails) {
+            content += `${T.procedureLabel}: ${patientCase.procedureDetails.procedureName}\n`;
+            content += `${T.asaScoreLabel}: ${patientCase.procedureDetails.asaScore}\n\n`;
         }
-    };
-
-    const addTitle = (text: string) => {
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(18);
-        const splitText = doc.splitTextToSize(text, contentWidth);
-        checkPageBreak(splitText.length * 10);
-        doc.text(splitText, doc.internal.pageSize.getWidth() / 2, y, { align: 'center' });
-        y += (splitText.length * 10) + 5;
-    };
-
-    const addHeading = (text: string) => {
-        checkPageBreak(15);
-        y += 5;
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(14);
-        doc.text(text, margin, y);
-        y += 8;
-        doc.setLineWidth(0.5);
-        doc.line(margin, y - 2, doc.internal.pageSize.getWidth() - margin, y - 2);
-    };
-
-    const addSubheading = (text: string) => {
-        checkPageBreak(12);
-        y += 3;
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(11);
-        doc.text(text, margin, y);
-        y += 6;
-    };
-
-    const addText = (text: string, options: { indent?: number } = {}) => {
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(10);
-        const indent = options.indent || 0;
-        const splitText = doc.splitTextToSize(text, contentWidth - indent);
-        checkPageBreak(splitText.length * 5);
-        doc.text(splitText, margin + indent, y);
-        y += splitText.length * 5 + 3;
-    };
-
-    const addListItem = (label: string, value: string) => {
-        if (!value) return;
-        const fullText = `${label}: ${value}`;
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(10);
-
-        const splitText = doc.splitTextToSize(fullText, contentWidth);
-        checkPageBreak(splitText.length * 5 + 2);
-
-        doc.setFont('helvetica', 'bold');
-        doc.text(`${label}: `, margin, y, { maxWidth: contentWidth });
-        const labelWidth = doc.getTextWidth(`${label}: `);
-
-        doc.setFont('helvetica', 'normal');
-        doc.text(value, margin + labelWidth, y, { maxWidth: contentWidth - labelWidth });
-
-        y += splitText.length * 5 + 2;
-    };
-    
-    // Document Generation
-    addTitle(patientCase.title);
-    addHeading(T.patientProfile);
-    addText(patientCase.patientProfile);
-    addHeading(T.presentingComplaint);
-    addText(patientCase.presentingComplaint);
-    addHeading(T.history);
-    addText(patientCase.history);
-
-    if (patientCase.procedureDetails) {
-        addHeading(T.anestheticDataSection);
-        addListItem(T.procedureLabel, patientCase.procedureDetails.procedureName);
-        addListItem(T.asaScoreLabel, patientCase.procedureDetails.asaScore);
+        if (patientCase.outcomes) {
+            content += `${T.outcomeSummaryLabel}: ${patientCase.outcomes.outcomeSummary}\n`;
+            content += `(${T.icuAdmissionLabel}: ${patientCase.outcomes.icuAdmission ? T.yes : T.no}, ${T.lengthOfStayLabel}: ${patientCase.outcomes.lengthOfStayDays} ${T.days})`;
+        }
+        addSection(T.anestheticDataSection, content.trim());
     }
-    
-    if (patientCase.outcomes) {
-        addHeading(T.outcomesSection);
-        addListItem(T.icuAdmissionLabel, patientCase.outcomes.icuAdmission ? 'Yes' : 'No');
-        addListItem(T.lengthOfStayLabel, `${patientCase.outcomes.lengthOfStayDays} days`);
-        addListItem(T.outcomeSummaryLabel, patientCase.outcomes.outcomeSummary);
-    }
-    
+
     if (patientCase.biochemicalPathway) {
-        addHeading(T.biochemicalPathwaySection);
-        addSubheading(`${patientCase.biochemicalPathway.title} (${patientCase.biochemicalPathway.type})`);
-        addText(patientCase.biochemicalPathway.description);
-        addListItem("Reference", patientCase.biochemicalPathway.reference);
+        addSection(patientCase.biochemicalPathway.title, `${patientCase.biochemicalPathway.description}\n\nReference: ${patientCase.biochemicalPathway.reference}`);
+    }
+
+    // --- Table for multi-item sections ---
+    const addTableSection = (title: string, head: string[], body: any[][]) => {
+        if (body.length === 0) return;
+        autoTable(doc, {
+            startY: (doc as any).lastAutoTable.finalY + 8,
+            head: [[{ content: title, colSpan: head.length, styles: { halign: 'center', fillColor: brandColor, fontSize: 14 } }]],
+            body: [head, ...body],
+            theme: 'grid',
+            headStyles: { fillColor: '#3b82f6' }, // Sub-header color
+            bodyStyles: { textColor: textColor, fontSize: 10 },
+            didDrawPage: (data: any) => { pageHeader(data); pageFooter(data); },
+        });
+    };
+
+    if (patientCase.multidisciplinaryConnections?.length > 0) {
+        addTableSection(T.multidisciplinaryConnections, ['Discipline', 'Connection'], patientCase.multidisciplinaryConnections.map(c => [c.discipline, c.connection]));
     }
     
-    addHeading(T.multidisciplinaryConnections);
-    patientCase.multidisciplinaryConnections.forEach(conn => addListItem(conn.discipline, conn.connection));
-
     if (patientCase.disciplineSpecificConsiderations?.length > 0) {
-        addHeading(T.managementConsiderations);
-        patientCase.disciplineSpecificConsiderations.forEach(item => addListItem(item.aspect, item.consideration));
+        addTableSection(T.managementConsiderations, ['Aspect', 'Consideration'], patientCase.disciplineSpecificConsiderations.map(c => [c.aspect, c.consideration]));
     }
     
     if (patientCase.educationalContent?.length > 0) {
-        addHeading(T.educationalContent);
-        patientCase.educationalContent.forEach(item => {
-            addSubheading(`${item.title} (${item.type})`);
-            addText(item.description);
-            addListItem("Reference", item.reference);
-            y += 4;
-        });
+        addTableSection(T.educationalContent, ['Title', 'Description', 'Reference'], patientCase.educationalContent.map(c => [c.title, c.description, c.reference]));
     }
 
     if (patientCase.traceableEvidence?.length > 0) {
-        addHeading(T.traceableEvidence);
-        patientCase.traceableEvidence.forEach(item => {
-            addListItem("Claim", `"${item.claim}"`);
-            addListItem("Source", item.source);
-            y += 4;
-        });
+        addTableSection(T.traceableEvidence, ['Claim', 'Source'], patientCase.traceableEvidence.map(e => [e.claim, e.source]));
     }
-
+    
     if (patientCase.furtherReadings?.length > 0) {
-        addHeading(T.furtherReading);
-        patientCase.furtherReadings.forEach(item => addListItem(item.topic, item.reference));
+        addTableSection(T.furtherReading, ['Topic', 'Reference'], patientCase.furtherReadings.map(r => [r.topic, r.reference]));
     }
 
+    // --- Quiz Section ---
     if (patientCase.quiz?.length > 0) {
-        addHeading(T.quizTitle);
-        patientCase.quiz.forEach((q, i) => {
-            checkPageBreak(50); // Estimate space for a full quiz question
-            addText(`${i + 1}. ${q.question}`);
-            q.options.forEach((opt, oIndex) => addText(`${String.fromCharCode(65 + oIndex)}. ${opt}`, { indent: 5 }));
-            addText(`${T.quizExplanation}: ${q.explanation}`, { indent: 5 });
-            y += 5;
-        });
+        const quizContent = patientCase.quiz.map((q, i) => {
+            const options = q.options.map((opt, oIndex) => `   ${String.fromCharCode(65 + oIndex)}. ${opt}`).join('\n');
+            return `${i + 1}. ${q.question}\n${options}\n\n   ${T.quizExplanation}: ${q.explanation}`;
+        }).join('\n\n');
+        addSection(T.quizTitle, quizContent);
     }
-
+    
     doc.save(`${patientCase.title.replace(/\s+/g, '_')}.pdf`);
   };
 
