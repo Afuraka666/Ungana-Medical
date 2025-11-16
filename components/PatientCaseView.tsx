@@ -488,12 +488,11 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
                 }
             }
         
+            const description = content.description && content.reference ? `${content.description}\n\nReference: ${content.reference}` : content.description;
             const bodyRows: any[][] = [];
             if (imgData) {
-                bodyRows.push([{ content: '', tag: 'image' }]);
+                bodyRows.push(['__IMAGE_PLACEHOLDER__']);
             }
-            
-            const description = content.description && content.reference ? `${content.description}\n\nReference: ${content.reference}` : content.description;
             if (description) {
                  bodyRows.push([description]);
             }
@@ -506,35 +505,43 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
                 body: bodyRows,
                 theme: 'grid',
                 headStyles: { fillColor: brandColor, fontSize: 14 },
-                bodyStyles: { textColor: textColor, fontSize: 10, cellPadding: 3 },
+                bodyStyles: { textColor: textColor, fontSize: 10, cellPadding: 3, minCellHeight: 20 },
                 didParseCell: (data: any) => {
-                    const raw = data.cell.raw as any;
-                    if (raw?.tag === 'image' && imgData) {
-                        data.cell.text = ''; // Clear placeholder content
+                    if (data.cell.raw === '__IMAGE_PLACEHOLDER__' && imgData) {
+                        data.cell.text = ''; // Clear placeholder text
                         try {
                             const imgProps = doc.getImageProperties(imgData);
                             const cellWidth = data.cell.width - data.cell.padding('horizontal');
                             const imgHeight = (cellWidth / imgProps.width) * imgProps.height;
-                            data.row.minHeight = imgHeight + data.cell.padding('vertical');
+                            data.row.height = Math.max(data.row.height, imgHeight + data.cell.padding('vertical'));
                         } catch(e) {
                              console.error("PDF generation: Could not get image properties in didParseCell", e);
                         }
                     }
                 },
                 didDrawCell: (data: any) => {
-                    const raw = data.cell.raw as any;
-                    if (raw?.tag === 'image' && imgData) {
+                    if (data.cell.raw === '__IMAGE_PLACEHOLDER__' && imgData) {
                         try {
                             const imgProps = doc.getImageProperties(imgData);
-                            const cellWidth = data.cell.width - data.cell.padding('horizontal');
-                            const imgHeight = (cellWidth / imgProps.width) * imgProps.height;
-                             doc.addImage(
-                                imgData, 'PNG', 
-                                data.cell.x + data.cell.padding('left'), 
-                                data.cell.y + data.cell.padding('top'), 
-                                cellWidth, 
-                                imgHeight
-                            );
+                            const cellContentWidth = data.cell.width - data.cell.padding('horizontal');
+                            const cellContentHeight = data.cell.height - data.cell.padding('vertical');
+
+                            let imgWidth = imgProps.width;
+                            let imgHeight = imgProps.height;
+                            const aspectRatio = imgWidth / imgHeight;
+
+                            imgWidth = cellContentWidth;
+                            imgHeight = imgWidth / aspectRatio;
+
+                            if (imgHeight > cellContentHeight) {
+                                imgHeight = cellContentHeight;
+                                imgWidth = imgHeight * aspectRatio;
+                            }
+
+                            const x = data.cell.x + (data.cell.width - imgWidth) / 2;
+                            const y = data.cell.y + (data.cell.height - imgHeight) / 2;
+
+                             doc.addImage(imgData, 'PNG', x, y, imgWidth, imgHeight);
                         } catch(e) {
                             console.error("PDF generation: Could not add image in didDrawCell", e);
                         }
