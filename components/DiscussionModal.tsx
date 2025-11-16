@@ -1,8 +1,10 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
-import type { DisciplineSpecificConsideration } from '../types';
+import type { DisciplineSpecificConsideration, DiagramData } from '../types';
 import { GoogleGenAI, Chat, GenerateContentResponse } from "@google/genai";
-import { retryWithBackoff } from '../services/geminiService';
+import { retryWithBackoff, generateDiagramForDiscussion } from '../services/geminiService';
+import { InteractiveDiagram } from './InteractiveDiagram';
 
 interface DiscussionModalProps {
     isOpen: boolean;
@@ -16,6 +18,7 @@ interface DiscussionModalProps {
 interface ChatMessage {
     role: 'user' | 'model' | 'system';
     text: string;
+    diagramData?: DiagramData;
 }
 
 const LoadingSpinner: React.FC = () => (
@@ -30,6 +33,8 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({ isOpen, onClos
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [userInput, setUserInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [isGeneratingDiagram, setIsGeneratingDiagram] = useState(false);
+    const [diagramPrompt, setDiagramPrompt] = useState('');
     const chatRef = useRef<Chat | null>(null);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -92,6 +97,34 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({ isOpen, onClos
         }
     };
 
+    const handleGenerateDiagram = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!diagramPrompt.trim() || isLoading) return;
+    
+        const chatContext = messages.map(m => `${m.role}: ${m.text}`).join('\n');
+        const userRequestMessage: ChatMessage = { role: 'system', text: `(Generating diagram: "${diagramPrompt}")` };
+    
+        setMessages(prev => [...prev, userRequestMessage]);
+        setIsLoading(true);
+        setIsGeneratingDiagram(false);
+        
+        try {
+            const diagramData = await generateDiagramForDiscussion(diagramPrompt, chatContext, language);
+            const diagramMessage: ChatMessage = {
+                role: 'model',
+                text: `Here is a diagram illustrating "${diagramPrompt}":`,
+                diagramData: diagramData
+            };
+            setMessages(prev => [...prev, diagramMessage]);
+            setDiagramPrompt(''); // Clear prompt on success
+        } catch (error) {
+            console.error("Diagram generation error:", error);
+            setMessages(prev => [...prev, { role: 'system', text: "Sorry, I couldn't generate that diagram. Please try a different description." }]);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     if (!isOpen) return null;
 
     return (
@@ -114,7 +147,12 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({ isOpen, onClos
                             <div key={index} className={`flex items-end gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                 {msg.role === 'model' && <div className="w-6 h-6 bg-brand-blue text-white rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold">AI</div>}
                                 <div className={`max-w-xs md:max-w-sm px-4 py-2 rounded-2xl text-sm ${msg.role === 'user' ? 'bg-brand-blue text-white rounded-br-none' : msg.role === 'model' ? 'bg-gray-200 text-brand-text rounded-bl-none' : 'text-center w-full text-gray-500 italic'}`}>
-                                    {msg.text}
+                                    <p className="whitespace-pre-wrap">{msg.text}</p>
+                                     {msg.diagramData && (
+                                        <div className="mt-2 h-64 w-full rounded-lg border border-gray-300 bg-white">
+                                            <InteractiveDiagram data={msg.diagramData} />
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         ))}
@@ -131,7 +169,40 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({ isOpen, onClos
                 </main>
 
                 <footer className="p-4 border-t border-gray-200">
+                    {isGeneratingDiagram && (
+                        <form onSubmit={handleGenerateDiagram} className="p-2 border border-gray-200 rounded-lg mb-2 bg-gray-50 animate-fade-in">
+                            <label htmlFor="diagram-prompt" className="text-xs font-semibold text-gray-600">Describe the diagram or graph you want to see:</label>
+                            <div className="flex items-center gap-2 mt-1">
+                                <input
+                                    id="diagram-prompt"
+                                    type="text"
+                                    value={diagramPrompt}
+                                    onChange={(e) => setDiagramPrompt(e.target.value)}
+                                    placeholder={T.diagramPlaceholder}
+                                    className="flex-grow p-1.5 border border-gray-300 rounded-md text-sm text-black"
+                                    autoFocus
+                                />
+                                <button type="submit" disabled={isLoading || !diagramPrompt.trim()} className="bg-green-600 hover:bg-green-700 text-white font-bold py-1.5 px-3 rounded-md transition text-sm disabled:bg-gray-400">
+                                    Generate
+                                </button>
+                                 <button type="button" onClick={() => setIsGeneratingDiagram(false)} className="text-gray-500 hover:text-gray-700 text-sm">
+                                    {T.cancelButton}
+                                </button>
+                            </div>
+                        </form>
+                    )}
                     <form onSubmit={handleSendMessage} className="flex items-center gap-3">
+                         <button
+                            type="button"
+                            onClick={() => setIsGeneratingDiagram(prev => !prev)}
+                            disabled={isLoading}
+                            title="Generate a diagram"
+                            className="p-2 rounded-md border border-gray-300 bg-white hover:bg-gray-100 text-gray-600 transition disabled:bg-gray-200 disabled:cursor-not-allowed flex-shrink-0"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" />
+                            </svg>
+                        </button>
                         <input
                             type="text"
                             value={userInput}

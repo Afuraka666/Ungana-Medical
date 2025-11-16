@@ -1,7 +1,7 @@
 
 
 import { GoogleGenAI, Type, GenerateContentResponse, Modality, GenerateImagesResponse } from "@google/genai";
-import type { PatientCase, KnowledgeMapData, KnowledgeNode, KnowledgeLink, TraceableEvidence, FurtherReading } from '../types';
+import type { PatientCase, KnowledgeMapData, KnowledgeNode, KnowledgeLink, TraceableEvidence, FurtherReading, DiagramData } from '../types';
 
 const getAiClient = () => {
     return new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -640,4 +640,49 @@ export const getConceptConnectionExplanation = async (conceptA: string, conceptB
         },
     }));
     return response.text;
+};
+
+export const generateDiagramForDiscussion = async (prompt: string, chatContext: string, language: string): Promise<DiagramData> => {
+    const ai = getAiClient();
+    const model = "gemini-2.5-flash";
+
+    const fullPrompt = `
+        You are an assistant creating educational visual aids for a medical student during a tutoring session.
+        Based on the student's request below, and the preceding conversation for context, generate structured diagram data (nodes and links) for a simple, clear, interactive diagram.
+        The diagram should visually explain the concept requested by the student.
+        - Nodes should represent key entities (e.g., molecules, cells, organs, concepts).
+        - Links should represent the relationships or processes connecting them.
+        - Keep the diagram focused and uncluttered, with 4 to 8 nodes being ideal for clarity.
+
+        The entire response MUST be in the following language: ${language}.
+
+        ---
+        Conversation Context:
+        ${chatContext}
+        ---
+        Student's Request for Diagram:
+        "${prompt}"
+        ---
+
+        Now, generate the JSON object for the diagramData. It must not be null.
+    `;
+
+    const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
+        model: model,
+        contents: fullPrompt,
+        config: {
+            responseMimeType: "application/json",
+            responseSchema: diagramDataSchema,
+            temperature: 0.3,
+        },
+    }));
+
+    const parsedResponse = JSON.parse(response.text);
+
+    // Basic validation
+    if (!parsedResponse || !parsedResponse.nodes || !parsedResponse.links) {
+        throw new Error("Model did not return valid diagram data.");
+    }
+    
+    return parsedResponse as DiagramData;
 };

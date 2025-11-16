@@ -565,9 +565,18 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
             </Section>
         )}
         <Section title={T.biochemicalPathwaySection} onCopy={() => {}} onSaveSnippet={() => onSaveSnippet(patientCase.biochemicalPathway.title, patientCase.biochemicalPathway.description)} T={T}>
-            <div className="flex items-center space-x-2">
-                <h4 className="text-md font-semibold text-gray-800">{patientCase.biochemicalPathway.title}</h4>
-                <TextToSpeechPlayer textToRead={`${patientCase.biochemicalPathway.title}. ${patientCase.biochemicalPathway.description}`} language={language} />
+            <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center space-x-2">
+                    <h4 className="text-md font-semibold text-gray-800">{patientCase.biochemicalPathway.title}</h4>
+                    <TextToSpeechPlayer textToRead={`${patientCase.biochemicalPathway.title}. ${patientCase.biochemicalPathway.description}`} language={language} />
+                </div>
+                <button 
+                    onClick={() => setActiveDiscussion({ aspect: patientCase.biochemicalPathway.title, consideration: patientCase.biochemicalPathway.description })} 
+                    title={T.discussButton} 
+                    className="text-sm bg-blue-100 hover:bg-blue-200 text-brand-blue font-semibold py-1 px-3 rounded-md transition flex-shrink-0"
+                >
+                    {T.discussButton}
+                </button>
             </div>
             <p className="text-xs text-gray-500 italic mb-2">{patientCase.biochemicalPathway.reference}</p>
             <p className="whitespace-pre-wrap">{patientCase.biochemicalPathway.description}</p>
