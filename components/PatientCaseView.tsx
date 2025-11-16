@@ -1,15 +1,16 @@
 
 
+
 import React, { useState, useEffect, useCallback, useReducer } from 'react';
 import { EducationalContentType, Discipline } from '../types';
-import type { PatientCase, EducationalContent, QuizQuestion, DisciplineSpecificConsideration, MultidisciplinaryConnection, TraceableEvidence, FurtherReading, ProcedureDetails, PatientOutcome } from '../types';
+import type { PatientCase, EducationalContent, QuizQuestion, DisciplineSpecificConsideration, MultidisciplinaryConnection, TraceableEvidence, FurtherReading, ProcedureDetails, PatientOutcome, KnowledgeMapData } from '../types';
 import { DisciplineColors } from './KnowledgeMap';
 import { QuizView } from './QuizView';
 import { ImageGenerator } from './ImageGenerator';
 import { TextToSpeechPlayer } from './TextToSpeechPlayer';
 import { InteractiveDiagram } from './InteractiveDiagram';
 import { SourceSearchModal } from './SourceSearchModal';
-import { enrichCaseWithWebSources } from '../services/geminiService';
+import { enrichCaseWithWebSources, getConceptAbstract } from '../services/geminiService';
 import { DisciplineIcon } from './DisciplineIcon';
 
 interface PatientCaseViewProps {
@@ -21,6 +22,7 @@ interface PatientCaseViewProps {
   onOpenShare: () => void;
   onOpenDiscussion: (topic: DisciplineSpecificConsideration) => void;
   onGetMapImage?: () => Promise<string | undefined>;
+  mapData: KnowledgeMapData | null;
 }
 
 const historyReducer = (state: { history: any[], currentIndex: number }, action: { type: string, payload: any }): { history: any[], currentIndex: number } => {
@@ -312,7 +314,7 @@ const svgToDataURL = async (svgEl: SVGSVGElement): Promise<string> => {
     });
 };
 
-export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: initialPatientCase, onSave, language, T, onSaveSnippet, onOpenShare, onOpenDiscussion, onGetMapImage }) => {
+export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: initialPatientCase, onSave, language, T, onSaveSnippet, onOpenShare, onOpenDiscussion, onGetMapImage, mapData }) => {
   const { state: patientCase, setState: setPatientCase, undo, redo, canUndo, canRedo, resetState } = useHistoryState<PatientCase>(initialPatientCase);
   const [isEditing, setIsEditing] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
@@ -323,6 +325,8 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
   const [isEnrichingEvidence, setIsEnrichingEvidence] = useState(false);
   const [evidenceSources, setEvidenceSources] = useState<any[]>([]);
   const [readingSources, setReadingSources] = useState<any[]>([]);
+
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
   useEffect(() => {
     resetState(initialPatientCase);
@@ -420,177 +424,149 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
   
   const handleDownloadPdf = async () => {
     if (!patientCase) return;
+    setIsDownloadingPdf(true);
 
-    const { jsPDF } = (window as any).jspdf;
-    const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+    try {
+        const { jsPDF } = (window as any).jspdf;
+        const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
 
-    const brandColor = '#1e3a8a';
-    const textColor = '#111827';
-    
-    let isFirstPage = true;
-    const pageHeader = (data: any) => {
-        if (isFirstPage) {
+        const brandColor = '#1e3a8a';
+        const textColor = '#111827';
+        
+        const pageHeader = (data: any) => {
             doc.setFontSize(10);
             doc.setTextColor('#4a5568');
             doc.text('Synapsis Medical Case Study', data.settings.margin.left, 10);
-            isFirstPage = false;
-        }
-    };
+        };
 
-    const pageFooter = (data: any) => {
-        const pageCount = (doc as any).internal.getNumberOfPages();
-        doc.setFontSize(10);
-        doc.setTextColor('#4a5568');
-        doc.text(`Page ${data.pageNumber} of ${pageCount}`, data.settings.margin.left, doc.internal.pageSize.height - 10);
-    };
-
-    // --- Title ---
-    doc.autoTable({
-        body: [[patientCase.title]],
-        startY: 15,
-        theme: 'plain',
-        styles: {
-            fontSize: 22,
-            fontStyle: 'bold',
-            halign: 'center',
-            textColor: brandColor,
-        },
-        didDrawPage: pageHeader,
-    });
-
-    // --- Helper for simple text block sections ---
-    const addSection = (title: string, content: string) => {
-        if (!content) return;
+        const pageFooter = (data: any) => {
+            const pageCount = (doc as any).internal.getNumberOfPages();
+            doc.setFontSize(10);
+            doc.setTextColor('#4a5568');
+            doc.text(`Page ${data.pageNumber} of ${pageCount}`, data.settings.margin.left, doc.internal.pageSize.height - 10);
+        };
+        
+        // --- Title ---
         doc.autoTable({
-            startY: (doc as any).lastAutoTable.finalY + 8,
-            body: [[content]],
-            head: [[title]],
-            theme: 'grid',
-            headStyles: { fillColor: brandColor, fontSize: 14 },
-            bodyStyles: { textColor: textColor, fontSize: 10, cellPadding: 3, minCellHeight: 10 },
-            didDrawPage: (data: any) => { pageHeader(data); pageFooter(data); },
+            body: [[patientCase.title]],
+            startY: 15,
+            theme: 'plain',
+            styles: { fontSize: 22, fontStyle: 'bold', halign: 'center', textColor: brandColor },
+            didDrawPage: pageHeader,
         });
-    };
 
-    // --- Add all sections ---
-    addSection(T.patientProfile, patientCase.patientProfile);
-    addSection(T.presentingComplaint, patientCase.presentingComplaint);
-    addSection(T.history, patientCase.history);
+        const addSection = (title: string, content: string, startY?: number) => {
+            if (!content) return;
+            doc.autoTable({
+                startY: startY || (doc as any).lastAutoTable.finalY + 8,
+                head: [[title]],
+                body: [[content]],
+                theme: 'grid',
+                headStyles: { fillColor: brandColor, fontSize: 14 },
+                bodyStyles: { textColor: textColor, fontSize: 10, cellPadding: 3, minCellHeight: 10 },
+                didDrawPage: pageFooter,
+            });
+        };
+        
+        const addTableSection = (title: string, head: string[], body: any[][]) => {
+            if (body.length === 0) return;
+            doc.autoTable({
+                startY: (doc as any).lastAutoTable.finalY + 8,
+                head: [[{ content: title, colSpan: head.length, styles: { halign: 'center', fillColor: brandColor, fontSize: 14 } }]],
+                body: [head, ...body],
+                theme: 'grid',
+                headStyles: { fillColor: '#3b82f6' },
+                bodyStyles: { textColor: textColor, fontSize: 10, cellPadding: 2, overflow: 'linebreak' },
+                didDrawPage: pageFooter,
+            });
+        };
 
-    if (patientCase.procedureDetails || patientCase.outcomes) {
-        let content = '';
-        if (patientCase.procedureDetails) {
-            content += `${T.procedureLabel}: ${patientCase.procedureDetails.procedureName}\n`;
-            content += `${T.asaScoreLabel}: ${patientCase.procedureDetails.asaScore}\n\n`;
-        }
-        if (patientCase.outcomes) {
-            content += `${T.outcomeSummaryLabel}: ${patientCase.outcomes.outcomeSummary}\n`;
-            content += `(${T.icuAdmissionLabel}: ${patientCase.outcomes.icuAdmission ? T.yes : T.no}, ${T.lengthOfStayLabel}: ${patientCase.outcomes.lengthOfStayDays} ${T.days})`;
-        }
-        addSection(T.anestheticDataSection, content.trim());
-    }
-
-    if (patientCase.biochemicalPathway) {
-        addSection(patientCase.biochemicalPathway.title, `${patientCase.biochemicalPathway.description}\n\nReference: ${patientCase.biochemicalPathway.reference}`);
-    }
-
-    // --- Table for multi-item sections ---
-    const addTableSection = (title: string, head: string[], body: any[][]) => {
-        if (body.length === 0) return;
-        doc.autoTable({
-            startY: (doc as any).lastAutoTable.finalY + 8,
-            head: [[{ content: title, colSpan: head.length, styles: { halign: 'center', fillColor: brandColor, fontSize: 14 } }]],
-            body: [head, ...body],
-            theme: 'grid',
-            headStyles: { fillColor: '#3b82f6' }, // Sub-header color
-            bodyStyles: { textColor: textColor, fontSize: 10, cellPadding: 2 },
-            didDrawPage: (data: any) => { pageHeader(data); pageFooter(data); },
-        });
-    };
-
-    if (patientCase.multidisciplinaryConnections?.length > 0) {
-        addTableSection(T.multidisciplinaryConnections, ['Discipline', 'Connection'], patientCase.multidisciplinaryConnections.map(c => [c.discipline, c.connection]));
-    }
-    
-    if (patientCase.disciplineSpecificConsiderations?.length > 0) {
-        addTableSection(T.managementConsiderations, ['Aspect', 'Consideration'], patientCase.disciplineSpecificConsiderations.map(c => [c.aspect, c.consideration]));
-    }
-    
-    if (patientCase.educationalContent?.length > 0) {
-        addTableSection(T.educationalContent, ['Title', 'Description', 'Reference'], patientCase.educationalContent.map(c => [c.title, c.description, c.reference]));
-    }
-
-    if (patientCase.traceableEvidence?.length > 0) {
-        addTableSection(T.traceableEvidence, ['Claim', 'Source'], patientCase.traceableEvidence.map(e => [e.claim, e.source]));
-    }
-    
-    if (patientCase.furtherReadings?.length > 0) {
-        addTableSection(T.furtherReading, ['Topic', 'Reference'], patientCase.furtherReadings.map(r => [r.topic, r.reference]));
-    }
-
-    // --- Quiz Section ---
-    if (patientCase.quiz?.length > 0) {
-        const quizContent = patientCase.quiz.map((q, i) => {
-            const options = q.options.map((opt, oIndex) => `   ${String.fromCharCode(65 + oIndex)}. ${opt}`).join('\n');
-            return `${i + 1}. ${q.question}\n${options}\n\n   ${T.quizExplanation}: ${q.explanation}`;
-        }).join('\n\n');
-        addSection(T.quizTitle, quizContent);
-    }
-    
-    // --- Helper to add an image to a new page, fitting it while preserving aspect ratio
-    const addImageToPage = (imgData: string, title: string) => {
-        const imgProps = doc.getImageProperties(imgData);
-        const pdfWidth = doc.internal.pageSize.getWidth() - 20; // with margin
-        const pdfHeight = doc.internal.pageSize.getHeight() - 30; // with margin and space for title
-        const ratio = imgProps.width / imgProps.height;
-        let imgWidth = pdfWidth;
-        let imgHeight = pdfWidth / ratio;
-        if (imgHeight > pdfHeight) {
-            imgHeight = pdfHeight;
-            imgWidth = pdfHeight * ratio;
-        }
-        const x = (doc.internal.pageSize.getWidth() - imgWidth) / 2;
-        const y = 20;
-        doc.addPage();
-        doc.setFontSize(14).setTextColor(brandColor).text(title, 10, 15);
-        doc.addImage(imgData, 'PNG', x, y, imgWidth, imgHeight);
-    };
-
-    // --- Add Diagrams ---
-    const biochemDiagramEl = document.querySelector('#diagram-biochem svg') as SVGSVGElement;
-    if (biochemDiagramEl) {
-        const imgData = await svgToDataURL(biochemDiagramEl);
-        if (imgData) addImageToPage(imgData, patientCase.biochemicalPathway.title);
-    }
-
-    for (let i = 0; i < patientCase.educationalContent.length; i++) {
-        const item = patientCase.educationalContent[i];
-        if (item.diagramData) {
-            const eduDiagramEl = document.querySelector(`#diagram-edu-${i} svg`) as SVGSVGElement;
-            if (eduDiagramEl) {
-                const imgData = await svgToDataURL(eduDiagramEl);
-                if (imgData) addImageToPage(imgData, item.title);
+        const addImageToPage = (imgData: string, title: string) => {
+            doc.addPage();
+            doc.setFontSize(14).setTextColor(brandColor).text(title, 10, 15);
+            const imgProps = doc.getImageProperties(imgData);
+            const pdfWidth = doc.internal.pageSize.getWidth() - 20;
+            const pdfHeight = doc.internal.pageSize.getHeight() - 30;
+            const ratio = imgProps.width / imgProps.height;
+            let imgWidth = pdfWidth;
+            let imgHeight = pdfWidth / ratio;
+            if (imgHeight > pdfHeight) {
+                imgHeight = pdfHeight;
+                imgWidth = pdfHeight * ratio;
             }
-        }
-    }
+            const x = (doc.internal.pageSize.getWidth() - imgWidth) / 2;
+            const y = 20;
+            doc.addImage(imgData, 'PNG', x, y, imgWidth, imgHeight);
+            pageFooter({ pageNumber: (doc as any).internal.getNumberOfPages(), settings: { margin: { left: 10 } } });
+        };
 
-    // --- Add Knowledge Map ---
-    if (onGetMapImage) {
-        const mapImgData = await onGetMapImage();
-        if (mapImgData) {
-            addImageToPage(mapImgData, 'Knowledge Map');
+        // --- Text Sections ---
+        addSection(T.patientProfile, patientCase.patientProfile);
+        addSection(T.presentingComplaint, patientCase.presentingComplaint);
+        addSection(T.history, patientCase.history);
+
+        // --- Add Diagrams and Summaries ---
+        const biochemDiagramEl = document.querySelector('#diagram-biochem svg') as SVGSVGElement;
+        if (biochemDiagramEl) {
+            const imgData = await svgToDataURL(biochemDiagramEl);
+            if (imgData) addImageToPage(imgData, patientCase.biochemicalPathway.title);
         }
+        addSection(T.biochemicalPathwaySection, `${patientCase.biochemicalPathway.description}\n\nReference: ${patientCase.biochemicalPathway.reference}`);
+
+        for (let i = 0; i < patientCase.educationalContent.length; i++) {
+            const item = patientCase.educationalContent[i];
+            if (item.diagramData) {
+                const eduDiagramEl = document.querySelector(`#diagram-edu-${i} svg`) as SVGSVGElement;
+                if (eduDiagramEl) {
+                    const imgData = await svgToDataURL(eduDiagramEl);
+                    if (imgData) addImageToPage(imgData, item.title);
+                }
+            }
+            addSection(item.title, `${item.description}\n\nReference: ${item.reference}`);
+        }
+
+        // --- Tables ---
+        if (patientCase.multidisciplinaryConnections?.length > 0) addTableSection(T.multidisciplinaryConnections, ['Discipline', 'Connection'], patientCase.multidisciplinaryConnections.map(c => [c.discipline, c.connection]));
+        if (patientCase.disciplineSpecificConsiderations?.length > 0) addTableSection(T.managementConsiderations, ['Aspect', 'Consideration'], patientCase.disciplineSpecificConsiderations.map(c => [c.aspect, c.consideration]));
+        if (patientCase.traceableEvidence?.length > 0) addTableSection(T.traceableEvidence, ['Claim', 'Source'], patientCase.traceableEvidence.map(e => [e.claim, e.source]));
+        if (patientCase.furtherReadings?.length > 0) addTableSection(T.furtherReading, ['Topic', 'Reference'], patientCase.furtherReadings.map(r => [r.topic, r.reference]));
+
+        // --- Quiz ---
+        if (patientCase.quiz?.length > 0) {
+            const quizContent = patientCase.quiz.map((q, i) => `${i + 1}. ${q.question}\n${q.options.map((opt, o) => `   ${String.fromCharCode(65 + o)}. ${opt}`).join('\n')}\n\n   ${T.quizExplanation}: ${q.explanation}`).join('\n\n');
+            addSection(T.quizTitle, quizContent);
+        }
+        
+        // --- Knowledge Map & Summaries ---
+        if (onGetMapImage) {
+            const mapImgData = await onGetMapImage();
+            if (mapImgData) addImageToPage(mapImgData, T.knowledgeMapConcepts);
+        }
+
+        if (mapData && mapData.nodes.length > 0) {
+            const nodeSummaries = [];
+            for (const node of mapData.nodes) {
+                const abstract = await getConceptAbstract(node.label, patientCase.title, language);
+                nodeSummaries.push([node.label, node.discipline, abstract]);
+            }
+            addTableSection(T.conceptSummaries, ['Concept', 'Discipline', 'Summary'], nodeSummaries);
+        }
+        
+        // Finalize page numbers
+        const totalPages = (doc as any).internal.getNumberOfPages();
+        for (let i = 1; i <= totalPages; i++) {
+            doc.setPage(i);
+            if (i > 1) pageHeader({ settings: { margin: { left: 10 } } }); // Re-add header to all pages
+            pageFooter({ pageNumber: i, settings: { margin: { left: 10 } } }); // Re-add footer
+        }
+
+        doc.save(`${patientCase.title.replace(/\s+/g, '_')}.pdf`);
+    } catch (e) {
+        console.error("Failed to generate PDF:", e);
+        alert("Sorry, an error occurred while generating the PDF.");
+    } finally {
+        setIsDownloadingPdf(false);
     }
-    
-    // Reset page numbering after adding images
-    const totalPages = (doc as any).internal.getNumberOfPages();
-    for (let i = 1; i <= totalPages; i++) {
-        doc.setPage(i);
-        doc.setFontSize(10).setTextColor('#4a5568');
-        doc.text(`Page ${i} of ${totalPages}`, doc.internal.pageSize.getWidth() / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
-    }
-    
-    doc.save(`${patientCase.title.replace(/\s+/g, '_')}.pdf`);
   };
 
   const EditableText: React.FC<{ value: string; onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void; isEditing: boolean; }> = ({ value, onChange, isEditing }) => {
@@ -631,10 +607,14 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
               </>
             ) : (
               <>
-                <button onClick={handleDownloadPdf} title={T.downloadPdfButton} className="p-2 rounded-full text-gray-500 hover:bg-gray-100 hover:text-brand-blue transition">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                    </svg>
+                <button onClick={handleDownloadPdf} disabled={isDownloadingPdf} title={T.downloadPdfButton} className="p-2 rounded-full text-gray-500 hover:bg-gray-100 hover:text-brand-blue transition disabled:text-gray-300 disabled:cursor-not-allowed">
+                   {isDownloadingPdf ? (
+                        <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                   ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                   )}
                 </button>
                 <button onClick={onOpenShare} title={T.shareButtonTitle} className="p-2 rounded-full text-gray-500 hover:bg-gray-100 hover:text-brand-blue transition">
                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" /></svg>

@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 
 // Components
@@ -388,6 +389,7 @@ const App: React.FC = () => {
                                         onOpenShare={() => setIsShareModalOpen(true)}
                                         onOpenDiscussion={(topic) => setActiveDiscussionTopic(topic)}
                                         onGetMapImage={getKnowledgeMapImage}
+                                        mapData={mapData}
                                     />
                                 </div>
                                 

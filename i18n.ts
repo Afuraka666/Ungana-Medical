@@ -1,5 +1,6 @@
 
 
+
 export const supportedLanguages = {
   'en': 'English',
   'es': 'Español',
@@ -376,6 +377,9 @@ export const translations: Record<string, Record<string, any>> = {
     interpretingEcgMessage: 'AI is analyzing the ECG...',
     interpretationResultTitle: 'AI Interpretation',
     ecgInterpretationError: 'Could not get an interpretation at this time. Please try again.',
+    // PDF Export
+    knowledgeMapConcepts: 'Knowledge Map',
+    conceptSummaries: 'Concept Summaries',
   },
   es: {
     headerSubtitle: 'Integrando el Conocimiento Médico para un Cuidado Holístico',
@@ -667,6 +671,9 @@ export const translations: Record<string, Record<string, any>> = {
     interpretingEcgMessage: 'La IA está analizando el ECG...',
     interpretationResultTitle: 'Interpretación de IA',
     ecgInterpretationError: 'No se pudo obtener una interpretación en este momento. Por favor, inténtelo de nuevo.',
+    // PDF Export
+    knowledgeMapConcepts: 'Mapa de Conocimiento',
+    conceptSummaries: 'Resúmenes de Conceptos',
   },
   // --- Other Languages (Fallback to English text for new keys) ---
   fr: {
