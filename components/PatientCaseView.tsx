@@ -435,6 +435,56 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
     setIsDownloadingPdf(true);
 
     try {
+        // --- 1. Pre-generate all visual data URLs async ---
+        const visualPromises = [];
+
+        // Biochemical Pathway
+        if (patientCase.biochemicalPathway && (patientCase.biochemicalPathway.diagramData || patientCase.biochemicalPathway.imageData)) {
+            const promise = (async () => {
+                let dataUrl: string | undefined;
+                if (patientCase.biochemicalPathway!.imageData) {
+                    dataUrl = `data:image/png;base64,${patientCase.biochemicalPathway!.imageData}`;
+                } else if (patientCase.biochemicalPathway!.diagramData) {
+                    const diagramEl = document.querySelector('#diagram-biochem svg') as SVGSVGElement;
+                    if (diagramEl) dataUrl = await svgToDataURL(diagramEl);
+                }
+                return { title: T.biochemicalPathwaySection, content: patientCase.biochemicalPathway!, dataUrl };
+            })();
+            visualPromises.push(promise);
+        }
+
+        // Visual Educational Content
+        if (patientCase.educationalContent) {
+            for (let i = 0; i < patientCase.educationalContent.length; i++) {
+                const item = patientCase.educationalContent[i];
+                if (item.diagramData || item.imageData) {
+                    const promise = (async () => {
+                        let dataUrl: string | undefined;
+                        if (item.imageData) {
+                            dataUrl = `data:image/png;base64,${item.imageData}`;
+                        } else if (item.diagramData) {
+                            const diagramEl = document.querySelector(`#diagram-edu-${i} svg`) as SVGSVGElement;
+                            if (diagramEl) dataUrl = await svgToDataURL(diagramEl);
+                        }
+                        return { title: item.title, content: item, dataUrl };
+                    })();
+                    visualPromises.push(promise);
+                }
+            }
+        }
+
+        // Knowledge Map
+        if (onGetMapImage) {
+            const promise = (async () => {
+                const mapImgData = await onGetMapImage();
+                return { title: T.knowledgeMapConcepts, content: { description: 'Overview of the key concepts and their connections in this case.', reference: '' }, dataUrl: mapImgData };
+            })();
+            visualPromises.push(promise);
+        }
+        
+        const resolvedVisuals = (await Promise.all(visualPromises)).filter(v => v && v.dataUrl);
+
+        // --- 2. Initialize jsPDF and build the document ---
         const { jsPDF } = (window as any).jspdf;
         const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
 
@@ -487,84 +537,8 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
                 didDrawPage: pageFooter,
             });
         };
-        
-        const addVisualSection = async (title: string, content: { diagramData?: any, imageData?: string, description: string, reference: string }, diagramId?: string, rawImgData?: string) => {
-            let imgData = rawImgData;
-            if (!imgData) {
-                if (diagramId && content.diagramData) {
-                    const diagramEl = document.querySelector(`#${diagramId} svg`) as SVGSVGElement;
-                    if (diagramEl) imgData = await svgToDataURL(diagramEl);
-                } else if (content.imageData) {
-                    imgData = `data:image/png;base64,${content.imageData}`;
-                }
-            }
-        
-            const description = content.description && content.reference ? `${content.description}\n\nReference: ${content.reference}` : content.description;
-            const bodyRows: any[][] = [];
-            if (imgData) {
-                bodyRows.push(['__IMAGE_PLACEHOLDER__']);
-            }
-            if (description) {
-                 bodyRows.push([description]);
-            }
-            
-            if (bodyRows.length === 0) return;
 
-            doc.autoTable({
-                startY: (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 8 : undefined,
-                head: [[title]],
-                body: bodyRows,
-                theme: 'grid',
-                headStyles: { fillColor: brandColor, fontSize: 14 },
-                bodyStyles: { textColor: textColor, fontSize: 10, cellPadding: 3, minCellHeight: 20 },
-                didParseCell: (data: any) => {
-                    if (data.cell.raw === '__IMAGE_PLACEHOLDER__' && imgData) {
-                        data.cell.text = ''; // Clear placeholder text
-                        try {
-                            const imgProps = doc.getImageProperties(imgData);
-                            const cellWidth = data.cell.width - data.cell.padding('horizontal');
-                            const imgHeight = (cellWidth / imgProps.width) * imgProps.height;
-                            data.row.height = Math.max(data.row.height, imgHeight + data.cell.padding('vertical'));
-                        } catch(e) {
-                             console.error("PDF generation: Could not get image properties in didParseCell", e);
-                        }
-                    }
-                },
-                didDrawCell: (data: any) => {
-                    if (data.cell.raw === '__IMAGE_PLACEHOLDER__' && imgData) {
-                        try {
-                            const imgProps = doc.getImageProperties(imgData);
-                            const cellContentWidth = data.cell.width - data.cell.padding('horizontal');
-                            const cellContentHeight = data.cell.height - data.cell.padding('vertical');
-
-                            let imgWidth = imgProps.width;
-                            let imgHeight = imgProps.height;
-                            const aspectRatio = imgWidth / imgHeight;
-
-                            imgWidth = cellContentWidth;
-                            imgHeight = imgWidth / aspectRatio;
-
-                            if (imgHeight > cellContentHeight) {
-                                imgHeight = cellContentHeight;
-                                imgWidth = imgHeight * aspectRatio;
-                            }
-
-                            const x = data.cell.x + (data.cell.width - imgWidth) / 2;
-                            const y = data.cell.y + (data.cell.height - imgHeight) / 2;
-
-                             doc.addImage(imgData, 'PNG', x, y, imgWidth, imgHeight);
-                        } catch(e) {
-                            console.error("PDF generation: Could not add image in didDrawCell", e);
-                        }
-                    }
-                },
-                didDrawPage: pageFooter
-            });
-        };
-
-        // --- Main Content Rendering Logic ---
-        
-        // --- Text and Table Content ---
+        // --- 3. Render all text/table content ---
         addSection(T.patientProfile, patientCase.patientProfile);
         addSection(T.presentingComplaint, patientCase.presentingComplaint);
         addSection(T.history, patientCase.history);
@@ -579,7 +553,6 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
             addSection(T.quizTitle, quizContent);
         }
         
-        // Add non-visual educational content to the text flow
         if (patientCase.educationalContent) {
             patientCase.educationalContent.forEach(item => {
                 if (!item.diagramData && !item.imageData) {
@@ -593,41 +566,67 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
             addTableSection(T.conceptSummaries, ['Concept', 'Discipline', 'Summary'], nodeSummaries);
         }
 
-        // --- Visuals - Each on a new page ---
-
-        // Biochemical Pathway
-        if (patientCase.biochemicalPathway && (patientCase.biochemicalPathway.diagramData || patientCase.biochemicalPathway.imageData)) {
+        // --- 4. Render pre-generated visuals on new pages ---
+        for (const visual of resolvedVisuals) {
+            if (!visual.dataUrl) continue;
+            
             doc.addPage();
-            await addVisualSection(T.biochemicalPathwaySection, patientCase.biochemicalPathway, 'diagram-biochem');
-        }
+            
+            const margin = 15;
+            const pageWidth = doc.internal.pageSize.getWidth();
+            const pageHeight = doc.internal.pageSize.getHeight();
 
-        // Visual Educational Content
-        if (patientCase.educationalContent) {
-            for (let i = 0; i < patientCase.educationalContent.length; i++) {
-                const item = patientCase.educationalContent[i];
-                if (item.diagramData || item.imageData) {
-                    doc.addPage();
-                    await addVisualSection(item.title, item, item.diagramData ? `diagram-edu-${i}` : undefined);
+            // Add title
+            doc.setFontSize(14);
+            doc.setTextColor(brandColor);
+            doc.text(visual.title, pageWidth / 2, 20, { align: 'center' });
+
+            let finalY = 30;
+            try {
+                const imgProps = doc.getImageProperties(visual.dataUrl);
+                const maxWidth = pageWidth - 2 * margin;
+                const maxHeight = pageHeight - 70; // Reserve space for title, description, footer
+
+                let imgWidth = imgProps.width;
+                let imgHeight = imgProps.height;
+                const aspectRatio = imgWidth / imgHeight;
+
+                if (imgWidth > maxWidth) {
+                    imgWidth = maxWidth;
+                    imgHeight = imgWidth / aspectRatio;
                 }
-            }
-        }
+                if (imgHeight > maxHeight) {
+                    imgHeight = maxHeight;
+                    imgWidth = imgHeight * aspectRatio;
+                }
 
-        // Knowledge Map
-        if (onGetMapImage) {
-            const mapImgData = await onGetMapImage();
-            if (mapImgData) {
-                 doc.addPage();
-                 await addVisualSection(T.knowledgeMapConcepts, { description: '', reference: '' }, undefined, mapImgData);
+                const x = (pageWidth - imgWidth) / 2; // Center horizontally
+                const y = 30;
+
+                doc.addImage(visual.dataUrl, 'PNG', x, y, imgWidth, imgHeight);
+                finalY = y + imgHeight + 10;
+            } catch (e) {
+                console.error("PDF generation: Could not add image for title:", visual.title, e);
+                doc.text("Error: Could not render visual.", margin, 30);
+                finalY = 40;
+            }
+
+            const descriptionText = `${visual.content.description}${visual.content.reference ? `\n\nReference: ${visual.content.reference}` : ''}`;
+            if (descriptionText.trim()) {
+                doc.setFontSize(10);
+                doc.setTextColor(textColor);
+                const splitDescription = doc.splitTextToSize(descriptionText, pageWidth - 2 * margin);
+                doc.text(splitDescription, margin, finalY);
             }
         }
         
-        // Finalize page numbering
+        // --- 5. Finalize page numbering and save ---
         const totalPages = (doc as any).internal.getNumberOfPages();
         for (let i = 1; i <= totalPages; i++) {
             doc.setPage(i);
-            // Re-apply header/footer to all pages to ensure consistency, especially on manually added pages
-            pageHeader({ settings: { margin: { left: 10 } } });
-            pageFooter({ pageNumber: i, settings: { margin: { left: 10 } } });
+            // Re-apply header/footer to all pages
+            pageHeader({ settings: { margin: { left: 15 } } });
+            pageFooter({ pageNumber: i, totalPages, settings: { margin: { left: 15 } } });
         }
 
         doc.save(`${patientCase.title.replace(/\s+/g, '_')}.pdf`);
