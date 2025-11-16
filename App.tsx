@@ -1,5 +1,6 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 
 // Components
 import { Header } from './components/Header';
@@ -75,6 +76,7 @@ const App: React.FC = () => {
     // Knowledge Map State
     const [selectedNodeInfo, setSelectedNodeInfo] = useState<{ node: KnowledgeNode; abstract: string; loading: boolean } | null>(null);
     const [isMapFullscreen, setIsMapFullscreen] = useState(false);
+    const knowledgeMapRef = useRef<{ captureAsImage: () => Promise<string> } | null>(null);
 
     // Internationalization State
     const [language, setLanguage] = useState(localStorage.getItem('synapsis_language') || 'en');
@@ -335,6 +337,10 @@ const App: React.FC = () => {
         });
     };
 
+    const getKnowledgeMapImage = async (): Promise<string | undefined> => {
+        return await knowledgeMapRef.current?.captureAsImage();
+    };
+
     // -- RENDER LOGIC --
 
     if (showEvaluationScreen) {
@@ -381,12 +387,14 @@ const App: React.FC = () => {
                                         onSaveSnippet={handleSaveSnippet}
                                         onOpenShare={() => setIsShareModalOpen(true)}
                                         onOpenDiscussion={(topic) => setActiveDiscussionTopic(topic)}
+                                        onGetMapImage={getKnowledgeMapImage}
                                     />
                                 </div>
                                 
                                 {mapData && (
                                     <div className={`transition-all duration-500 ease-in-out ${isMapFullscreen ? 'fixed inset-0 z-30' : 'relative min-h-[400px] lg:min-h-0'} ${mobileView === 'map' ? 'block' : 'hidden lg:block'}`}>
                                         <KnowledgeMap
+                                            ref={knowledgeMapRef}
                                             data={mapData}
                                             onNodeClick={handleNodeClick}
                                             selectedNodeInfo={selectedNodeInfo}

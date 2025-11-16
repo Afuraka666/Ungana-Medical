@@ -1,11 +1,55 @@
 
-import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
+
+import React, { useEffect, useRef, useCallback, useState, useMemo, forwardRef, useImperativeHandle } from 'react';
 import { Discipline } from '../types';
 import type { KnowledgeMapData, KnowledgeNode } from '../types';
 import { ConceptCard } from './ConceptCard';
 import { getConceptConnectionExplanation } from '../services/geminiService';
 
 declare const d3: any;
+
+const svgToDataURL = async (svgEl: SVGSVGElement): Promise<string> => {
+    // Add a white background rectangle as the first child of the SVG
+    const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bgRect.setAttribute('width', '100%');
+    bgRect.setAttribute('height', '100%');
+    bgRect.setAttribute('fill', 'white');
+    svgEl.prepend(bgRect);
+    
+    const xml = new XMLSerializer().serializeToString(svgEl);
+
+    // Remove the temporary background rect
+    svgEl.removeChild(bgRect);
+
+    const svg64 = btoa(unescape(encodeURIComponent(xml)));
+    const b64start = 'data:image/svg+xml;base64,';
+    const image64 = b64start + svg64;
+
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const padding = 20;
+            const viewBox = svgEl.viewBox.baseVal;
+            const svgWidth = viewBox && viewBox.width > 0 ? viewBox.width : img.width;
+            const svgHeight = viewBox && viewBox.height > 0 ? viewBox.height : img.height;
+            canvas.width = svgWidth + padding * 2;
+            canvas.height = svgHeight + padding * 2;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, padding, padding, svgWidth, svgHeight);
+                resolve(canvas.toDataURL('image/png'));
+            } else {
+                resolve('');
+            }
+        };
+        img.onerror = () => resolve('');
+        img.src = image64;
+    });
+};
+
 
 // --- Helper Components ---
 const LoadingSpinner: React.FC = () => (
@@ -187,8 +231,7 @@ interface KnowledgeMapProps {
     onDiscussNode: (nodeInfo: { node: KnowledgeNode; abstract: string; loading: boolean }) => void;
 }
 
-// Fix: Add export for KnowledgeMap component
-export const KnowledgeMap: React.FC<KnowledgeMapProps> = ({
+export const KnowledgeMap = forwardRef<any, KnowledgeMapProps>(({
     data,
     onNodeClick,
     selectedNodeInfo,
@@ -199,7 +242,7 @@ export const KnowledgeMap: React.FC<KnowledgeMapProps> = ({
     language,
     T,
     onDiscussNode
-}) => {
+}, ref) => {
     const svgRef = useRef<SVGSVGElement | null>(null);
     const containerRef = useRef<HTMLDivElement | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -212,6 +255,15 @@ export const KnowledgeMap: React.FC<KnowledgeMapProps> = ({
 
     const nodes = useMemo(() => data.nodes.map(n => ({ ...n })), [data.nodes]);
     const links = useMemo(() => data.links.map(l => ({ ...l })), [data.links]);
+
+    useImperativeHandle(ref, () => ({
+        async captureAsImage(): Promise<string> {
+            if (svgRef.current) {
+                return await svgToDataURL(svgRef.current);
+            }
+            return '';
+        }
+    }));
 
     const handleNodeRightClick = (event: MouseEvent, node: KnowledgeNode) => {
         event.preventDefault();
@@ -385,4 +437,4 @@ export const KnowledgeMap: React.FC<KnowledgeMapProps> = ({
             />
         </div>
     );
-};
+});

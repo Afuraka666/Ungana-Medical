@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useReducer } from 'react';
 import { EducationalContentType, Discipline } from '../types';
 import type { PatientCase, EducationalContent, QuizQuestion, DisciplineSpecificConsideration, MultidisciplinaryConnection, TraceableEvidence, FurtherReading, ProcedureDetails, PatientOutcome } from '../types';
@@ -19,6 +20,7 @@ interface PatientCaseViewProps {
   onSaveSnippet: (title: string, content: string) => void;
   onOpenShare: () => void;
   onOpenDiscussion: (topic: DisciplineSpecificConsideration) => void;
+  onGetMapImage?: () => Promise<string | undefined>;
 }
 
 const historyReducer = (state: { history: any[], currentIndex: number }, action: { type: string, payload: any }): { history: any[], currentIndex: number } => {
@@ -253,7 +255,60 @@ const Section: React.FC<{
   );
 };
 
-export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: initialPatientCase, onSave, language, T, onSaveSnippet, onOpenShare, onOpenDiscussion }) => {
+const svgToDataURL = async (svgEl: SVGSVGElement): Promise<string> => {
+    // Add a white background rectangle as the first child of the SVG
+    // This ensures the background is not transparent in the PNG.
+    const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bgRect.setAttribute('width', '100%');
+    bgRect.setAttribute('height', '100%');
+    bgRect.setAttribute('fill', 'white');
+    svgEl.prepend(bgRect);
+    
+    const xml = new XMLSerializer().serializeToString(svgEl);
+
+    // Remove the temporary background rect so it doesn't affect the live view
+    svgEl.removeChild(bgRect);
+
+    // Use unescape and encodeURIComponent to handle special characters correctly
+    const svg64 = btoa(unescape(encodeURIComponent(xml)));
+    const b64start = 'data:image/svg+xml;base64,';
+    const image64 = b64start + svg64;
+
+    return new Promise((resolve) => {
+        const img = new Image();
+
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            // Add some padding to prevent clipping
+            const padding = 20;
+            const viewBox = svgEl.viewBox.baseVal;
+            const svgWidth = viewBox && viewBox.width > 0 ? viewBox.width : img.width;
+            const svgHeight = viewBox && viewBox.height > 0 ? viewBox.height : img.height;
+
+            canvas.width = svgWidth + padding * 2;
+            canvas.height = svgHeight + padding * 2;
+            
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+                // Fill canvas with white background
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, padding, padding, svgWidth, svgHeight);
+                resolve(canvas.toDataURL('image/png'));
+            } else {
+                resolve(''); // Fallback
+            }
+        };
+
+        img.onerror = () => {
+            resolve(''); // Fallback on error
+        };
+
+        img.src = image64;
+    });
+};
+
+export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: initialPatientCase, onSave, language, T, onSaveSnippet, onOpenShare, onOpenDiscussion, onGetMapImage }) => {
   const { state: patientCase, setState: setPatientCase, undo, redo, canUndo, canRedo, resetState } = useHistoryState<PatientCase>(initialPatientCase);
   const [isEditing, setIsEditing] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
@@ -359,7 +414,7 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
     }
   };
   
-  const handleDownloadPdf = () => {
+  const handleDownloadPdf = async () => {
     if (!patientCase) return;
 
     const { jsPDF } = (window as any).jspdf;
@@ -368,10 +423,14 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
     const brandColor = '#1e3a8a';
     const textColor = '#111827';
     
+    let isFirstPage = true;
     const pageHeader = (data: any) => {
-        doc.setFontSize(10);
-        doc.setTextColor('#4a5568');
-        doc.text('Synapsis Medical Case Study', data.settings.margin.left, 10);
+        if (isFirstPage) {
+            doc.setFontSize(10);
+            doc.setTextColor('#4a5568');
+            doc.text('Synapsis Medical Case Study', data.settings.margin.left, 10);
+            isFirstPage = false;
+        }
     };
 
     const pageFooter = (data: any) => {
@@ -382,7 +441,7 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
     };
 
     // --- Title ---
-    (doc as any).autoTable({
+    doc.autoTable({
         body: [[patientCase.title]],
         startY: 15,
         theme: 'plain',
@@ -392,13 +451,13 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
             halign: 'center',
             textColor: brandColor,
         },
-        didDrawPage: pageHeader, // Add header to first page
+        didDrawPage: pageHeader,
     });
 
     // --- Helper for simple text block sections ---
     const addSection = (title: string, content: string) => {
         if (!content) return;
-        (doc as any).autoTable({
+        doc.autoTable({
             startY: (doc as any).lastAutoTable.finalY + 8,
             body: [[content]],
             head: [[title]],
@@ -434,7 +493,7 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
     // --- Table for multi-item sections ---
     const addTableSection = (title: string, head: string[], body: any[][]) => {
         if (body.length === 0) return;
-        (doc as any).autoTable({
+        doc.autoTable({
             startY: (doc as any).lastAutoTable.finalY + 8,
             head: [[{ content: title, colSpan: head.length, styles: { halign: 'center', fillColor: brandColor, fontSize: 14 } }]],
             body: [head, ...body],
@@ -472,6 +531,59 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
             return `${i + 1}. ${q.question}\n${options}\n\n   ${T.quizExplanation}: ${q.explanation}`;
         }).join('\n\n');
         addSection(T.quizTitle, quizContent);
+    }
+    
+    // --- Helper to add an image to a new page, fitting it while preserving aspect ratio
+    const addImageToPage = (imgData: string, title: string) => {
+        const imgProps = doc.getImageProperties(imgData);
+        const pdfWidth = doc.internal.pageSize.getWidth() - 20; // with margin
+        const pdfHeight = doc.internal.pageSize.getHeight() - 30; // with margin and space for title
+        const ratio = imgProps.width / imgProps.height;
+        let imgWidth = pdfWidth;
+        let imgHeight = pdfWidth / ratio;
+        if (imgHeight > pdfHeight) {
+            imgHeight = pdfHeight;
+            imgWidth = pdfHeight * ratio;
+        }
+        const x = (doc.internal.pageSize.getWidth() - imgWidth) / 2;
+        const y = 20;
+        doc.addPage();
+        doc.setFontSize(14).setTextColor(brandColor).text(title, 10, 15);
+        doc.addImage(imgData, 'PNG', x, y, imgWidth, imgHeight);
+    };
+
+    // --- Add Diagrams ---
+    const biochemDiagramEl = document.querySelector('#diagram-biochem svg') as SVGSVGElement;
+    if (biochemDiagramEl) {
+        const imgData = await svgToDataURL(biochemDiagramEl);
+        if (imgData) addImageToPage(imgData, patientCase.biochemicalPathway.title);
+    }
+
+    for (let i = 0; i < patientCase.educationalContent.length; i++) {
+        const item = patientCase.educationalContent[i];
+        if (item.diagramData) {
+            const eduDiagramEl = document.querySelector(`#diagram-edu-${i} svg`) as SVGSVGElement;
+            if (eduDiagramEl) {
+                const imgData = await svgToDataURL(eduDiagramEl);
+                if (imgData) addImageToPage(imgData, item.title);
+            }
+        }
+    }
+
+    // --- Add Knowledge Map ---
+    if (onGetMapImage) {
+        const mapImgData = await onGetMapImage();
+        if (mapImgData) {
+            addImageToPage(mapImgData, 'Knowledge Map');
+        }
+    }
+    
+    // Reset page numbering after adding images
+    const totalPages = (doc as any).internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(10).setTextColor('#4a5568');
+        doc.text(`Page ${i} of ${totalPages}`, doc.internal.pageSize.getWidth() / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
     }
     
     doc.save(`${patientCase.title.replace(/\s+/g, '_')}.pdf`);
@@ -571,7 +683,7 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
             </div>
             <p className="text-xs text-gray-500 italic mb-2">{patientCase.biochemicalPathway.reference}</p>
             <p className="whitespace-pre-wrap">{patientCase.biochemicalPathway.description}</p>
-            {patientCase.biochemicalPathway.diagramData && <div className="mt-4 h-80 rounded-lg border border-gray-200"><InteractiveDiagram data={patientCase.biochemicalPathway.diagramData} /></div>}
+            {patientCase.biochemicalPathway.diagramData && <div className="mt-4 h-80 rounded-lg border border-gray-200"><InteractiveDiagram id="diagram-biochem" data={patientCase.biochemicalPathway.diagramData} /></div>}
         </Section>
         <Section title={T.multidisciplinaryConnections} onCopy={() => {}} onSaveSnippet={() => onSaveSnippet(T.multidisciplinaryConnections, patientCase.multidisciplinaryConnections.map(c => `${c.discipline}: ${c.connection}`).join('\n'))} T={T}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -624,7 +736,7 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
                             </div>
                         </div>
                         <p className="mt-2">{item.description}</p>
-                        {item.diagramData && <div className="mt-3 h-72 rounded-lg border border-gray-200 bg-white"><InteractiveDiagram data={item.diagramData} /></div>}
+                        {item.diagramData && <div className="mt-3 h-72 rounded-lg border border-gray-200 bg-white"><InteractiveDiagram id={`diagram-edu-${index}`} data={item.diagramData} /></div>}
                         {item.imageData && (
                             <div className="mt-3">
                                 <img 
