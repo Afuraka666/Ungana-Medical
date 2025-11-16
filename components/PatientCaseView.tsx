@@ -488,18 +488,9 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
                 }
             }
         
-            const bodyRows = [];
+            const bodyRows: any[][] = [];
             if (imgData) {
-                try {
-                    const imgProps = doc.getImageProperties(imgData);
-                    const pdfWidth = doc.internal.pageSize.getWidth() - 30;
-                    const imgHeight = (pdfWidth / imgProps.width) * imgProps.height;
-                    bodyRows.push([
-                        { image: imgData, width: pdfWidth, height: imgHeight }
-                    ]);
-                } catch (e) {
-                    console.error("Could not process image for PDF, skipping.", e);
-                }
+                bodyRows.push([{ content: '', tag: 'image' }]);
             }
             
             const description = content.description && content.reference ? `${content.description}\n\nReference: ${content.reference}` : content.description;
@@ -517,9 +508,36 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
                 headStyles: { fillColor: brandColor, fontSize: 14 },
                 bodyStyles: { textColor: textColor, fontSize: 10, cellPadding: 3 },
                 didParseCell: (data: any) => {
-                    if (data.cell.raw?.image) {
-                        data.cell.styles.cellPadding = { top: 4, right: 4, bottom: 4, left: 4 };
-                        data.cell.styles.halign = 'center';
+                    const raw = data.cell.raw as any;
+                    if (raw?.tag === 'image' && imgData) {
+                        data.cell.text = ''; // Clear placeholder content
+                        try {
+                            const imgProps = doc.getImageProperties(imgData);
+                            const cellWidth = data.cell.width - data.cell.padding('horizontal');
+                            const imgHeight = (cellWidth / imgProps.width) * imgProps.height;
+                            data.row.minHeight = imgHeight + data.cell.padding('vertical');
+                        } catch(e) {
+                             console.error("PDF generation: Could not get image properties in didParseCell", e);
+                        }
+                    }
+                },
+                didDrawCell: (data: any) => {
+                    const raw = data.cell.raw as any;
+                    if (raw?.tag === 'image' && imgData) {
+                        try {
+                            const imgProps = doc.getImageProperties(imgData);
+                            const cellWidth = data.cell.width - data.cell.padding('horizontal');
+                            const imgHeight = (cellWidth / imgProps.width) * imgProps.height;
+                             doc.addImage(
+                                imgData, 'PNG', 
+                                data.cell.x + data.cell.padding('left'), 
+                                data.cell.y + data.cell.padding('top'), 
+                                cellWidth, 
+                                imgHeight
+                            );
+                        } catch(e) {
+                            console.error("PDF generation: Could not add image in didDrawCell", e);
+                        }
                     }
                 },
                 didDrawPage: pageFooter
