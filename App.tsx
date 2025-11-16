@@ -117,6 +117,11 @@ export const App: React.FC = () => {
 
     // Mobile view state
     const [mobileView, setMobileView] = useState<'case' | 'map'>('case');
+    
+    // UI Visibility State for mobile scroll behavior
+    const [isUiVisible, setIsUiVisible] = useState(true);
+    const lastScrollTop = useRef(0);
+    const caseScrollRef = useRef<HTMLDivElement>(null);
 
     const T = translations[language] || translations.en;
     
@@ -203,6 +208,24 @@ export const App: React.FC = () => {
     }, []);
 
     // -- HANDLERS --
+    
+    const handleCaseScroll = useCallback(() => {
+        if (!caseScrollRef.current) return;
+        const { scrollTop } = caseScrollRef.current;
+    
+        // A small threshold to prevent flickering on minor scrolls or at the top
+        if (Math.abs(scrollTop - lastScrollTop.current) < 20) {
+            return;
+        }
+    
+        if (scrollTop > lastScrollTop.current && scrollTop > 150) { // Scrolling down, past a certain point
+            setIsUiVisible(false);
+        } else if (scrollTop < lastScrollTop.current || scrollTop < 50) { // Scrolling up or near the top
+            setIsUiVisible(true);
+        }
+    
+        lastScrollTop.current = scrollTop <= 0 ? 0 : scrollTop;
+    }, []);
     
     const handleLanguageChange = (langCode: string) => {
         setLanguage(langCode);
@@ -378,6 +401,7 @@ export const App: React.FC = () => {
                 currentLanguage={language}
                 onLanguageChange={handleLanguageChange}
                 T={T}
+                className={`sticky top-0 z-30 transition-transform duration-300 ${!isUiVisible && patientCase ? '-translate-y-full' : 'translate-y-0'}`}
             />
             
             <main className={`flex-grow p-2 sm:p-4 overflow-hidden ${patientCase ? 'pb-16 lg:pb-0' : ''}`}>
@@ -394,7 +418,9 @@ export const App: React.FC = () => {
                         onGenerateNew={handleGenerateNew}
                     />
 
-                    <TipsCarousel interactionState={interactionState} T={T} />
+                    <div className="hidden md:block">
+                        <TipsCarousel interactionState={interactionState} T={T} />
+                    </div>
                     
                     {patientCase ? (
                         <div className="flex-grow overflow-hidden h-full">
@@ -405,7 +431,7 @@ export const App: React.FC = () => {
                             >
                                 {/* Case View Wrapper */}
                                 <div className="w-full flex-shrink-0 h-full lg:w-3/5">
-                                    <div className="h-full overflow-y-auto bg-white rounded-lg shadow-lg border border-gray-200">
+                                    <div ref={caseScrollRef} onScroll={handleCaseScroll} className="h-full overflow-y-auto bg-white rounded-lg shadow-lg border border-gray-200">
                                         <PatientCaseView
                                             patientCase={patientCase}
                                             isGeneratingDetails={isGeneratingDetails}
@@ -501,7 +527,7 @@ export const App: React.FC = () => {
 
             {/* Mobile View Toggle */}
             {patientCase && (
-                <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-t-lg z-20">
+                <div className={`lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-t-lg z-20 transition-transform duration-300 ${!isUiVisible ? 'translate-y-full' : 'translate-y-0'}`}>
                     <div className="flex justify-around">
                         <button
                             onClick={() => setMobileView('case')}

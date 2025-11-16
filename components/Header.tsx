@@ -5,13 +5,14 @@ interface HeaderProps {
   currentLanguage: string;
   onLanguageChange: (langCode: string) => void;
   T: Record<string, any>;
+  className?: string;
 }
 
 const logoDataUri = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%231e3a8a'/><g stroke='white' stroke-width='4' stroke-linecap='round'><line x1='50' y1='50' x2='50' y2='20'/><line x1='50' y1='50' x2='71.21' y2='28.79'/><line x1='50' y1='50' x2='80' y2='50'/><line x1='50' y1='50' x2='71.21' y2='71.21'/><line x1='50' y1='50' x2='50' y2='80'/><line x1='50' y1='50' x2='28.79' y2='71.21'/><line x1='50' y1='50' x2='20' y2='50'/><line x1='50' y1='50' x2='28.79' y2='28.79'/></g><g fill='%233b82f6' stroke='white' stroke-width='2.5'><circle cx='50' cy='20' r='8'/><circle cx='71.21' cy='28.79' r='8'/><circle cx='80' cy='50' r='8'/><circle cx='71.21' cy='71.21' r='8'/><circle cx='50' cy='80' r='8'/><circle cx='28.79' cy='71.21' r='8'/><circle cx='20' cy='50' r='8'/><circle cx='28.79' cy='28.79' r='8'/></g><circle cx='50' cy='50' r='16' fill='white'/><line x1='42' y1='50' x2='58' y2='50' stroke='%231e3a8a' stroke-width='5' stroke-linecap='round'/><line x1='50' y1='42' x2='50' y2='58' stroke='%231e3a8a' stroke-width='5' stroke-linecap='round'/></svg>";
 
-export const Header: React.FC<HeaderProps> = ({ supportedLanguages, currentLanguage, onLanguageChange, T }) => {
+export const Header: React.FC<HeaderProps> = ({ supportedLanguages, currentLanguage, onLanguageChange, T, className }) => {
   return (
-    <header className="bg-brand-blue shadow-md text-white">
+    <header className={`bg-brand-blue shadow-md text-white ${className || ''}`}>
       <div className="container mx-auto px-4 md:px-6 py-3 flex items-center justify-between">
         <div className="flex items-center space-x-3">
           <img src={logoDataUri} alt="Synapsis Medical Logo" className="w-8 h-8 sm:w-10 sm:h-10" />
