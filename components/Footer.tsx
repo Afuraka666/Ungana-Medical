@@ -5,15 +5,16 @@ interface FooterProps {
     T: Record<string, any>;
     evaluationDaysRemaining: number | null;
     onOpenFeedback: () => void;
+    className?: string;
 }
 
-export const Footer: React.FC<FooterProps> = ({ T, evaluationDaysRemaining, onOpenFeedback }) => {
+export const Footer: React.FC<FooterProps> = ({ T, evaluationDaysRemaining, onOpenFeedback, className }) => {
     const currentYear = new Date().getFullYear();
 
     return (
-        <footer className="bg-gray-200 text-xs text-gray-600 p-3 border-t border-gray-300">
-            <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-4">
-                <span className="flex-1 text-center sm:text-left">© {currentYear} Synapsis Medical. All rights reserved.</span>
+        <footer className={`bg-gray-200 text-xs text-gray-600 p-3 border-t border-gray-300 ${className || ''}`}>
+            <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-center sm:justify-between items-center gap-2">
+                <span className="hidden sm:block flex-1 text-left">© {currentYear} Synapsis Medical. All rights reserved.</span>
                 
                 <button 
                     onClick={onOpenFeedback} 
@@ -25,7 +26,7 @@ export const Footer: React.FC<FooterProps> = ({ T, evaluationDaysRemaining, onOp
                     <span>{T.feedbackButton}</span>
                 </button>
                 
-                <div className="flex-1 text-center sm:text-right">
+                <div className="text-center sm:flex-1 sm:text-right">
                     {evaluationDaysRemaining !== null && (
                         <span className="font-semibold text-brand-blue">
                             {evaluationDaysRemaining > 0

@@ -524,7 +524,12 @@ export const App: React.FC = () => {
                 />
             )}
 
-            <Footer T={T} evaluationDaysRemaining={evaluationDaysRemaining} onOpenFeedback={() => setIsFeedbackModalOpen(true)} />
+            <Footer
+                T={T}
+                evaluationDaysRemaining={evaluationDaysRemaining}
+                onOpenFeedback={() => setIsFeedbackModalOpen(true)}
+                className={`sticky bottom-0 z-20 transition-transform duration-300 ${!isUiVisible && patientCase ? 'translate-y-full' : 'translate-y-0'}`}
+            />
             <UpdateNotifier />
         </div>
     );
