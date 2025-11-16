@@ -520,7 +520,7 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
                 body: [[content]],
                 theme: 'grid',
                 headStyles: { fillColor: brandColor, fontSize: 14 },
-                bodyStyles: { textColor: textColor, fontSize: 10, cellPadding: 3, minCellHeight: 10 },
+                bodyStyles: { textColor: textColor, fontSize: 12, cellPadding: 3, minCellHeight: 10 },
                 didDrawPage: pageFooter,
             });
         };
@@ -532,8 +532,8 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
                 head: [[{ content: title, colSpan: head.length, styles: { halign: 'center', fillColor: brandColor, fontSize: 14 } }]],
                 body: [head, ...body],
                 theme: 'grid',
-                headStyles: { fillColor: '#3b82f6' },
-                bodyStyles: { textColor: textColor, fontSize: 10, cellPadding: 2, overflow: 'linebreak' },
+                headStyles: { fillColor: '#3b82f6', fontSize: 12, fontStyle: 'bold' },
+                bodyStyles: { textColor: textColor, fontSize: 12, cellPadding: 2, overflow: 'linebreak' },
                 didDrawPage: pageFooter,
             });
         };
@@ -613,7 +613,7 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
 
             const descriptionText = `${visual.content.description}${visual.content.reference ? `\n\nReference: ${visual.content.reference}` : ''}`;
             if (descriptionText.trim()) {
-                doc.setFontSize(10);
+                doc.setFontSize(12);
                 doc.setTextColor(textColor);
                 const splitDescription = doc.splitTextToSize(descriptionText, pageWidth - 2 * margin);
                 doc.text(splitDescription, margin, finalY);
