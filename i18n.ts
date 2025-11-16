@@ -1,6 +1,4 @@
 
-
-
 export const supportedLanguages = {
   'en': 'English',
   'es': 'Español',
@@ -87,6 +85,7 @@ export const translations: Record<string, Record<string, any>> = {
     deleteButtonTitle: 'Delete Item',
     saveCaseButton: 'Save Current Case',
     savedWorkButton: 'Saved Work',
+    viewSavedWorkButton: 'View All Saved',
     clinicalToolsButton: 'Clinical Tools',
     saveCaseDisabledTooltip: 'Generate a case first to enable saving',
     savedWorkTitle: 'Saved Work',
@@ -448,6 +447,7 @@ export const translations: Record<string, Record<string, any>> = {
     deleteButtonTitle: 'Eliminar Elemento',
     saveCaseButton: 'Guardar Caso Actual',
     savedWorkButton: 'Trabajo Guardado',
+    viewSavedWorkButton: 'Ver Guardados',
     clinicalToolsButton: 'Herramientas Clínicas',
     saveCaseDisabledTooltip: 'Genera un caso primero para poder guardar',
     savedWorkTitle: 'Trabajo Guardado',

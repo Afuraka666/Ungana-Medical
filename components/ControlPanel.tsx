@@ -50,6 +50,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ onGenerate, disabled
   const [activeInput, setActiveInput] = useState<'condition' | 'discipline' | null>(null);
   const recognitionRef = useRef<any>(null);
   const [micError, setMicError] = useState<string | null>(null);
+  
+  const [isSavedWorkMenuOpen, setIsSavedWorkMenuOpen] = useState(false);
+  const savedWorkMenuRef = useRef<HTMLDivElement>(null);
 
 
   useEffect(() => {
@@ -68,6 +71,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ onGenerate, disabled
     const handleClickOutside = (event: MouseEvent) => {
         if (historyRef.current && !historyRef.current.contains(event.target as Node)) {
             setShowHistory(false);
+        }
+        if (savedWorkMenuRef.current && !savedWorkMenuRef.current.contains(event.target as Node)) {
+            setIsSavedWorkMenuOpen(false);
         }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -302,28 +308,54 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ onGenerate, disabled
       )}
       <div className={`${!isCaseActive ? 'border-t border-gray-200 mt-4 pt-3' : ''} flex items-center justify-between`}>
          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={onSaveCase}
-              disabled={disabled || !isCaseActive}
-              title={!isCaseActive ? T.saveCaseDisabledTooltip : T.saveCaseButton}
-              className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md transition duration-300 ease-in-out disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center space-x-2 text-sm"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v12a1 1 0 01-1.447.894L10 14.586l-3.553 2.308A1 1 0 015 16V4z" />
-              </svg>
-              <span>{T.saveCaseButton}</span>
-            </button>
-            <button
-              onClick={onOpenSavedWork}
-              disabled={disabled}
-              title={T.savedWorkButton}
-              className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition duration-300 ease-in-out disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center space-x-2 text-sm"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3zm3.146 4.146L8 9.586v4.172l.854-.854L13.854 8H4.146z" clipRule="evenodd" />
-              </svg>
-              <span>{T.savedWorkButton}</span>
-            </button>
+            <div className="relative" ref={savedWorkMenuRef}>
+                <button
+                    onClick={() => setIsSavedWorkMenuOpen(prev => !prev)}
+                    disabled={disabled}
+                    title={T.savedWorkButton}
+                    className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition duration-300 ease-in-out disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center space-x-2 text-sm"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+                    </svg>
+                    <span>{T.savedWorkButton}</span>
+                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                </button>
+                {isSavedWorkMenuOpen && (
+                    <div className="absolute top-full mt-2 left-0 w-56 bg-white rounded-md shadow-lg border border-gray-200 z-20 animate-fade-in">
+                        <ul className="py-1">
+                            <li>
+                                <button
+                                    onClick={() => { onSaveCase(); setIsSavedWorkMenuOpen(false); }}
+                                    disabled={disabled || !isCaseActive}
+                                    title={!isCaseActive ? T.saveCaseDisabledTooltip : T.saveCaseButton}
+                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed flex items-center space-x-3"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v12a1 1 0 01-1.447.894L10 14.586l-3.553 2.308A1 1 0 015 16V4z" />
+                                    </svg>
+                                    <span>{T.saveCaseButton}</span>
+                                </button>
+                            </li>
+                            <li>
+                                <button
+                                    onClick={() => { onOpenSavedWork(); setIsSavedWorkMenuOpen(false); }}
+                                    disabled={disabled}
+                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 disabled:text-gray-400 flex items-center space-x-3"
+                                >
+                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm2-1a1 1 0 00-1 1v10a1 1 0 001 1h12a1 1 0 001-1V5a1 1 0 00-1-1H4z" clipRule="evenodd" />
+                                        <path d="M6 9a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1z" />
+                                    </svg>
+                                    <span>{T.viewSavedWorkButton}</span>
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+                )}
+            </div>
             <button
               onClick={onOpenClinicalTools}
               disabled={disabled}

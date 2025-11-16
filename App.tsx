@@ -1,6 +1,3 @@
-
-
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 
 // Components
@@ -22,7 +19,14 @@ import { EvaluationScreen } from './components/EvaluationScreen';
 import { DiscussionModal } from './components/DiscussionModal';
 
 // Services
-import { generateCorePatientCase, generateRemainingDetails, getConceptAbstract } from './services/geminiService';
+import { 
+    generateCorePatientCase, 
+    generateMainDetails,
+    generateManagementAndContent,
+    generateEvidenceAndQuiz,
+    generateKnowledgeMap,
+    getConceptAbstract
+} from './services/geminiService';
 
 // Types
 import type { PatientCase, KnowledgeMapData, KnowledgeNode, SavedCase, Snippet, InteractionState, DisciplineSpecificConsideration } from './types';
@@ -63,7 +67,8 @@ async function decodeAndDecompress(encodedString: string): Promise<any | null> {
 }
 
 
-const App: React.FC = () => {
+// FIX: Exported the App component to make it available for import.
+export const App: React.FC = () => {
     // Analytics
     const { logEvent } = useAnalytics();
 
@@ -230,16 +235,34 @@ const App: React.FC = () => {
             setGenerationCount(newCount);
             localStorage.setItem('synapsis_generation_count', String(newCount));
             
-            // Stage 2: Generate remaining details and map
-            const { remainingDetails, mapData: newMapData } = await generateRemainingDetails(coreCase, discipline, difficulty, language);
-            
-            setPatientCase(prevCase => prevCase ? { ...prevCase, ...remainingDetails } : null);
-            setMapData(newMapData);
+            // Stage 2: Generate remaining details and map in parallel
+            const promises = [
+                generateMainDetails(coreCase, discipline, difficulty, language),
+                generateManagementAndContent(coreCase, discipline, difficulty, language),
+                generateEvidenceAndQuiz(coreCase, discipline, difficulty, language),
+                generateKnowledgeMap(coreCase, discipline, difficulty, language)
+            ];
+
+            const results = await Promise.allSettled(promises);
+
+            results.forEach((result, index) => {
+                if (result.status === 'fulfilled') {
+                    const data = result.value;
+                    if (index === 3) { // This is the Knowledge Map from the promise array order
+                        setMapData(data as KnowledgeMapData);
+                    } else { // These are parts of the Patient Case
+                        setPatientCase(prevCase => prevCase ? { ...prevCase, ...data } : null);
+                    }
+                } else {
+                    console.error(`Failed to generate part of the case (Promise index ${index}):`, result.reason);
+                    // The UI will simply not show the sections that failed, which is a graceful fallback.
+                }
+            });
             
             setInteractionState(prev => ({ ...prev, caseGenerated: true, caseEdited: false, caseSaved: false, nodeClicks: 0, snippetSaved: false }));
 
         } catch (err: any) {
-            console.error(err);
+            console.error("Error generating core case:", err);
             setError(T.errorService);
             setIsLoading(false);
         } finally {
@@ -370,103 +393,60 @@ const App: React.FC = () => {
                         isCaseActive={!!patientCase}
                         onGenerateNew={handleGenerateNew}
                     />
-                    
-                    <TipsCarousel interactionState={interactionState} T={T} />
-                    {error && <ErrorDisplay message={error} />}
 
-                    <div className="flex-grow grid grid-cols-1 lg:grid-cols-2 gap-4 h-full min-h-0 relative">
-                        {isLoading && <LoadingOverlay message={loadingMessage} subMessages={T.loadingSubMessages} />}
-                        
-                        {patientCase ? (
-                            <>
-                                <div className={`bg-white rounded-lg shadow-lg border border-gray-200 overflow-y-auto ${!mapData && !isGeneratingDetails ? 'lg:col-span-2' : ''} ${mapData || isGeneratingDetails ? (mobileView === 'case' ? 'block' : 'hidden lg:block') : 'block'}`}>
-                                    <PatientCaseView 
-                                        patientCase={patientCase}
-                                        isGeneratingDetails={isGeneratingDetails}
-                                        onSave={handlePatientCaseUpdate}
+                    <TipsCarousel interactionState={interactionState} T={T} />
+                    
+                    {patientCase ? (
+                        <div className="flex-grow flex flex-col lg:flex-row gap-4 overflow-hidden h-full">
+                            {/* Mobile: Full-width case view */}
+                            <div className={`w-full lg:w-1/2 h-full overflow-y-auto bg-white rounded-lg shadow-lg border border-gray-200 ${mobileView === 'case' ? 'block' : 'hidden'} lg:block`}>
+                                <PatientCaseView
+                                    patientCase={patientCase}
+                                    isGeneratingDetails={isGeneratingDetails}
+                                    onSave={handlePatientCaseUpdate}
+                                    language={language}
+                                    T={T}
+                                    onSaveSnippet={handleSaveSnippet}
+                                    onOpenShare={() => setIsShareModalOpen(true)}
+                                    onOpenDiscussion={(topic) => setActiveDiscussionTopic(topic)}
+                                    onGetMapImage={getKnowledgeMapImage}
+                                    mapData={mapData}
+                                />
+                            </div>
+
+                            {/* Mobile: Full-width map view */}
+                            <div className={`w-full lg:w-1/2 h-full flex flex-col gap-4 ${mobileView === 'map' ? 'flex' : 'hidden'} lg:flex`}>
+                                {mapData ? (
+                                    <KnowledgeMap
+                                        ref={knowledgeMapRef}
+                                        data={mapData}
+                                        onNodeClick={handleNodeClick}
+                                        selectedNodeInfo={selectedNodeInfo}
+                                        onClearSelection={handleClearNodeSelection}
+                                        isMapFullscreen={isMapFullscreen}
+                                        setIsMapFullscreen={setIsMapFullscreen}
+                                        caseTitle={patientCase.title}
                                         language={language}
                                         T={T}
-                                        onSaveSnippet={handleSaveSnippet}
-                                        onOpenShare={() => setIsShareModalOpen(true)}
-                                        onOpenDiscussion={(topic) => setActiveDiscussionTopic(topic)}
-                                        onGetMapImage={getKnowledgeMapImage}
-                                        mapData={mapData}
+                                        onDiscussNode={handleDiscussNode}
                                     />
-                                </div>
-                                
-                                {(mapData || isGeneratingDetails) && (
-                                    <div className={`transition-all duration-500 ease-in-out ${isMapFullscreen ? 'fixed inset-0 z-30' : 'relative min-h-[400px] lg:min-h-0'} ${mobileView === 'map' ? 'block' : 'hidden lg:block'}`}>
-                                        {mapData ? (
-                                            <KnowledgeMap
-                                                ref={knowledgeMapRef}
-                                                data={mapData}
-                                                onNodeClick={handleNodeClick}
-                                                selectedNodeInfo={selectedNodeInfo}
-                                                onClearSelection={handleClearNodeSelection}
-                                                isMapFullscreen={isMapFullscreen}
-                                                setIsMapFullscreen={setIsMapFullscreen}
-                                                caseTitle={patientCase.title}
-                                                language={language}
-                                                T={T}
-                                                onDiscussNode={handleDiscussNode}
-                                            />
-                                        ) : (
-                                            <div className="w-full h-full bg-slate-50 rounded-lg shadow-inner border border-gray-200 flex items-center justify-center">
-                                                <div className="text-center">
-                                                    <svg className="animate-spin h-8 w-8 text-brand-blue mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                                    <p className="mt-3 text-sm text-gray-600 font-semibold">{T.buildingMapMessage}</p>
-                                                </div>
-                                            </div>
-                                        )}
+                                ) : isGeneratingDetails ? (
+                                    <div className="w-full h-full flex items-center justify-center bg-white rounded-lg shadow-lg border border-gray-200 p-8 text-center">
+                                        <LoadingOverlay message={T.buildingMapMessage} subMessages={[]} />
                                     </div>
-                                )}
-                            </>
-                        ) : !isLoading && !error ? (
-                            <div className="lg:col-span-2">
-                                <WelcomeScreen T={T} />
+                                ) : null}
                             </div>
-                        ) : null}
-                    </div>
+                        </div>
+                    ) : (
+                        !isLoading && <WelcomeScreen T={T} />
+                    )}
+
+                    {isLoading && <LoadingOverlay message={loadingMessage} subMessages={T.loadingSubMessages} />}
+                    {error && <ErrorDisplay message={error} />}
                 </div>
             </main>
             
-            <Footer 
-                T={T} 
-                evaluationDaysRemaining={evaluationDaysRemaining}
-                onOpenFeedback={() => setIsFeedbackModalOpen(true)}
-            />
-
-            {/* Mobile Bottom Navigation */}
-            {patientCase && (mapData || isGeneratingDetails) && (
-                 <div className="lg:hidden fixed bottom-0 left-0 right-0 z-20 bg-white/95 backdrop-blur-sm border-t border-gray-200 shadow-[0_-2px_5px_rgba(0,0,0,0.05)]">
-                    <div className="flex justify-around items-center">
-                        <button
-                            onClick={() => setMobileView('case')}
-                            aria-pressed={mobileView === 'case'}
-                            className={`flex-1 flex flex-col items-center justify-center py-2 px-1 text-xs font-semibold transition ${mobileView === 'case' ? 'text-brand-blue' : 'text-gray-500 hover:text-brand-blue'}`}
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mb-0.5" viewBox="0 0 20 20" fill="currentColor">
-                                <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
-                                <path fillRule="evenodd" d="M4 5a2 2 0 012-2h8a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h.01a1 1 0 100-2H10zm3 0a1 1 0 000 2h.01a1 1 0 100-2H13z" clipRule="evenodd" />
-                            </svg>
-                            <span>{T.caseTab}</span>
-                        </button>
-                        <button
-                            onClick={() => setMobileView('map')}
-                            aria-pressed={mobileView === 'map'}
-                            className={`flex-1 flex flex-col items-center justify-center py-2 px-1 text-xs font-semibold transition ${mobileView === 'map' ? 'text-brand-blue' : 'text-gray-500 hover:text-brand-blue'}`}
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mb-0.5" viewBox="0 0 20 20" fill="currentColor">
-                                <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" />
-                            </svg>
-                            <span>{T.mapTab}</span>
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {/* Modals */}
-            <SavedWorkModal 
+            <SavedWorkModal
                 isOpen={isSavedWorkOpen}
                 onClose={() => setIsSavedWorkOpen(false)}
                 savedCases={savedCases}
@@ -476,37 +456,62 @@ const App: React.FC = () => {
                 onDeleteSnippet={handleDeleteSnippet}
                 T={T}
             />
-            <ShareModal
+
+             <ShareModal
                 isOpen={isShareModalOpen}
                 onClose={() => setIsShareModalOpen(false)}
                 patientCase={patientCase}
                 T={T}
             />
+            
             <ClinicalToolsModal
                 isOpen={isClinicalToolsOpen}
                 onClose={() => setIsClinicalToolsOpen(false)}
                 T={T}
                 language={language}
             />
+
             <FeedbackModal
                 isOpen={isFeedbackModalOpen}
                 onClose={() => setIsFeedbackModalOpen(false)}
                 T={T}
             />
-             {activeDiscussionTopic && (
+
+            {activeDiscussionTopic && (
                 <DiscussionModal
                     isOpen={!!activeDiscussionTopic}
                     onClose={() => setActiveDiscussionTopic(null)}
                     topic={activeDiscussionTopic}
-                    caseTitle={patientCase?.title || ''}
+                    caseTitle={patientCase?.title || 'this case'}
                     language={language}
                     T={T}
                 />
             )}
-            
+
+            <Footer T={T} evaluationDaysRemaining={evaluationDaysRemaining} onOpenFeedback={() => setIsFeedbackModalOpen(true)} />
             <UpdateNotifier />
+
+            {/* Mobile View Toggle */}
+            {patientCase && (
+                <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-t-lg z-20">
+                    <div className="flex justify-around">
+                        <button
+                            onClick={() => setMobileView('case')}
+                            className={`flex-1 py-3 text-sm font-medium flex flex-col items-center justify-center transition-colors ${mobileView === 'case' ? 'text-brand-blue' : 'text-gray-500'}`}
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                            {T.caseTab}
+                        </button>
+                        <button
+                            onClick={() => setMobileView('map')}
+                            className={`flex-1 py-3 text-sm font-medium flex flex-col items-center justify-center transition-colors ${mobileView === 'map' ? 'text-brand-blue' : 'text-gray-500'}`}
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" /></svg>
+                            {T.mapTab}
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
-
-export default App;

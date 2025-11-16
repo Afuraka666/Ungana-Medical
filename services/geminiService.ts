@@ -168,121 +168,134 @@ const corePatientCaseSchema = {
     required: ["title", "patientProfile", "presentingComplaint", "history"]
 };
 
-const remainingDetailsSchema = {
-  type: Type.OBJECT,
-  properties: {
-    patientCaseDetails: {
-        type: Type.OBJECT,
-        properties: {
-            biochemicalPathway: {
-                ...educationalContentSchema,
-                description: "A detailed educational section focusing on a single, core biochemical pathway or physiological mechanism directly relevant to the patient's primary condition. This must include a title, a detailed description, a reference, and where applicable, structured diagramData for visualization."
+// --- START: Schemas for Parallel Generation ---
+
+const mainDetailsSchema = {
+    type: Type.OBJECT,
+    properties: {
+        biochemicalPathway: {
+            ...educationalContentSchema,
+            description: "A detailed educational section focusing on a single, core biochemical pathway or physiological mechanism directly relevant to the patient's primary condition. This must include a title, a detailed description, a reference, and where applicable, structured diagramData for visualization."
+        },
+        multidisciplinaryConnections: {
+          type: Type.ARRAY,
+          description: "An array of connections between the patient's condition and various medical disciplines.",
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              discipline: {
+                type: Type.STRING,
+                description: "The medical discipline (e.g., Pharmacology, Psychology, Sociology).",
+                enum: ["Biochemistry", "Pharmacology", "Physiology", "Psychology", "Sociology", "Pathology", "Immunology", "Genetics", "Diagnostics", "Treatment", "Physiotherapy", "Occupational Therapy"]
+              },
+              connection: { type: Type.STRING, description: "A detailed explanation of how this discipline connects to the patient's case." },
             },
-            multidisciplinaryConnections: {
-              type: Type.ARRAY,
-              description: "An array of connections between the patient's condition and various medical disciplines.",
-              items: {
+            required: ["discipline", "connection"],
+          },
+        },
+    },
+    required: ["biochemicalPathway", "multidisciplinaryConnections"]
+};
+
+const managementAndContentSchema = {
+    type: Type.OBJECT,
+    properties: {
+        disciplineSpecificConsiderations: {
+            type: Type.ARRAY,
+            description: "An array of management considerations tailored to a specific medical discipline.",
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                aspect: { type: Type.STRING, description: "The specific aspect of care (e.g., 'Diagnostic Imaging', 'Post-operative Care', 'Patient Education')." },
+                consideration: { type: Type.STRING, description: "The detailed consideration or action plan for this aspect from the specified discipline's viewpoint." }
+              },
+              required: ["aspect", "consideration"]
+            }
+        },
+        educationalContent: {
+            type: Type.ARRAY,
+            description: "An array of 1-2 pieces of rich educational content like diagrams or formulas relevant to the case.",
+            items: educationalContentSchema
+        }
+    },
+    required: ["disciplineSpecificConsiderations", "educationalContent"]
+};
+
+const evidenceAndQuizSchema = {
+    type: Type.OBJECT,
+    properties: {
+        traceableEvidence: {
+            type: Type.ARRAY,
+            description: "An array of 3-4 key claims made in the case study backed by specific, citable evidence or sources.",
+            items: {
                 type: Type.OBJECT,
                 properties: {
-                  discipline: {
-                    type: Type.STRING,
-                    description: "The medical discipline (e.g., Pharmacology, Psychology, Sociology).",
-                    enum: ["Biochemistry", "Pharmacology", "Physiology", "Psychology", "Sociology", "Pathology", "Immunology", "Genetics", "Diagnostics", "Treatment", "Physiotherapy", "Occupational Therapy"]
-                  },
-                  connection: { type: Type.STRING, description: "A detailed explanation of how this discipline connects to the patient's case." },
+                    claim: { type: Type.STRING, description: "The clinical statement or claim being supported." },
+                    source: { type: Type.STRING, description: "The reference or source for the evidence (e.g., '(Systematic Review) JAMA 2023;329(1):7-8' or '(Clinical Guideline) UpToDate on COPD')." }
                 },
-                required: ["discipline", "connection"],
-              },
-            },
-            disciplineSpecificConsiderations: {
-                type: Type.ARRAY,
-                description: "An array of management considerations tailored to a specific medical discipline.",
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    aspect: { type: Type.STRING, description: "The specific aspect of care (e.g., 'Diagnostic Imaging', 'Post-operative Care', 'Patient Education')." },
-                    consideration: { type: Type.STRING, description: "The detailed consideration or action plan for this aspect from the specified discipline's viewpoint." }
-                  },
-                  required: ["aspect", "consideration"]
-                }
-            },
-            educationalContent: {
-                type: Type.ARRAY,
-                description: "An array of rich educational content like diagrams or formulas relevant to the case.",
-                items: educationalContentSchema
-            },
-            traceableEvidence: {
-                type: Type.ARRAY,
-                description: "An array of key claims made in the case study backed by specific, citable evidence or sources.",
-                items: {
-                    type: Type.OBJECT,
-                    properties: {
-                        claim: { type: Type.STRING, description: "The clinical statement or claim being supported." },
-                        source: { type: Type.STRING, description: "The reference or source for the evidence (e.g., '(Systematic Review) JAMA 2023;329(1):7-8' or '(Clinical Guideline) UpToDate on COPD')." }
-                    },
-                    required: ["claim", "source"]
-                }
-            },
-            furtherReadings: {
-                type: Type.ARRAY,
-                description: "An array of suggested readings or references for the student to learn more about the topics discussed.",
-                items: {
-                    type: Type.OBJECT,
-                    properties: {
-                        topic: { type: Type.STRING, description: "The topic of the suggested reading." },
-                        reference: { type: Type.STRING, description: "The full citation or link to the suggested reading material." }
-                    },
-                    required: ["topic", "reference"]
-                }
-            },
-            quiz: {
-                type: Type.ARRAY,
-                description: "A multiple-choice quiz with 5 questions to test understanding of the case.",
-                items: quizQuestionSchema
+                required: ["claim", "source"]
             }
         },
-        required: ["biochemicalPathway", "multidisciplinaryConnections", "disciplineSpecificConsiderations", "educationalContent", "traceableEvidence", "furtherReadings", "quiz"]
+        furtherReadings: {
+            type: Type.ARRAY,
+            description: "An array of suggested readings or references for the student to learn more about the topics discussed.",
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    topic: { type: Type.STRING, description: "The topic of the suggested reading." },
+                    reference: { type: Type.STRING, description: "The full citation or link to the suggested reading material." }
+                },
+                required: ["topic", "reference"]
+            }
+        },
+        quiz: {
+            type: Type.ARRAY,
+            description: "A multiple-choice quiz with 5 questions to test understanding of the case.",
+            items: quizQuestionSchema
+        }
     },
-    knowledgeMap: {
-        type: Type.OBJECT,
-        properties: {
-            nodes: {
-                type: Type.ARRAY,
-                description: "An array of key concepts or entities from the patient case.",
-                items: {
-                    type: Type.OBJECT,
-                    properties: {
-                        id: { type: Type.STRING, description: "A unique, concise identifier for the node (e.g., 'type_2_diabetes')." },
-                        label: { type: Type.STRING, description: "A short, human-readable label for the node (e.g., 'Type 2 Diabetes')." },
-                        discipline: { 
-                            type: Type.STRING, 
-                            description: "The primary medical discipline this concept belongs to.",
-                            enum: ["Biochemistry", "Pharmacology", "Physiology", "Psychology", "Sociology", "Pathology", "Immunology", "Genetics", "Diagnostics", "Treatment", "Physiotherapy", "Occupational Therapy"]
-                        },
-                        summary: { type: Type.STRING, description: "A concise, one-paragraph abstract (50-70 words) explaining the node's significance in the context of the case." }
+    required: ["traceableEvidence", "furtherReadings", "quiz"]
+};
+
+const knowledgeMapSchema = {
+    type: Type.OBJECT,
+    properties: {
+        nodes: {
+            type: Type.ARRAY,
+            description: "An array of 8-12 core concepts or entities from the patient case.",
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    id: { type: Type.STRING, description: "A unique, concise identifier for the node (e.g., 'type_2_diabetes')." },
+                    label: { type: Type.STRING, description: "A short, human-readable label for the node (e.g., 'Type 2 Diabetes')." },
+                    discipline: { 
+                        type: Type.STRING, 
+                        description: "The primary medical discipline this concept belongs to.",
+                        enum: ["Biochemistry", "Pharmacology", "Physiology", "Psychology", "Sociology", "Pathology", "Immunology", "Genetics", "Diagnostics", "Treatment", "Physiotherapy", "Occupational Therapy"]
                     },
-                    required: ["id", "label", "discipline", "summary"]
-                }
-            },
-            links: {
-                type: Type.ARRAY,
-                description: "An array of relationships connecting the nodes.",
-                items: {
-                    type: Type.OBJECT,
-                    properties: {
-                        source: { type: Type.STRING, description: "The 'id' of the source node for the connection." },
-                        target: { type: Type.STRING, description: "The 'id' of the target node for the connection." },
-                        description: { type: Type.STRING, description: "A brief description of the relationship (e.g., 'exacerbates', 'causes', 'treats')." }
-                    },
-                    required: ["source", "target", "description"]
-                }
+                    summary: { type: Type.STRING, description: "A concise, one-paragraph abstract (50-70 words) explaining the node's significance in the context of the case." }
+                },
+                required: ["id", "label", "discipline", "summary"]
             }
         },
-        required: ["nodes", "links"]
-    }
-  },
-  required: ["patientCaseDetails", "knowledgeMap"]
+        links: {
+            type: Type.ARRAY,
+            description: "An array of relationships connecting the nodes.",
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    source: { type: Type.STRING, description: "The 'id' of the source node for the connection." },
+                    target: { type: Type.STRING, description: "The 'id' of the target node for the connection." },
+                    description: { type: Type.STRING, description: "A brief description of the relationship (e.g., 'exacerbates', 'causes', 'treats')." }
+                },
+                required: ["source", "target", "description"]
+            }
+        }
+    },
+    required: ["nodes", "links"]
 };
+
+// --- END: Schemas for Parallel Generation ---
 
 
 export const getConceptAbstract = async (concept: string, caseContext: string, language: string): Promise<string> => {
@@ -370,7 +383,17 @@ export const generateCorePatientCase = async (condition: string, discipline: str
     return JSON.parse(response.text) as PatientCase;
 };
 
-export const generateRemainingDetails = async (coreCase: PatientCase, discipline: string, difficulty: string, language: string): Promise<{ remainingDetails: Omit<PatientCase, 'title' | 'patientProfile' | 'presentingComplaint' | 'history'>; mapData: KnowledgeMapData }> => {
+// --- START: Parallel Generation Functions ---
+
+// Helper for generating parts of the case
+const generateCasePart = async (
+    coreCase: PatientCase, 
+    discipline: string, 
+    difficulty: string, 
+    language: string, 
+    taskDescription: string, 
+    responseSchema: any
+) => {
     const ai = getAiClient();
     const model = "gemini-2.5-flash";
     const difficultyInstructions = getDifficultyInstructions(difficulty);
@@ -384,38 +407,20 @@ export const generateRemainingDetails = async (coreCase: PatientCase, discipline
     `;
 
     const prompt = `
-        Based on the provided patient case context, generate the remaining detailed sections and a corresponding knowledge map.
+        Based on the provided patient case context, generate the specific sections requested.
         Please provide the entire response in the following language: ${language}.
 
         ${coreCaseContext}
 
-        **Crucially, tailor the case's management plan and key considerations for a student in **${discipline}**.
+        **Crucially, tailor the content for a student in **${discipline}**.
 
         ${difficultyInstructions}
 
-        **RULES FOR RIGOR - YOU MUST FOLLOW THESE:**
-        1.  **Generate Detailed Sections:** Create the content for all the following sections based on the case context:
-            - biochemicalPathway
-            - multidisciplinaryConnections
-            - disciplineSpecificConsiderations
-            - educationalContent
-            - traceableEvidence
-            - furtherReadings
-            - quiz
-        2.  **Stick to Proven Facts:** Do NOT offer opinions or unverified synthesis. Clinical statements must be based on established medical facts.
-        3.  **Provide High-Quality Traceable Evidence:** For at least 3-4 key clinical statements, cite evidence from high-impact, peer-reviewed sources (Systematic Reviews, RCTs, Clinical Guidelines).
-        4.  **Include Detailed Biochemical Pathway:** The 'biochemicalPathway' section must be detailed. If it's a diagram, 'diagramData' MUST be comprehensive (6-8 nodes).
-        5.  **Include Educational Content:** Add 1-2 pieces of rich 'educationalContent'. If the type is 'Diagram', you MUST generate the structured \`diagramData\`.
-        6.  **Create a Quiz:** Generate a 5-question multiple-choice quiz matching the case difficulty.
-
-        **KNOWLEDGE MAP GENERATION:**
-        Simultaneously, based on the full case, create a knowledge map.
-        - Identify 8-12 core concepts (nodes).
-        - For each node, provide a unique ID, a label, its primary discipline, AND a concise summary (50-70 words) of its significance to this case.
-        - Identify the causal or influential links between these nodes.
+        **Your task is to generate ONLY the following sections:**
+        ${taskDescription}
 
         **FINAL OUTPUT FORMAT:**
-        Your entire response MUST be a single JSON object with two top-level keys: "patientCaseDetails" and "knowledgeMap". The content must strictly adhere to their respective schemas.
+        Your entire response MUST be a single JSON object strictly adhering to the specified schema.
   `;
 
     const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
@@ -423,15 +428,28 @@ export const generateRemainingDetails = async (coreCase: PatientCase, discipline
         contents: prompt,
         config: {
             responseMimeType: "application/json",
-            responseSchema: remainingDetailsSchema,
+            responseSchema: responseSchema,
             temperature: 0.4,
         },
     }));
 
-    const parsedResponse = JSON.parse(response.text);
-    const remainingDetails = parsedResponse.patientCaseDetails;
-    const rawMapData = parsedResponse.knowledgeMap;
+    return JSON.parse(response.text);
+};
 
+
+export const generateMainDetails = (coreCase: PatientCase, discipline: string, difficulty: string, language: string) => 
+    generateCasePart(coreCase, discipline, difficulty, language, "- biochemicalPathway\n- multidisciplinaryConnections", mainDetailsSchema);
+
+export const generateManagementAndContent = (coreCase: PatientCase, discipline: string, difficulty: string, language: string) => 
+    generateCasePart(coreCase, discipline, difficulty, language, "- disciplineSpecificConsiderations\n- educationalContent (1-2 items)", managementAndContentSchema);
+
+export const generateEvidenceAndQuiz = (coreCase: PatientCase, discipline: string, difficulty: string, language: string) => 
+    generateCasePart(coreCase, discipline, difficulty, language, "- traceableEvidence (3-4 items)\n- furtherReadings\n- quiz (5 questions)", evidenceAndQuizSchema);
+
+export const generateKnowledgeMap = async (coreCase: PatientCase, discipline: string, difficulty: string, language: string): Promise<KnowledgeMapData> => {
+    const rawMapData = await generateCasePart(coreCase, discipline, difficulty, language, "- A knowledge map with 8-12 nodes and their links, including concise summaries for each node.", knowledgeMapSchema);
+    
+    // Validate links to ensure they connect to existing nodes
     if (!rawMapData || !rawMapData.nodes || !rawMapData.links) {
         throw new Error("Model did not return valid knowledge map data.");
     }
@@ -439,13 +457,13 @@ export const generateRemainingDetails = async (coreCase: PatientCase, discipline
     const validNodeIds = new Set(rawMapData.nodes.map((n: KnowledgeNode) => n.id));
     const validLinks = rawMapData.links.filter((l: KnowledgeLink) => validNodeIds.has(l.source) && validNodeIds.has(l.target));
 
-    const mapData: KnowledgeMapData = {
+    return {
         nodes: rawMapData.nodes,
         links: validLinks,
     };
-
-    return { remainingDetails, mapData };
 };
+
+// --- END: Parallel Generation Functions ---
 
 
 export const enrichCaseWithWebSources = async (patientCase: PatientCase, language: string): Promise<{ newEvidence: TraceableEvidence[]; newReadings: FurtherReading[]; groundingSources: any[] }> => {
