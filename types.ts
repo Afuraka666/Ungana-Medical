@@ -91,19 +91,20 @@ export interface PatientCase {
   history: string;
   procedureDetails?: ProcedureDetails;
   outcomes?: PatientOutcome;
-  biochemicalPathway: EducationalContent;
-  multidisciplinaryConnections: MultidisciplinaryConnection[];
-  disciplineSpecificConsiderations: DisciplineSpecificConsideration[];
-  educationalContent: EducationalContent[];
-  traceableEvidence: TraceableEvidence[];
-  furtherReadings: FurtherReading[];
-  quiz: QuizQuestion[];
+  biochemicalPathway?: EducationalContent;
+  multidisciplinaryConnections?: MultidisciplinaryConnection[];
+  disciplineSpecificConsiderations?: DisciplineSpecificConsideration[];
+  educationalContent?: EducationalContent[];
+  traceableEvidence?: TraceableEvidence[];
+  furtherReadings?: FurtherReading[];
+  quiz?: QuizQuestion[];
 }
 
 export interface KnowledgeNode {
   id: string;
   label: string;
   discipline: Discipline;
+  summary: string;
 }
 
 export interface KnowledgeLink {

@@ -12,6 +12,7 @@ import { DisciplineIcon } from './DisciplineIcon';
 
 interface PatientCaseViewProps {
   patientCase: PatientCase;
+  isGeneratingDetails: boolean;
   onSave: (updatedCase: PatientCase) => void;
   language: string;
   T: Record<string, any>;
@@ -115,11 +116,13 @@ const formatCaseForClipboard = (patientCase: PatientCase, T: Record<string, any>
         text += `Reference: ${patientCase.biochemicalPathway.reference}\n\n`;
     }
 
-    text += `## ${T.multidisciplinaryConnections}\n`;
-    patientCase.multidisciplinaryConnections.forEach(conn => {
-        text += `- **${conn.discipline}:** ${conn.connection}\n`;
-    });
-    text += '\n';
+    if(patientCase.multidisciplinaryConnections) {
+        text += `## ${T.multidisciplinaryConnections}\n`;
+        patientCase.multidisciplinaryConnections.forEach(conn => {
+            text += `- **${conn.discipline}:** ${conn.connection}\n`;
+        });
+        text += '\n';
+    }
 
     if (patientCase.disciplineSpecificConsiderations?.length > 0) {
         text += `## ${T.managementConsiderations}\n`;
@@ -169,6 +172,14 @@ const formatCaseForClipboard = (patientCase: PatientCase, T: Record<string, any>
 
     return text;
 };
+
+const SkeletonLoader: React.FC = () => (
+    <div className="space-y-3 animate-pulse">
+        <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+        <div className="h-4 bg-gray-200 rounded w-full"></div>
+        <div className="h-4 bg-gray-200 rounded w-5/6"></div>
+    </div>
+);
 
 const Section: React.FC<{
   title: string;
@@ -311,7 +322,7 @@ const svgToDataURL = async (svgEl: SVGSVGElement): Promise<string> => {
     });
 };
 
-export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: initialPatientCase, onSave, language, T, onSaveSnippet, onOpenShare, onOpenDiscussion, onGetMapImage, mapData }) => {
+export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: initialPatientCase, isGeneratingDetails, onSave, language, T, onSaveSnippet, onOpenShare, onOpenDiscussion, onGetMapImage, mapData }) => {
   const { state: patientCase, setState: setPatientCase, undo, redo, canUndo, canRedo, resetState } = useHistoryState<PatientCase>(initialPatientCase);
   const [isEditing, setIsEditing] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
@@ -384,7 +395,7 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
 
   const handleImageGenerated = useCallback((itemIndex: number, imageBase64: string) => {
     setPatientCase(prevCase => {
-        const newEducationalContent = [...prevCase.educationalContent];
+        const newEducationalContent = [...(prevCase.educationalContent || [])];
         newEducationalContent[itemIndex] = {
             ...newEducationalContent[itemIndex],
             imageData: imageBase64,
@@ -404,8 +415,8 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
         if (newEvidence.length > 0 || newReadings.length > 0) {
             setPatientCase(prevCase => ({
                 ...prevCase,
-                traceableEvidence: [...prevCase.traceableEvidence, ...newEvidence],
-                furtherReadings: [...prevCase.furtherReadings, ...newReadings],
+                traceableEvidence: [...(prevCase.traceableEvidence || []), ...newEvidence],
+                furtherReadings: [...(prevCase.furtherReadings || []), ...newReadings],
             }));
             
             // Separate sources for each section
@@ -558,46 +569,46 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
         addSection(T.presentingComplaint, patientCase.presentingComplaint);
         addSection(T.history, patientCase.history);
 
-        if (patientCase.multidisciplinaryConnections?.length > 0) addTableSection(T.multidisciplinaryConnections, ['Discipline', 'Connection'], patientCase.multidisciplinaryConnections.map(c => [c.discipline, c.connection]));
-        if (patientCase.disciplineSpecificConsiderations?.length > 0) addTableSection(T.managementConsiderations, ['Aspect', 'Consideration'], patientCase.disciplineSpecificConsiderations.map(c => [c.aspect, c.consideration]));
-        if (patientCase.traceableEvidence?.length > 0) addTableSection(T.traceableEvidence, ['Claim', 'Source'], patientCase.traceableEvidence.map(e => [e.claim, e.source]));
-        if (patientCase.furtherReadings?.length > 0) addTableSection(T.furtherReading, ['Topic', 'Reference'], patientCase.furtherReadings.map(r => [r.topic, r.reference]));
+        if (patientCase.multidisciplinaryConnections?.length) addTableSection(T.multidisciplinaryConnections, ['Discipline', 'Connection'], patientCase.multidisciplinaryConnections.map(c => [c.discipline, c.connection]));
+        if (patientCase.disciplineSpecificConsiderations?.length) addTableSection(T.managementConsiderations, ['Aspect', 'Consideration'], patientCase.disciplineSpecificConsiderations.map(c => [c.aspect, c.consideration]));
+        if (patientCase.traceableEvidence?.length) addTableSection(T.traceableEvidence, ['Claim', 'Source'], patientCase.traceableEvidence.map(e => [e.claim, e.source]));
+        if (patientCase.furtherReadings?.length) addTableSection(T.furtherReading, ['Topic', 'Reference'], patientCase.furtherReadings.map(r => [r.topic, r.reference]));
 
-        if (patientCase.quiz?.length > 0) {
+        if (patientCase.quiz?.length) {
             const quizContent = patientCase.quiz.map((q, i) => `${i + 1}. ${q.question}\n${q.options.map((opt, o) => `   ${String.fromCharCode(65 + o)}. ${opt}`).join('\n')}\n\n   ${T.quizExplanation}: ${q.explanation}`).join('\n\n');
             addSection(T.quizTitle, quizContent);
         }
         
         // Add non-visual educational content to the text flow
-        patientCase.educationalContent.forEach(item => {
-            if (!item.diagramData && !item.imageData) {
-                addSection(item.title, `${item.description}\n\nReference: ${item.reference}`);
-            }
-        });
+        if (patientCase.educationalContent) {
+            patientCase.educationalContent.forEach(item => {
+                if (!item.diagramData && !item.imageData) {
+                    addSection(item.title, `${item.description}\n\nReference: ${item.reference}`);
+                }
+            });
+        }
 
         if (mapData && mapData.nodes.length > 0) {
-            const nodeSummaries = [];
-            for (const node of mapData.nodes) {
-                const abstract = await getConceptAbstract(node.label, patientCase.title, language);
-                nodeSummaries.push([node.label, node.discipline, abstract]);
-            }
+            const nodeSummaries = mapData.nodes.map(node => [node.label, node.discipline, node.summary]);
             addTableSection(T.conceptSummaries, ['Concept', 'Discipline', 'Summary'], nodeSummaries);
         }
 
         // --- Visuals - Each on a new page ---
 
         // Biochemical Pathway
-        if (patientCase.biochemicalPathway.diagramData || patientCase.biochemicalPathway.imageData) {
+        if (patientCase.biochemicalPathway && (patientCase.biochemicalPathway.diagramData || patientCase.biochemicalPathway.imageData)) {
             doc.addPage();
             await addVisualSection(T.biochemicalPathwaySection, patientCase.biochemicalPathway, 'diagram-biochem');
         }
 
         // Visual Educational Content
-        for (let i = 0; i < patientCase.educationalContent.length; i++) {
-            const item = patientCase.educationalContent[i];
-            if (item.diagramData || item.imageData) {
-                doc.addPage();
-                await addVisualSection(item.title, item, item.diagramData ? `diagram-edu-${i}` : undefined);
+        if (patientCase.educationalContent) {
+            for (let i = 0; i < patientCase.educationalContent.length; i++) {
+                const item = patientCase.educationalContent[i];
+                if (item.diagramData || item.imageData) {
+                    doc.addPage();
+                    await addVisualSection(item.title, item, item.diagramData ? `diagram-edu-${i}` : undefined);
+                }
             }
         }
 
@@ -704,117 +715,153 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
         <Section title={T.history} onCopy={() => handleCopySection(patientCase.history)} onSaveSnippet={() => onSaveSnippet(T.history, patientCase.history)} T={T}>
             <EditableText value={patientCase.history} onChange={(e) => handleTextChange(e, 'history')} isEditing={isEditing} />
         </Section>
-        {(patientCase.procedureDetails || patientCase.outcomes) && (
+
+        { (patientCase.procedureDetails || patientCase.outcomes) ? (
             <Section title={T.anestheticDataSection} onCopy={() => {}} onSaveSnippet={() => {}} T={T}>
                 {patientCase.procedureDetails && <div className="text-sm"><strong>{T.procedureLabel}:</strong> {patientCase.procedureDetails.procedureName} | <strong>{T.asaScoreLabel}:</strong> {patientCase.procedureDetails.asaScore}</div>}
                 {patientCase.outcomes && <div className="text-sm mt-2"><strong>{T.outcomeSummaryLabel}:</strong> {patientCase.outcomes.outcomeSummary} ({T.icuAdmissionLabel}: {patientCase.outcomes.icuAdmission ? T.yes : T.no}, {T.lengthOfStayLabel}: {patientCase.outcomes.lengthOfStayDays} {T.days})</div>}
             </Section>
-        )}
-        <Section title={T.biochemicalPathwaySection} onCopy={() => {}} onSaveSnippet={() => onSaveSnippet(patientCase.biochemicalPathway.title, patientCase.biochemicalPathway.description)} T={T}>
-            <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center space-x-2">
-                    <h4 className="text-md font-semibold text-gray-800">{patientCase.biochemicalPathway.title}</h4>
-                    <TextToSpeechPlayer textToRead={`${patientCase.biochemicalPathway.title}. ${patientCase.biochemicalPathway.description}`} language={language} />
-                </div>
-                <button 
-                    onClick={() => onOpenDiscussion({ aspect: patientCase.biochemicalPathway.title, consideration: patientCase.biochemicalPathway.description })} 
-                    title={T.discussButton} 
-                    className="text-sm bg-blue-100 hover:bg-blue-200 text-brand-blue font-semibold py-1 px-3 rounded-md transition flex-shrink-0"
-                >
-                    {T.discussButton}
-                </button>
-            </div>
-            <p className="text-xs text-gray-500 italic mb-2">{patientCase.biochemicalPathway.reference}</p>
-            <p className="whitespace-pre-wrap">{patientCase.biochemicalPathway.description}</p>
-            {patientCase.biochemicalPathway.diagramData && <div className="mt-4 h-80 rounded-lg border border-gray-200"><InteractiveDiagram id="diagram-biochem" data={patientCase.biochemicalPathway.diagramData} /></div>}
-        </Section>
-        <Section title={T.multidisciplinaryConnections} onCopy={() => {}} onSaveSnippet={() => onSaveSnippet(T.multidisciplinaryConnections, patientCase.multidisciplinaryConnections.map(c => `${c.discipline}: ${c.connection}`).join('\n'))} T={T}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {patientCase.multidisciplinaryConnections.map((conn, index) => (
-                    <div key={index} className="bg-gray-50 border border-gray-200 rounded-lg p-4 transition hover:shadow-md hover:border-blue-200">
-                        <div className="flex items-center mb-2">
-                            <div className="p-2 rounded-full mr-3" style={{ backgroundColor: `${DisciplineColors[conn.discipline]}20` }}>
-                                <DisciplineIcon discipline={conn.discipline} className="h-5 w-5" style={{ color: DisciplineColors[conn.discipline] }} />
-                            </div>
-                            <h5 className="font-bold" style={{ color: DisciplineColors[conn.discipline] }}>{conn.discipline}</h5>
-                        </div>
-                        <p className="text-sm text-gray-700 leading-relaxed">{conn.connection}</p>
-                    </div>
-                ))}
-            </div>
-        </Section>
-        <Section title={T.managementConsiderations} onCopy={() => {}} onSaveSnippet={() => onSaveSnippet(T.managementConsiderations, patientCase.disciplineSpecificConsiderations.map(c => `${c.aspect}: ${c.consideration}`).join('\n'))} T={T}>
-            <ul className="space-y-3">
-                {patientCase.disciplineSpecificConsiderations.map((item, index) => (
-                    <li key={index}>
-                        <div className="flex justify-between items-center">
-                            <strong className="text-gray-800">{item.aspect}</strong>
-                            <button onClick={() => onOpenDiscussion(item)} title={T.discussButton} className="text-sm bg-blue-100 hover:bg-blue-200 text-brand-blue font-semibold py-1 px-3 rounded-md transition">{T.discussButton}</button>
-                        </div>
-                        <p className="mt-1">{item.consideration}</p>
-                    </li>
-                ))}
-            </ul>
-        </Section>
-        <Section title={T.educationalContent} onCopy={() => {}} onSaveSnippet={() => onSaveSnippet(T.educationalContent, patientCase.educationalContent.map(c => `${c.title}: ${c.description}`).join('\n\n'))} T={T}>
-             <div className="space-y-4">
-                {patientCase.educationalContent.map((item, index) => (
-                    <div key={index} className="bg-gray-50 p-3 rounded-lg border border-gray-200">
-                        <div className="flex justify-between items-start gap-2">
-                             <div>
-                                <h4 className="font-semibold text-gray-800">{item.title}</h4>
-                                <p className="text-xs text-gray-500 italic">{item.reference}</p>
-                            </div>
-                            <div className="flex-shrink-0 flex items-center space-x-2">
-                                {item.type === EducationalContentType.IMAGE && !item.imageData && (
-                                    <button onClick={() => setActiveImageGenerator({ content: item, index })} className="text-sm bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-semibold py-1 px-3 rounded-md transition">Generate Image</button>
-                                )}
-                                <button 
-                                    onClick={() => onOpenDiscussion({ aspect: item.title, consideration: item.description })} 
-                                    title={T.discussButton} 
-                                    className="text-sm bg-blue-100 hover:bg-blue-200 text-brand-blue font-semibold py-1 px-3 rounded-md transition"
-                                >
-                                    {T.discussButton}
-                                </button>
-                            </div>
-                        </div>
-                        <p className="mt-2">{item.description}</p>
-                        {item.diagramData && <div className="mt-3 h-72 rounded-lg border border-gray-200 bg-white"><InteractiveDiagram id={`diagram-edu-${index}`} data={item.diagramData} /></div>}
-                        {item.imageData && (
-                            <div className="mt-3">
-                                <img 
-                                    src={`data:image/png;base64,${item.imageData}`} 
-                                    alt={item.title}
-                                    onClick={() => setEnlargedImage(item.imageData!)}
-                                    className="rounded-md border border-gray-200 cursor-pointer hover:shadow-lg transition-shadow"
-                                    style={{ maxWidth: '100%', height: 'auto' }}
-                                />
-                            </div>
-                        )}
-                    </div>
-                ))}
-            </div>
-        </Section>
-        <Section title={T.evidenceAndReading} onCopy={() => {}} onSaveSnippet={() => {}} T={T} onEnrich={handleEnrichSources} isEnriching={isEnrichingEvidence} groundingSources={[...evidenceSources, ...readingSources]} onSourceClick={setActiveSourceSearch}>
-            <div>
-                <h4 className="font-semibold text-gray-800">{T.traceableEvidence}</h4>
-                <ul className="list-disc list-inside space-y-2 mt-2">
-                    {patientCase.traceableEvidence.map((item, index) => (
-                       <li key={index}><span className="font-medium">"{item.claim}"</span> <button onClick={() => setActiveSourceSearch(item.source)} className="text-blue-600 hover:underline text-xs ml-1">({item.source})</button></li>
-                    ))}
-                </ul>
-            </div>
-            <div className="mt-4">
-                 <h4 className="font-semibold text-gray-800">{T.furtherReading}</h4>
-                 <ul className="list-disc list-inside space-y-2 mt-2">
-                    {patientCase.furtherReadings.map((item, index) => (
-                        <li key={index}><span className="font-medium">{item.topic}:</span> <button onClick={() => setActiveSourceSearch(item.reference)} className="text-blue-600 hover:underline text-xs ml-1">{item.reference}</button></li>
-                    ))}
-                </ul>
-            </div>
-        </Section>
+        ) : isGeneratingDetails ? (
+            <Section title={T.anestheticDataSection} onCopy={() => {}} onSaveSnippet={() => {}} T={T}><SkeletonLoader /></Section>
+        ) : null}
 
-        <QuizView quiz={patientCase.quiz} T={T} />
+        { patientCase.biochemicalPathway ? (
+            <Section title={T.biochemicalPathwaySection} onCopy={() => {}} onSaveSnippet={() => onSaveSnippet(patientCase.biochemicalPathway!.title, patientCase.biochemicalPathway!.description)} T={T}>
+                <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center space-x-2">
+                        <h4 className="text-md font-semibold text-gray-800">{patientCase.biochemicalPathway.title}</h4>
+                        <TextToSpeechPlayer textToRead={`${patientCase.biochemicalPathway.title}. ${patientCase.biochemicalPathway.description}`} language={language} />
+                    </div>
+                    <button 
+                        onClick={() => onOpenDiscussion({ aspect: patientCase.biochemicalPathway!.title, consideration: patientCase.biochemicalPathway!.description })} 
+                        title={T.discussButton} 
+                        className="text-sm bg-blue-100 hover:bg-blue-200 text-brand-blue font-semibold py-1 px-3 rounded-md transition flex-shrink-0"
+                    >
+                        {T.discussButton}
+                    </button>
+                </div>
+                <p className="text-xs text-gray-500 italic mb-2">{patientCase.biochemicalPathway.reference}</p>
+                <p className="whitespace-pre-wrap">{patientCase.biochemicalPathway.description}</p>
+                {patientCase.biochemicalPathway.diagramData && <div className="mt-4 h-80 rounded-lg border border-gray-200"><InteractiveDiagram id="diagram-biochem" data={patientCase.biochemicalPathway.diagramData} /></div>}
+            </Section>
+        ) : isGeneratingDetails ? (
+            <Section title={T.biochemicalPathwaySection} onCopy={() => {}} onSaveSnippet={() => {}} T={T}><SkeletonLoader /></Section>
+        ) : null}
+        
+        { patientCase.multidisciplinaryConnections ? (
+            <Section title={T.multidisciplinaryConnections} onCopy={() => {}} onSaveSnippet={() => onSaveSnippet(T.multidisciplinaryConnections, patientCase.multidisciplinaryConnections!.map(c => `${c.discipline}: ${c.connection}`).join('\n'))} T={T}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {patientCase.multidisciplinaryConnections.map((conn, index) => (
+                        <div key={index} className="bg-gray-50 border border-gray-200 rounded-lg p-4 transition hover:shadow-md hover:border-blue-200">
+                            <div className="flex items-center mb-2">
+                                <div className="p-2 rounded-full mr-3" style={{ backgroundColor: `${DisciplineColors[conn.discipline]}20` }}>
+                                    <DisciplineIcon discipline={conn.discipline} className="h-5 w-5" style={{ color: DisciplineColors[conn.discipline] }} />
+                                </div>
+                                <h5 className="font-bold" style={{ color: DisciplineColors[conn.discipline] }}>{conn.discipline}</h5>
+                            </div>
+                            <p className="text-sm text-gray-700 leading-relaxed">{conn.connection}</p>
+                        </div>
+                    ))}
+                </div>
+            </Section>
+        ) : isGeneratingDetails ? (
+            <Section title={T.multidisciplinaryConnections} onCopy={() => {}} onSaveSnippet={() => {}} T={T}><SkeletonLoader /></Section>
+        ) : null}
+
+        { patientCase.disciplineSpecificConsiderations ? (
+            <Section title={T.managementConsiderations} onCopy={() => {}} onSaveSnippet={() => onSaveSnippet(T.managementConsiderations, patientCase.disciplineSpecificConsiderations!.map(c => `${c.aspect}: ${c.consideration}`).join('\n'))} T={T}>
+                <ul className="space-y-3">
+                    {patientCase.disciplineSpecificConsiderations.map((item, index) => (
+                        <li key={index}>
+                            <div className="flex justify-between items-center">
+                                <strong className="text-gray-800">{item.aspect}</strong>
+                                <button onClick={() => onOpenDiscussion(item)} title={T.discussButton} className="text-sm bg-blue-100 hover:bg-blue-200 text-brand-blue font-semibold py-1 px-3 rounded-md transition">{T.discussButton}</button>
+                            </div>
+                            <p className="mt-1">{item.consideration}</p>
+                        </li>
+                    ))}
+                </ul>
+            </Section>
+        ) : isGeneratingDetails ? (
+            <Section title={T.managementConsiderations} onCopy={() => {}} onSaveSnippet={() => {}} T={T}><SkeletonLoader /></Section>
+        ) : null}
+
+        { patientCase.educationalContent ? (
+            <Section title={T.educationalContent} onCopy={() => {}} onSaveSnippet={() => onSaveSnippet(T.educationalContent, patientCase.educationalContent!.map(c => `${c.title}: ${c.description}`).join('\n\n'))} T={T}>
+                <div className="space-y-4">
+                    {patientCase.educationalContent.map((item, index) => (
+                        <div key={index} className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                            <div className="flex justify-between items-start gap-2">
+                                <div>
+                                    <h4 className="font-semibold text-gray-800">{item.title}</h4>
+                                    <p className="text-xs text-gray-500 italic">{item.reference}</p>
+                                </div>
+                                <div className="flex-shrink-0 flex items-center space-x-2">
+                                    {item.type === EducationalContentType.IMAGE && !item.imageData && (
+                                        <button onClick={() => setActiveImageGenerator({ content: item, index })} className="text-sm bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-semibold py-1 px-3 rounded-md transition">Generate Image</button>
+                                    )}
+                                    <button 
+                                        onClick={() => onOpenDiscussion({ aspect: item.title, consideration: item.description })} 
+                                        title={T.discussButton} 
+                                        className="text-sm bg-blue-100 hover:bg-blue-200 text-brand-blue font-semibold py-1 px-3 rounded-md transition"
+                                    >
+                                        {T.discussButton}
+                                    </button>
+                                </div>
+                            </div>
+                            <p className="mt-2">{item.description}</p>
+                            {item.diagramData && <div className="mt-3 h-72 rounded-lg border border-gray-200 bg-white"><InteractiveDiagram id={`diagram-edu-${index}`} data={item.diagramData} /></div>}
+                            {item.imageData && (
+                                <div className="mt-3">
+                                    <img 
+                                        src={`data:image/png;base64,${item.imageData}`} 
+                                        alt={item.title}
+                                        onClick={() => setEnlargedImage(item.imageData!)}
+                                        className="rounded-md border border-gray-200 cursor-pointer hover:shadow-lg transition-shadow"
+                                        style={{ maxWidth: '100%', height: 'auto' }}
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            </Section>
+        ) : isGeneratingDetails ? (
+             <Section title={T.educationalContent} onCopy={() => {}} onSaveSnippet={() => {}} T={T}><SkeletonLoader /></Section>
+        ) : null}
+        
+        { (patientCase.traceableEvidence || patientCase.furtherReadings) ? (
+            <Section title={T.evidenceAndReading} onCopy={() => {}} onSaveSnippet={() => {}} T={T} onEnrich={handleEnrichSources} isEnriching={isEnrichingEvidence} groundingSources={[...evidenceSources, ...readingSources]} onSourceClick={setActiveSourceSearch}>
+                {patientCase.traceableEvidence && (
+                    <div>
+                        <h4 className="font-semibold text-gray-800">{T.traceableEvidence}</h4>
+                        <ul className="list-disc list-inside space-y-2 mt-2">
+                            {patientCase.traceableEvidence.map((item, index) => (
+                            <li key={index}><span className="font-medium">"{item.claim}"</span> <button onClick={() => setActiveSourceSearch(item.source)} className="text-blue-600 hover:underline text-xs ml-1">({item.source})</button></li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+                {patientCase.furtherReadings && (
+                    <div className="mt-4">
+                        <h4 className="font-semibold text-gray-800">{T.furtherReading}</h4>
+                        <ul className="list-disc list-inside space-y-2 mt-2">
+                            {patientCase.furtherReadings.map((item, index) => (
+                                <li key={index}><span className="font-medium">{item.topic}:</span> <button onClick={() => setActiveSourceSearch(item.reference)} className="text-blue-600 hover:underline text-xs ml-1">{item.reference}</button></li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+            </Section>
+        ) : isGeneratingDetails ? (
+            <Section title={T.evidenceAndReading} onCopy={() => {}} onSaveSnippet={() => {}} T={T}><SkeletonLoader /></Section>
+        ) : null}
+
+        { patientCase.quiz ? (
+            <QuizView quiz={patientCase.quiz} T={T} />
+        ) : isGeneratingDetails ? (
+             <Section title={T.quizTitle} onCopy={() => {}} onSaveSnippet={() => {}} T={T}><SkeletonLoader /></Section>
+        ) : null}
       </div>
 
       {activeImageGenerator && <ImageGenerator content={activeImageGenerator.content} onClose={() => setActiveImageGenerator(null)} language={language} T={T} onImageGenerated={(imageData) => handleImageGenerated(activeImageGenerator.index, imageData)} />}

@@ -132,153 +132,158 @@ const quizQuestionSchema = {
     required: ["question", "options", "correctAnswerIndex", "explanation"]
 };
 
-const patientCaseSchema = {
+const corePatientCaseSchema = {
+    type: Type.OBJECT,
+    properties: {
+        title: { type: Type.STRING, description: "A concise title for the patient case, e.g., 'Type 2 Diabetes Mellitus with Complicating Social Factors'." },
+        patientProfile: { type: Type.STRING, description: "A brief profile of the patient including age, gender, and occupation." },
+        presentingComplaint: { type: Type.STRING, description: "The main reason the patient is seeking medical attention." },
+        history: { type: Type.STRING, description: "A detailed history of the present illness, past medical history, social history, and family history. This should be a comprehensive narrative." },
+        procedureDetails: {
+            type: Type.OBJECT,
+            description: "Details about the primary procedure performed and the patient's ASA physical status classification.",
+            properties: {
+                procedureName: { type: Type.STRING, description: "The name of the medical or surgical procedure." },
+                asaScore: { 
+                    type: Type.STRING, 
+                    description: "The ASA score, from '1' to '6', with an optional 'E' for emergency cases (e.g., '2', '3E').",
+                    enum: ['1', '2', '3', '4', '5', '6', '1E', '2E', '3E', '4E', '5E', '6E']
+                }
+            },
+            required: ["procedureName", "asaScore"],
+            nullable: true
+        },
+        outcomes: {
+            type: Type.OBJECT,
+            description: "The eventual outcomes for the patient following the conclusion of the case.",
+            properties: {
+                icuAdmission: { type: Type.BOOLEAN, description: "Whether the patient required ICU admission." },
+                lengthOfStayDays: { type: Type.INTEGER, description: "The total length of hospital stay in days." },
+                outcomeSummary: { type: Type.STRING, description: "A brief summary of the patient's final outcome (e.g., 'Discharged home with full recovery')." }
+            },
+            required: ["icuAdmission", "lengthOfStayDays", "outcomeSummary"],
+            nullable: true
+        }
+    },
+    required: ["title", "patientProfile", "presentingComplaint", "history"]
+};
+
+const remainingDetailsSchema = {
   type: Type.OBJECT,
   properties: {
-    title: { type: Type.STRING, description: "A concise title for the patient case, e.g., 'Type 2 Diabetes Mellitus with Complicating Social Factors'." },
-    patientProfile: { type: Type.STRING, description: "A brief profile of the patient including age, gender, and occupation." },
-    presentingComplaint: { type: Type.STRING, description: "The main reason the patient is seeking medical attention." },
-    history: { type: Type.STRING, description: "A detailed history of the present illness, past medical history, social history, and family history. This should be a comprehensive narrative." },
-    procedureDetails: {
+    patientCaseDetails: {
         type: Type.OBJECT,
-        description: "Details about the primary procedure performed and the patient's ASA physical status classification.",
         properties: {
-            procedureName: { type: Type.STRING, description: "The name of the medical or surgical procedure." },
-            asaScore: { 
-                type: Type.STRING, 
-                description: "The ASA score, from '1' to '6', with an optional 'E' for emergency cases (e.g., '2', '3E').",
-                enum: ['1', '2', '3', '4', '5', '6', '1E', '2E', '3E', '4E', '5E', '6E']
+            biochemicalPathway: {
+                ...educationalContentSchema,
+                description: "A detailed educational section focusing on a single, core biochemical pathway or physiological mechanism directly relevant to the patient's primary condition. This must include a title, a detailed description, a reference, and where applicable, structured diagramData for visualization."
+            },
+            multidisciplinaryConnections: {
+              type: Type.ARRAY,
+              description: "An array of connections between the patient's condition and various medical disciplines.",
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  discipline: {
+                    type: Type.STRING,
+                    description: "The medical discipline (e.g., Pharmacology, Psychology, Sociology).",
+                    enum: ["Biochemistry", "Pharmacology", "Physiology", "Psychology", "Sociology", "Pathology", "Immunology", "Genetics", "Diagnostics", "Treatment", "Physiotherapy", "Occupational Therapy"]
+                  },
+                  connection: { type: Type.STRING, description: "A detailed explanation of how this discipline connects to the patient's case." },
+                },
+                required: ["discipline", "connection"],
+              },
+            },
+            disciplineSpecificConsiderations: {
+                type: Type.ARRAY,
+                description: "An array of management considerations tailored to a specific medical discipline.",
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    aspect: { type: Type.STRING, description: "The specific aspect of care (e.g., 'Diagnostic Imaging', 'Post-operative Care', 'Patient Education')." },
+                    consideration: { type: Type.STRING, description: "The detailed consideration or action plan for this aspect from the specified discipline's viewpoint." }
+                  },
+                  required: ["aspect", "consideration"]
+                }
+            },
+            educationalContent: {
+                type: Type.ARRAY,
+                description: "An array of rich educational content like diagrams or formulas relevant to the case.",
+                items: educationalContentSchema
+            },
+            traceableEvidence: {
+                type: Type.ARRAY,
+                description: "An array of key claims made in the case study backed by specific, citable evidence or sources.",
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        claim: { type: Type.STRING, description: "The clinical statement or claim being supported." },
+                        source: { type: Type.STRING, description: "The reference or source for the evidence (e.g., '(Systematic Review) JAMA 2023;329(1):7-8' or '(Clinical Guideline) UpToDate on COPD')." }
+                    },
+                    required: ["claim", "source"]
+                }
+            },
+            furtherReadings: {
+                type: Type.ARRAY,
+                description: "An array of suggested readings or references for the student to learn more about the topics discussed.",
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        topic: { type: Type.STRING, description: "The topic of the suggested reading." },
+                        reference: { type: Type.STRING, description: "The full citation or link to the suggested reading material." }
+                    },
+                    required: ["topic", "reference"]
+                }
+            },
+            quiz: {
+                type: Type.ARRAY,
+                description: "A multiple-choice quiz with 5 questions to test understanding of the case.",
+                items: quizQuestionSchema
             }
         },
-        required: ["procedureName", "asaScore"],
-        nullable: true
+        required: ["biochemicalPathway", "multidisciplinaryConnections", "disciplineSpecificConsiderations", "educationalContent", "traceableEvidence", "furtherReadings", "quiz"]
     },
-    outcomes: {
-        type: Type.OBJECT,
-        description: "The eventual outcomes for the patient following the conclusion of the case.",
-        properties: {
-            icuAdmission: { type: Type.BOOLEAN, description: "Whether the patient required ICU admission." },
-            lengthOfStayDays: { type: Type.INTEGER, description: "The total length of hospital stay in days." },
-            outcomeSummary: { type: Type.STRING, description: "A brief summary of the patient's final outcome (e.g., 'Discharged home with full recovery')." }
-        },
-        required: ["icuAdmission", "lengthOfStayDays", "outcomeSummary"],
-        nullable: true
-    },
-    biochemicalPathway: {
-        ...educationalContentSchema,
-        description: "A detailed educational section focusing on a single, core biochemical pathway or physiological mechanism directly relevant to the patient's primary condition. This must include a title, a detailed description, a reference, and where applicable, structured diagramData for visualization."
-    },
-    multidisciplinaryConnections: {
-      type: Type.ARRAY,
-      description: "An array of connections between the patient's condition and various medical disciplines.",
-      items: {
+    knowledgeMap: {
         type: Type.OBJECT,
         properties: {
-          discipline: {
-            type: Type.STRING,
-            description: "The medical discipline (e.g., Pharmacology, Psychology, Sociology).",
-            enum: ["Biochemistry", "Pharmacology", "Physiology", "Psychology", "Sociology", "Pathology", "Immunology", "Genetics", "Diagnostics", "Treatment", "Physiotherapy", "Occupational Therapy"]
-          },
-          connection: { type: Type.STRING, description: "A detailed explanation of how this discipline connects to the patient's case." },
+            nodes: {
+                type: Type.ARRAY,
+                description: "An array of key concepts or entities from the patient case.",
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        id: { type: Type.STRING, description: "A unique, concise identifier for the node (e.g., 'type_2_diabetes')." },
+                        label: { type: Type.STRING, description: "A short, human-readable label for the node (e.g., 'Type 2 Diabetes')." },
+                        discipline: { 
+                            type: Type.STRING, 
+                            description: "The primary medical discipline this concept belongs to.",
+                            enum: ["Biochemistry", "Pharmacology", "Physiology", "Psychology", "Sociology", "Pathology", "Immunology", "Genetics", "Diagnostics", "Treatment", "Physiotherapy", "Occupational Therapy"]
+                        },
+                        summary: { type: Type.STRING, description: "A concise, one-paragraph abstract (50-70 words) explaining the node's significance in the context of the case." }
+                    },
+                    required: ["id", "label", "discipline", "summary"]
+                }
+            },
+            links: {
+                type: Type.ARRAY,
+                description: "An array of relationships connecting the nodes.",
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        source: { type: Type.STRING, description: "The 'id' of the source node for the connection." },
+                        target: { type: Type.STRING, description: "The 'id' of the target node for the connection." },
+                        description: { type: Type.STRING, description: "A brief description of the relationship (e.g., 'exacerbates', 'causes', 'treats')." }
+                    },
+                    required: ["source", "target", "description"]
+                }
+            }
         },
-        required: ["discipline", "connection"],
-      },
-    },
-    disciplineSpecificConsiderations: {
-        type: Type.ARRAY,
-        description: "An array of management considerations tailored to a specific medical discipline.",
-        items: {
-          type: Type.OBJECT,
-          properties: {
-            aspect: { type: Type.STRING, description: "The specific aspect of care (e.g., 'Diagnostic Imaging', 'Post-operative Care', 'Patient Education')." },
-            consideration: { type: Type.STRING, description: "The detailed consideration or action plan for this aspect from the specified discipline's viewpoint." }
-          },
-          required: ["aspect", "consideration"]
-        }
-    },
-     educationalContent: {
-        type: Type.ARRAY,
-        description: "An array of rich educational content like diagrams or formulas relevant to the case.",
-        items: educationalContentSchema
-    },
-    traceableEvidence: {
-        type: Type.ARRAY,
-        description: "An array of key claims made in the case study backed by specific, citable evidence or sources.",
-        items: {
-            type: Type.OBJECT,
-            properties: {
-                claim: { type: Type.STRING, description: "The clinical statement or claim being supported." },
-                source: { type: Type.STRING, description: "The reference or source for the evidence (e.g., '(Systematic Review) JAMA 2023;329(1):7-8' or '(Clinical Guideline) UpToDate on COPD')." }
-            },
-            required: ["claim", "source"]
-        }
-    },
-    furtherReadings: {
-        type: Type.ARRAY,
-        description: "An array of suggested readings or references for the student to learn more about the topics discussed.",
-        items: {
-            type: Type.OBJECT,
-            properties: {
-                topic: { type: Type.STRING, description: "The topic of the suggested reading." },
-                reference: { type: Type.STRING, description: "The full citation or link to the suggested reading material." }
-            },
-            required: ["topic", "reference"]
-        }
-    },
-    quiz: {
-        type: Type.ARRAY,
-        description: "A multiple-choice quiz with 5 questions to test understanding of the case.",
-        items: quizQuestionSchema
+        required: ["nodes", "links"]
     }
   },
-  required: ["title", "patientProfile", "presentingComplaint", "history", "biochemicalPathway", "multidisciplinaryConnections", "disciplineSpecificConsiderations", "educationalContent", "traceableEvidence", "furtherReadings", "quiz"],
+  required: ["patientCaseDetails", "knowledgeMap"]
 };
 
-const knowledgeMapSchema = {
-    type: Type.OBJECT,
-    properties: {
-        nodes: {
-            type: Type.ARRAY,
-            description: "An array of key concepts or entities from the patient case.",
-            items: {
-                type: Type.OBJECT,
-                properties: {
-                    id: { type: Type.STRING, description: "A unique, concise identifier for the node (e.g., 'type_2_diabetes')." },
-                    label: { type: Type.STRING, description: "A short, human-readable label for the node (e.g., 'Type 2 Diabetes')." },
-                    discipline: { 
-                        type: Type.STRING, 
-                        description: "The primary medical discipline this concept belongs to.",
-                        enum: ["Biochemistry", "Pharmacology", "Physiology", "Psychology", "Sociology", "Pathology", "Immunology", "Genetics", "Diagnostics", "Treatment", "Physiotherapy", "Occupational Therapy"]
-                    },
-                },
-                required: ["id", "label", "discipline"]
-            }
-        },
-        links: {
-            type: Type.ARRAY,
-            description: "An array of relationships connecting the nodes.",
-            items: {
-                type: Type.OBJECT,
-                properties: {
-                    source: { type: Type.STRING, description: "The 'id' of the source node for the connection." },
-                    target: { type: Type.STRING, description: "The 'id' of the target node for the connection." },
-                    description: { type: Type.STRING, description: "A brief description of the relationship (e.g., 'exacerbates', 'causes', 'treats')." }
-                },
-                required: ["source", "target", "description"]
-            }
-        }
-    },
-    required: ["nodes", "links"]
-};
-
-const patientCaseAndMapSchema = {
-    type: Type.OBJECT,
-    properties: {
-        patientCase: patientCaseSchema,
-        knowledgeMap: knowledgeMapSchema
-    },
-    required: ["patientCase", "knowledgeMap"]
-};
 
 export const getConceptAbstract = async (concept: string, caseContext: string, language: string): Promise<string> => {
     const ai = getAiClient();
@@ -297,103 +302,151 @@ export const getConceptAbstract = async (concept: string, caseContext: string, l
     return response.text;
 };
 
-export const generatePatientCaseAndMap = async (condition: string, discipline: string, difficulty: string, language: string): Promise<{ case: PatientCase; mapData: KnowledgeMapData }> => {
-  const ai = getAiClient();
-  const model = "gemini-2.5-flash";
+const getDifficultyInstructions = (difficulty: string) => {
+    switch (difficulty.toLowerCase()) {
+        case 'beginner':
+            return `
+                **Difficulty Level: Beginner**
+                - The case history should be straightforward with a clear, classic presentation of the condition.
+                - Limit comorbidities to one, if any. The narrative should be easy to follow.
+                - Focus on 2-3 core, high-yield multidisciplinary connections.
+                - The quiz questions should be direct recall questions based on the text.
+            `;
+        case 'advanced':
+            return `
+                **Difficulty Level: Advanced**
+                - The case must be highly complex, potentially with a rare presentation or multiple significant comorbidities that interact.
+                - **Crucially, the narrative must include subtle diagnostic clues, atypical findings, and potential "red herring" details.** These elements should be carefully crafted to make the diagnostic process challenging and require careful clinical reasoning.
+                - **The case must support a differential diagnosis of at least 3-4 plausible conditions.** The history and findings should contain specific, subtle information that helps distinguish the final diagnosis from these alternatives.
+                - Explore at least 5-6 deep multidisciplinary connections, including less obvious psychosocial, ethical, or public health dimensions.
+                - The quiz questions must be challenging, requiring synthesis of multiple concepts, evaluation of management options, and **explicitly addressing the differential diagnoses presented in the case.**
+            `;
+        case 'intermediate':
+        default:
+            return `
+                **Difficulty Level: Intermediate**
+                - The case should have moderate complexity, with one or two confounding factors or comorbidities.
+                - Involve 3-5 clear and relevant multidisciplinary connections.
+                - The quiz questions should test comprehension and application of the case details, requiring some synthesis of information.
+            `;
+    }
+};
 
-  let difficultyInstructions = '';
-  switch (difficulty.toLowerCase()) {
-      case 'beginner':
-          difficultyInstructions = `
-              **Difficulty Level: Beginner**
-              - The case history should be straightforward with a clear, classic presentation of the condition.
-              - Limit comorbidities to one, if any. The narrative should be easy to follow.
-              - Focus on 2-3 core, high-yield multidisciplinary connections.
-              - The quiz questions should be direct recall questions based on the text.
-          `;
-          break;
-      case 'advanced':
-          difficultyInstructions = `
-              **Difficulty Level: Advanced**
-              - The case must be highly complex, potentially with a rare presentation or multiple significant comorbidities that interact.
-              - **Crucially, the narrative must include subtle diagnostic clues, atypical findings, and potential "red herring" details.** These elements should be carefully crafted to make the diagnostic process challenging and require careful clinical reasoning.
-              - **The case must support a differential diagnosis of at least 3-4 plausible conditions.** The history and findings should contain specific, subtle information that helps distinguish the final diagnosis from these alternatives.
-              - Explore at least 5-6 deep multidisciplinary connections, including less obvious psychosocial, ethical, or public health dimensions.
-              - The quiz questions must be challenging, requiring synthesis of multiple concepts, evaluation of management options, and **explicitly addressing the differential diagnoses presented in the case.**
-          `;
-          break;
-      case 'intermediate':
-      default:
-          difficultyInstructions = `
-              **Difficulty Level: Intermediate**
-              - The case should have moderate complexity, with one or two confounding factors or comorbidities.
-              - Involve 3-5 clear and relevant multidisciplinary connections.
-              - The quiz questions should test comprehension and application of the case details, requiring some synthesis of information.
-          `;
-          break;
-  }
+export const generateCorePatientCase = async (condition: string, discipline: string, difficulty: string, language: string): Promise<PatientCase> => {
+    const ai = getAiClient();
+    const model = "gemini-2.5-flash";
+    const difficultyInstructions = getDifficultyInstructions(difficulty);
 
-  const combinedGenerationPrompt = `
-    Create a comprehensive, realistic, and academically rigorous multidisciplinary patient case study for a medical student. The central theme is "${condition}".
-    The case must be complex, integrating concepts from various fields. Provide a rich narrative for the patient's history. Involve aspects of rehabilitation, including physiotherapy and occupational therapy where relevant.
-    Please provide the entire response in the following language: ${language}.
+    const prompt = `
+        Create the core narrative for a realistic multidisciplinary patient case study for a medical student. The central theme is "${condition}".
+        Please provide the entire response in the following language: ${language}.
 
-    **Crucially, tailor the case's management plan and key considerations for a student in **${discipline}**.
+        **Crucially, tailor the case for a student in **${discipline}**.
 
-    ${difficultyInstructions}
+        ${difficultyInstructions}
 
-    **RULES FOR RIGOR - YOU MUST FOLLOW THESE:**
-    1.  **Stick to Proven Facts:** Do NOT offer opinions, speculations, or unverified synthesis. Every clinical statement and piece of data must be based on established medical facts and evidence. The content must be grounded in the latest available research.
-    2.  **Provide High-Quality Traceable Evidence:** For at least 3-4 key clinical statements, provide a specific source. You MUST cite evidence from high-impact, peer-reviewed sources. Prioritize evidence from the following types, in order of preference: Systematic Reviews, Meta-Analyses, Randomized Controlled Trials (RCTs), and major Clinical Practice Guidelines. Use a clear citation format, e.g., '(Systematic Review) [Citation]' or '(RCT) [Citation]'.
-    3.  **Include a Detailed Biochemical Pathway Section:** Create a specific section for 'biochemicalPathway'. This must focus on a single, core biochemical or physiological mechanism central to the case.
-        *   **If it's a visual pathway (Type: "Diagram"):** The 'diagramData' MUST be comprehensive. Include at least 6-8 key molecular nodes (e.g., substrates, enzymes, products, cellular locations) and the links representing the steps of the pathway. The goal is a detailed, clear educational map. The description should explain the pathway's relevance to the patient's condition.
-        *   **If it's a non-diagram mechanism (e.g., a physiological process):** The description must be expanded to 2-3 detailed paragraphs, providing an in-depth explanation for a medical student. You MUST include a specific, high-quality reference, such as a review article from a major journal (e.g., NEJM, The Lancet).
-    4.  **Include Educational Content:** Add 1-2 pieces of rich educational content in the 'educationalContent' array. These should be distinct from the biochemical pathway and can cover other topics like pharmacology, pathophysiology graphs, etc. For each, provide a title, a detailed text description, and a reference. **Crucially, if the content type is 'Diagram', you MUST also generate the structured \`diagramData\` containing nodes and links for an interactive visualization. If a diagram is not applicable, set \`diagramData\` to null.**
-    5.  **Suggest Further Readings:** List 2-3 high-quality references (e.g., review articles, clinical guidelines) for deeper learning.
-    6.  **Create a Quiz:** Generate a multiple-choice quiz with 5 questions to test understanding of the key multidisciplinary concepts in this case. For each question, provide four string options, the 0-based index of the correct answer, and a brief explanation for the answer. The quiz difficulty should match the overall case difficulty.
-    7.  **Include Procedural and Outcome Data:** If applicable, provide plausible details for the main procedure, the patient's ASA physical status, and the final outcome (ICU admission, length of stay, summary).
+        **Your task is to generate ONLY the following sections:**
+        1.  **title:** A concise title for the case.
+        2.  **patientProfile:** A brief profile of the patient.
+        3.  **presentingComplaint:** The main reason for seeking medical attention.
+        4.  **history:** A detailed history of the present illness, past medical history, social history, and family history.
+        5.  **procedureDetails (if applicable):** Details of the main procedure and ASA score.
+        6.  **outcomes (if applicable):** The final outcome for the patient.
 
-    **KNOWLEDGE MAP GENERATION:**
-    Simultaneously, based on the patient case you are creating, you MUST extract the key concepts and their relationships to create a knowledge map.
-    - Identify at least 8-12 core concepts (nodes).
-    - For each node, provide a unique ID, a label, and its primary medical discipline.
-    - Identify the causal or influential links between these nodes. For each link, provide the source ID, target ID, and a brief description of the relationship.
-    - The nodes and links must represent the multidisciplinary nature of the case.
-    - The goal is to create a visual graph for a medical student to understand the interconnectedness of these concepts.
+        **FINAL OUTPUT FORMAT:**
+        Your entire response MUST be a single JSON object strictly adhering to the specified schema for the core patient case.
+    `;
 
-    **FINAL OUTPUT FORMAT:**
-    Your entire response MUST be a single JSON object with two top-level keys: "patientCase" and "knowledgeMap". The content for each key must strictly adhere to their respective schemas.
+    const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
+        model: model,
+        contents: prompt,
+        config: {
+            responseMimeType: "application/json",
+            responseSchema: corePatientCaseSchema,
+            temperature: 0.4,
+        },
+    }));
+    
+    return JSON.parse(response.text) as PatientCase;
+};
+
+export const generateRemainingDetails = async (coreCase: PatientCase, discipline: string, difficulty: string, language: string): Promise<{ remainingDetails: Omit<PatientCase, 'title' | 'patientProfile' | 'presentingComplaint' | 'history'>; mapData: KnowledgeMapData }> => {
+    const ai = getAiClient();
+    const model = "gemini-2.5-flash";
+    const difficultyInstructions = getDifficultyInstructions(difficulty);
+
+    const coreCaseContext = `
+        **Patient Case Context:**
+        - **Title:** ${coreCase.title}
+        - **Profile:** ${coreCase.patientProfile}
+        - **Complaint:** ${coreCase.presentingComplaint}
+        - **History:** ${coreCase.history}
+    `;
+
+    const prompt = `
+        Based on the provided patient case context, generate the remaining detailed sections and a corresponding knowledge map.
+        Please provide the entire response in the following language: ${language}.
+
+        ${coreCaseContext}
+
+        **Crucially, tailor the case's management plan and key considerations for a student in **${discipline}**.
+
+        ${difficultyInstructions}
+
+        **RULES FOR RIGOR - YOU MUST FOLLOW THESE:**
+        1.  **Generate Detailed Sections:** Create the content for all the following sections based on the case context:
+            - biochemicalPathway
+            - multidisciplinaryConnections
+            - disciplineSpecificConsiderations
+            - educationalContent
+            - traceableEvidence
+            - furtherReadings
+            - quiz
+        2.  **Stick to Proven Facts:** Do NOT offer opinions or unverified synthesis. Clinical statements must be based on established medical facts.
+        3.  **Provide High-Quality Traceable Evidence:** For at least 3-4 key clinical statements, cite evidence from high-impact, peer-reviewed sources (Systematic Reviews, RCTs, Clinical Guidelines).
+        4.  **Include Detailed Biochemical Pathway:** The 'biochemicalPathway' section must be detailed. If it's a diagram, 'diagramData' MUST be comprehensive (6-8 nodes).
+        5.  **Include Educational Content:** Add 1-2 pieces of rich 'educationalContent'. If the type is 'Diagram', you MUST generate the structured \`diagramData\`.
+        6.  **Create a Quiz:** Generate a 5-question multiple-choice quiz matching the case difficulty.
+
+        **KNOWLEDGE MAP GENERATION:**
+        Simultaneously, based on the full case, create a knowledge map.
+        - Identify 8-12 core concepts (nodes).
+        - For each node, provide a unique ID, a label, its primary discipline, AND a concise summary (50-70 words) of its significance to this case.
+        - Identify the causal or influential links between these nodes.
+
+        **FINAL OUTPUT FORMAT:**
+        Your entire response MUST be a single JSON object with two top-level keys: "patientCaseDetails" and "knowledgeMap". The content must strictly adhere to their respective schemas.
   `;
 
-  const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
-    model: model,
-    contents: combinedGenerationPrompt,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: patientCaseAndMapSchema,
-      temperature: 0.4,
-    },
-  }));
-  
-  const parsedResponse = JSON.parse(response.text);
-  const patientCase = parsedResponse.patientCase as PatientCase;
-  const rawMapData = parsedResponse.knowledgeMap;
-  
-  // Data validation and cleanup for the map
-  if (!rawMapData || !rawMapData.nodes || !rawMapData.links) {
-    throw new Error("Model did not return valid knowledge map data.");
-  }
+    const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
+        model: model,
+        contents: prompt,
+        config: {
+            responseMimeType: "application/json",
+            responseSchema: remainingDetailsSchema,
+            temperature: 0.4,
+        },
+    }));
 
-  const validNodeIds = new Set(rawMapData.nodes.map((n: KnowledgeNode) => n.id));
-  const validLinks = rawMapData.links.filter((l: KnowledgeLink) => validNodeIds.has(l.source) && validNodeIds.has(l.target));
+    const parsedResponse = JSON.parse(response.text);
+    const remainingDetails = parsedResponse.patientCaseDetails;
+    const rawMapData = parsedResponse.knowledgeMap;
 
-  const mapData: KnowledgeMapData = {
-      nodes: rawMapData.nodes,
-      links: validLinks,
-  };
+    if (!rawMapData || !rawMapData.nodes || !rawMapData.links) {
+        throw new Error("Model did not return valid knowledge map data.");
+    }
 
-  return { case: patientCase, mapData };
+    const validNodeIds = new Set(rawMapData.nodes.map((n: KnowledgeNode) => n.id));
+    const validLinks = rawMapData.links.filter((l: KnowledgeLink) => validNodeIds.has(l.source) && validNodeIds.has(l.target));
+
+    const mapData: KnowledgeMapData = {
+        nodes: rawMapData.nodes,
+        links: validLinks,
+    };
+
+    return { remainingDetails, mapData };
 };
+
 
 export const enrichCaseWithWebSources = async (patientCase: PatientCase, language: string): Promise<{ newEvidence: TraceableEvidence[]; newReadings: FurtherReading[]; groundingSources: any[] }> => {
     const ai = getAiClient();
