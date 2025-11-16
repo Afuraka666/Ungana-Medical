@@ -1,6 +1,3 @@
-
-
-
 import React, { useState, useEffect, useCallback, useReducer } from 'react';
 import { EducationalContentType, Discipline } from '../types';
 import type { PatientCase, EducationalContent, QuizQuestion, DisciplineSpecificConsideration, MultidisciplinaryConnection, TraceableEvidence, FurtherReading, ProcedureDetails, PatientOutcome, KnowledgeMapData } from '../types';
@@ -446,7 +443,6 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
             doc.text(`Page ${data.pageNumber} of ${pageCount}`, data.settings.margin.left, doc.internal.pageSize.height - 10);
         };
         
-        // --- Title ---
         doc.autoTable({
             body: [[patientCase.title]],
             startY: 15,
@@ -455,10 +451,10 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
             didDrawPage: pageHeader,
         });
 
-        const addSection = (title: string, content: string, startY?: number) => {
+        const addSection = (title: string, content: string) => {
             if (!content) return;
             doc.autoTable({
-                startY: startY || (doc as any).lastAutoTable.finalY + 8,
+                startY: (doc as any).lastAutoTable.finalY + 8,
                 head: [[title]],
                 body: [[content]],
                 theme: 'grid',
@@ -480,67 +476,81 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
                 didDrawPage: pageFooter,
             });
         };
-
-        const addImageToPage = (imgData: string, title: string) => {
-            doc.addPage();
-            doc.setFontSize(14).setTextColor(brandColor).text(title, 10, 15);
-            const imgProps = doc.getImageProperties(imgData);
-            const pdfWidth = doc.internal.pageSize.getWidth() - 20;
-            const pdfHeight = doc.internal.pageSize.getHeight() - 30;
-            const ratio = imgProps.width / imgProps.height;
-            let imgWidth = pdfWidth;
-            let imgHeight = pdfWidth / ratio;
-            if (imgHeight > pdfHeight) {
-                imgHeight = pdfHeight;
-                imgWidth = pdfHeight * ratio;
+        
+        const addVisualSection = async (title: string, content: { diagramData?: any, imageData?: string, description: string, reference: string }, diagramId?: string, rawImgData?: string) => {
+            let imgData = rawImgData;
+            if (!imgData) {
+                if (diagramId && content.diagramData) {
+                    const diagramEl = document.querySelector(`#${diagramId} svg`) as SVGSVGElement;
+                    if (diagramEl) imgData = await svgToDataURL(diagramEl);
+                } else if (content.imageData) {
+                    imgData = `data:image/png;base64,${content.imageData}`;
+                }
             }
-            const x = (doc.internal.pageSize.getWidth() - imgWidth) / 2;
-            const y = 20;
-            doc.addImage(imgData, 'PNG', x, y, imgWidth, imgHeight);
-            pageFooter({ pageNumber: (doc as any).internal.getNumberOfPages(), settings: { margin: { left: 10 } } });
+        
+            const bodyRows = [];
+            if (imgData) {
+                try {
+                    const imgProps = doc.getImageProperties(imgData);
+                    const pdfWidth = doc.internal.pageSize.getWidth() - 30;
+                    const imgHeight = (pdfWidth / imgProps.width) * imgProps.height;
+                    bodyRows.push([
+                        { image: imgData, width: pdfWidth, height: imgHeight }
+                    ]);
+                } catch (e) {
+                    console.error("Could not process image for PDF, skipping.", e);
+                }
+            }
+            
+            const description = content.description && content.reference ? `${content.description}\n\nReference: ${content.reference}` : content.description;
+            if (description) {
+                 bodyRows.push([description]);
+            }
+            
+            if (bodyRows.length === 0) return;
+
+            doc.autoTable({
+                startY: (doc as any).lastAutoTable.finalY + 8,
+                head: [[title]],
+                body: bodyRows,
+                theme: 'grid',
+                headStyles: { fillColor: brandColor, fontSize: 14 },
+                bodyStyles: { textColor: textColor, fontSize: 10, cellPadding: 3 },
+                didParseCell: (data: any) => {
+                    if (data.cell.raw?.image) {
+                        data.cell.styles.cellPadding = { top: 4, right: 4, bottom: 4, left: 4 };
+                        data.cell.styles.halign = 'center';
+                    }
+                },
+                didDrawPage: pageFooter
+            });
         };
 
-        // --- Text Sections ---
         addSection(T.patientProfile, patientCase.patientProfile);
         addSection(T.presentingComplaint, patientCase.presentingComplaint);
         addSection(T.history, patientCase.history);
 
-        // --- Add Diagrams and Summaries ---
-        const biochemDiagramEl = document.querySelector('#diagram-biochem svg') as SVGSVGElement;
-        if (biochemDiagramEl) {
-            const imgData = await svgToDataURL(biochemDiagramEl);
-            if (imgData) addImageToPage(imgData, patientCase.biochemicalPathway.title);
-        }
-        addSection(T.biochemicalPathwaySection, `${patientCase.biochemicalPathway.description}\n\nReference: ${patientCase.biochemicalPathway.reference}`);
-
+        await addVisualSection(T.biochemicalPathwaySection, patientCase.biochemicalPathway, 'diagram-biochem');
         for (let i = 0; i < patientCase.educationalContent.length; i++) {
             const item = patientCase.educationalContent[i];
-            if (item.diagramData) {
-                const eduDiagramEl = document.querySelector(`#diagram-edu-${i} svg`) as SVGSVGElement;
-                if (eduDiagramEl) {
-                    const imgData = await svgToDataURL(eduDiagramEl);
-                    if (imgData) addImageToPage(imgData, item.title);
-                }
-            }
-            addSection(item.title, `${item.description}\n\nReference: ${item.reference}`);
+            await addVisualSection(item.title, item, item.diagramData ? `diagram-edu-${i}` : undefined);
         }
 
-        // --- Tables ---
         if (patientCase.multidisciplinaryConnections?.length > 0) addTableSection(T.multidisciplinaryConnections, ['Discipline', 'Connection'], patientCase.multidisciplinaryConnections.map(c => [c.discipline, c.connection]));
         if (patientCase.disciplineSpecificConsiderations?.length > 0) addTableSection(T.managementConsiderations, ['Aspect', 'Consideration'], patientCase.disciplineSpecificConsiderations.map(c => [c.aspect, c.consideration]));
         if (patientCase.traceableEvidence?.length > 0) addTableSection(T.traceableEvidence, ['Claim', 'Source'], patientCase.traceableEvidence.map(e => [e.claim, e.source]));
         if (patientCase.furtherReadings?.length > 0) addTableSection(T.furtherReading, ['Topic', 'Reference'], patientCase.furtherReadings.map(r => [r.topic, r.reference]));
 
-        // --- Quiz ---
         if (patientCase.quiz?.length > 0) {
             const quizContent = patientCase.quiz.map((q, i) => `${i + 1}. ${q.question}\n${q.options.map((opt, o) => `   ${String.fromCharCode(65 + o)}. ${opt}`).join('\n')}\n\n   ${T.quizExplanation}: ${q.explanation}`).join('\n\n');
             addSection(T.quizTitle, quizContent);
         }
         
-        // --- Knowledge Map & Summaries ---
         if (onGetMapImage) {
             const mapImgData = await onGetMapImage();
-            if (mapImgData) addImageToPage(mapImgData, T.knowledgeMapConcepts);
+            if (mapImgData) {
+                 await addVisualSection(T.knowledgeMapConcepts, { description: '', reference: '' }, undefined, mapImgData);
+            }
         }
 
         if (mapData && mapData.nodes.length > 0) {
@@ -552,12 +562,11 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
             addTableSection(T.conceptSummaries, ['Concept', 'Discipline', 'Summary'], nodeSummaries);
         }
         
-        // Finalize page numbers
         const totalPages = (doc as any).internal.getNumberOfPages();
         for (let i = 1; i <= totalPages; i++) {
             doc.setPage(i);
-            if (i > 1) pageHeader({ settings: { margin: { left: 10 } } }); // Re-add header to all pages
-            pageFooter({ pageNumber: i, settings: { margin: { left: 10 } } }); // Re-add footer
+            if (i > 1) pageHeader({ settings: { margin: { left: 10 } } });
+            pageFooter({ pageNumber: i, settings: { margin: { left: 10 } } });
         }
 
         doc.save(`${patientCase.title.replace(/\s+/g, '_')}.pdf`);
