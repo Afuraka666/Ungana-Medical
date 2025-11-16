@@ -454,7 +454,7 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
         const addSection = (title: string, content: string) => {
             if (!content) return;
             doc.autoTable({
-                startY: (doc as any).lastAutoTable.finalY + 8,
+                startY: (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 8 : undefined,
                 head: [[title]],
                 body: [[content]],
                 theme: 'grid',
@@ -467,7 +467,7 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
         const addTableSection = (title: string, head: string[], body: any[][]) => {
             if (body.length === 0) return;
             doc.autoTable({
-                startY: (doc as any).lastAutoTable.finalY + 8,
+                startY: (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 8 : undefined,
                 head: [[{ content: title, colSpan: head.length, styles: { halign: 'center', fillColor: brandColor, fontSize: 14 } }]],
                 body: [head, ...body],
                 theme: 'grid',
@@ -500,7 +500,7 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
             if (bodyRows.length === 0) return;
 
             doc.autoTable({
-                startY: (doc as any).lastAutoTable.finalY + 8,
+                startY: (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 8 : undefined,
                 head: [[title]],
                 body: bodyRows,
                 theme: 'grid',
@@ -551,15 +551,12 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
             });
         };
 
+        // --- Main Content Rendering Logic ---
+        
+        // --- Text and Table Content ---
         addSection(T.patientProfile, patientCase.patientProfile);
         addSection(T.presentingComplaint, patientCase.presentingComplaint);
         addSection(T.history, patientCase.history);
-
-        await addVisualSection(T.biochemicalPathwaySection, patientCase.biochemicalPathway, 'diagram-biochem');
-        for (let i = 0; i < patientCase.educationalContent.length; i++) {
-            const item = patientCase.educationalContent[i];
-            await addVisualSection(item.title, item, item.diagramData ? `diagram-edu-${i}` : undefined);
-        }
 
         if (patientCase.multidisciplinaryConnections?.length > 0) addTableSection(T.multidisciplinaryConnections, ['Discipline', 'Connection'], patientCase.multidisciplinaryConnections.map(c => [c.discipline, c.connection]));
         if (patientCase.disciplineSpecificConsiderations?.length > 0) addTableSection(T.managementConsiderations, ['Aspect', 'Consideration'], patientCase.disciplineSpecificConsiderations.map(c => [c.aspect, c.consideration]));
@@ -571,12 +568,12 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
             addSection(T.quizTitle, quizContent);
         }
         
-        if (onGetMapImage) {
-            const mapImgData = await onGetMapImage();
-            if (mapImgData) {
-                 await addVisualSection(T.knowledgeMapConcepts, { description: '', reference: '' }, undefined, mapImgData);
+        // Add non-visual educational content to the text flow
+        patientCase.educationalContent.forEach(item => {
+            if (!item.diagramData && !item.imageData) {
+                addSection(item.title, `${item.description}\n\nReference: ${item.reference}`);
             }
-        }
+        });
 
         if (mapData && mapData.nodes.length > 0) {
             const nodeSummaries = [];
@@ -586,11 +583,39 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
             }
             addTableSection(T.conceptSummaries, ['Concept', 'Discipline', 'Summary'], nodeSummaries);
         }
+
+        // --- Visuals - Each on a new page ---
+
+        // Biochemical Pathway
+        if (patientCase.biochemicalPathway.diagramData || patientCase.biochemicalPathway.imageData) {
+            doc.addPage();
+            await addVisualSection(T.biochemicalPathwaySection, patientCase.biochemicalPathway, 'diagram-biochem');
+        }
+
+        // Visual Educational Content
+        for (let i = 0; i < patientCase.educationalContent.length; i++) {
+            const item = patientCase.educationalContent[i];
+            if (item.diagramData || item.imageData) {
+                doc.addPage();
+                await addVisualSection(item.title, item, item.diagramData ? `diagram-edu-${i}` : undefined);
+            }
+        }
+
+        // Knowledge Map
+        if (onGetMapImage) {
+            const mapImgData = await onGetMapImage();
+            if (mapImgData) {
+                 doc.addPage();
+                 await addVisualSection(T.knowledgeMapConcepts, { description: '', reference: '' }, undefined, mapImgData);
+            }
+        }
         
+        // Finalize page numbering
         const totalPages = (doc as any).internal.getNumberOfPages();
         for (let i = 1; i <= totalPages; i++) {
             doc.setPage(i);
-            if (i > 1) pageHeader({ settings: { margin: { left: 10 } } });
+            // Re-apply header/footer to all pages to ensure consistency, especially on manually added pages
+            pageHeader({ settings: { margin: { left: 10 } } });
             pageFooter({ pageNumber: i, settings: { margin: { left: 10 } } });
         }
 
