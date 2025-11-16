@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useReducer } from 'react';
 import { EducationalContentType, Discipline } from '../types';
 import type { PatientCase, EducationalContent, QuizQuestion, DisciplineSpecificConsideration, MultidisciplinaryConnection, TraceableEvidence, FurtherReading, ProcedureDetails, PatientOutcome } from '../types';
@@ -5,7 +6,6 @@ import { DisciplineColors } from './KnowledgeMap';
 import { QuizView } from './QuizView';
 import { ImageGenerator } from './ImageGenerator';
 import { TextToSpeechPlayer } from './TextToSpeechPlayer';
-import { DiscussionModal } from './DiscussionModal';
 import { InteractiveDiagram } from './InteractiveDiagram';
 import { SourceSearchModal } from './SourceSearchModal';
 import { enrichCaseWithWebSources } from '../services/geminiService';
@@ -26,6 +26,7 @@ interface PatientCaseViewProps {
   T: Record<string, any>;
   onSaveSnippet: (title: string, content: string) => void;
   onOpenShare: () => void;
+  onOpenDiscussion: (topic: DisciplineSpecificConsideration) => void;
 }
 
 const historyReducer = (state: { history: any[], currentIndex: number }, action: { type: string, payload: any }): { history: any[], currentIndex: number } => {
@@ -260,12 +261,11 @@ const Section: React.FC<{
   );
 };
 
-export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: initialPatientCase, onSave, language, T, onSaveSnippet, onOpenShare }) => {
+export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: initialPatientCase, onSave, language, T, onSaveSnippet, onOpenShare, onOpenDiscussion }) => {
   const { state: patientCase, setState: setPatientCase, undo, redo, canUndo, canRedo, resetState } = useHistoryState<PatientCase>(initialPatientCase);
   const [isEditing, setIsEditing] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [activeImageGenerator, setActiveImageGenerator] = useState<{ content: EducationalContent; index: number } | null>(null);
-  const [activeDiscussion, setActiveDiscussion] = useState<DisciplineSpecificConsideration | null>(null);
   const [activeSourceSearch, setActiveSourceSearch] = useState<string | null>(null);
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
   
@@ -517,7 +517,7 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 2a1 1 0 00-1 1v1.135a4.002 4.002 0 00-2.995 2.562l-1.34-1.34a1 1 0 10-1.414 1.414l1.586 1.586A4.002 4.002 0 008 10a4 4 0 104-4V3a1 1 0 00-1-1zm0 8a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" /><path d="M4.343 5.757a1 1 0 001.414-1.414L4.94 3.525A8.001 8.001 0 0010 2a8 8 0 100 16 8 8 0 008-8h-2c0 3.314-2.686 6-6 6S4 13.314 4 10c0-.212.01-.422.029-.631l.314.314z" /></svg>
                 </button>
                 <button onClick={redo} disabled={!canRedo} title={T.redoButton} className="p-2 rounded-full text-gray-500 hover:bg-gray-100 hover:text-brand-blue transition disabled:text-gray-300 disabled:cursor-not-allowed">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a1 1 0 001-1v-1.135a4.002 4.002 0 002.995-2.562l1.34 1.34a1 1 0 101.414-1.414l-1.586-1.586A4.002 4.002 0 0012 10a4 4 0 10-4 4V17a1 1 0 001 1zm0-8a2 2 0 100 4 2 2 0 000-4z" clipRule="evenodd" /><path d="M15.657 14.243a1 1 0 00-1.414 1.414l.817.817a8.001 8.001 0 00-5.06-14.475V2a8 8 0 100 16c.212 0 .422-.01.631-.029l-.314-.314z" /></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a1 1 0 001-1v-1.135a4.002 4.002 0 002.995-2.562l1.34 1.34a1 1 0 101.414-1.414l-1.586-1.586A4.002 4.002 0 0012 10a4 4 0 10-4 4V17a1 1 0 001 1zm0-8a2 2 0 100 4 2 2 0 000 4z" clipRule="evenodd" /><path d="M15.657 14.243a1 1 0 00-1.414 1.414l.817.817a8.001 8.001 0 00-5.06-14.475V2a8 8 0 100 16c.212 0 .422-.01.631-.029l-.314-.314z" /></svg>
                 </button>
                 <button onClick={handleSave} className="bg-green-600 hover:bg-green-700 text-white font-semibold py-1 px-3 rounded-md transition text-sm">{T.saveButton}</button>
                 <button onClick={handleCancel} className="bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-1 px-3 rounded-md transition text-sm">{T.cancelButton}</button>
@@ -571,7 +571,7 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
                     <TextToSpeechPlayer textToRead={`${patientCase.biochemicalPathway.title}. ${patientCase.biochemicalPathway.description}`} language={language} />
                 </div>
                 <button 
-                    onClick={() => setActiveDiscussion({ aspect: patientCase.biochemicalPathway.title, consideration: patientCase.biochemicalPathway.description })} 
+                    onClick={() => onOpenDiscussion({ aspect: patientCase.biochemicalPathway.title, consideration: patientCase.biochemicalPathway.description })} 
                     title={T.discussButton} 
                     className="text-sm bg-blue-100 hover:bg-blue-200 text-brand-blue font-semibold py-1 px-3 rounded-md transition flex-shrink-0"
                 >
@@ -603,7 +603,7 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
                     <li key={index}>
                         <div className="flex justify-between items-center">
                             <strong className="text-gray-800">{item.aspect}</strong>
-                            <button onClick={() => setActiveDiscussion(item)} title={T.discussButton} className="text-sm bg-blue-100 hover:bg-blue-200 text-brand-blue font-semibold py-1 px-3 rounded-md transition">{T.discussButton}</button>
+                            <button onClick={() => onOpenDiscussion(item)} title={T.discussButton} className="text-sm bg-blue-100 hover:bg-blue-200 text-brand-blue font-semibold py-1 px-3 rounded-md transition">{T.discussButton}</button>
                         </div>
                         <p className="mt-1">{item.consideration}</p>
                     </li>
@@ -624,7 +624,7 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
                                     <button onClick={() => setActiveImageGenerator({ content: item, index })} className="text-sm bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-semibold py-1 px-3 rounded-md transition">Generate Image</button>
                                 )}
                                 <button 
-                                    onClick={() => setActiveDiscussion({ aspect: item.title, consideration: item.description })} 
+                                    onClick={() => onOpenDiscussion({ aspect: item.title, consideration: item.description })} 
                                     title={T.discussButton} 
                                     className="text-sm bg-blue-100 hover:bg-blue-200 text-brand-blue font-semibold py-1 px-3 rounded-md transition"
                                 >
@@ -673,17 +673,6 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
 
       {activeImageGenerator && <ImageGenerator content={activeImageGenerator.content} onClose={() => setActiveImageGenerator(null)} language={language} T={T} onImageGenerated={(imageData) => handleImageGenerated(activeImageGenerator.index, imageData)} />}
       
-      {activeDiscussion && (
-          <DiscussionModal
-            isOpen={!!activeDiscussion}
-            onClose={() => setActiveDiscussion(null)}
-            topic={activeDiscussion}
-            caseTitle={patientCase.title}
-            language={language}
-            T={T}
-          />
-      )}
-
       {activeSourceSearch && (
           <SourceSearchModal
             isOpen={!!activeSourceSearch}

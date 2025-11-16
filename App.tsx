@@ -17,12 +17,13 @@ import { TipsCarousel } from './components/TipsCarousel';
 import { UpdateNotifier } from './components/UpdateNotifier';
 import { Footer } from './components/Footer';
 import { EvaluationScreen } from './components/EvaluationScreen';
+import { DiscussionModal } from './components/DiscussionModal';
 
 // Services
 import { generatePatientCaseAndMap, getConceptAbstract } from './services/geminiService';
 
 // Types
-import type { PatientCase, KnowledgeMapData, KnowledgeNode, SavedCase, Snippet, InteractionState } from './types';
+import type { PatientCase, KnowledgeMapData, KnowledgeNode, SavedCase, Snippet, InteractionState, DisciplineSpecificConsideration } from './types';
 
 // i18n
 import { translations, supportedLanguages } from './i18n';
@@ -83,6 +84,7 @@ const App: React.FC = () => {
     const [isClinicalToolsOpen, setIsClinicalToolsOpen] = useState(false);
     const [isShareModalOpen, setIsShareModalOpen] = useState(false);
     const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+    const [activeDiscussionTopic, setActiveDiscussionTopic] = useState<DisciplineSpecificConsideration | null>(null);
 
     // Saved Data State
     const [savedCases, setSavedCases] = useState<SavedCase[]>([]);
@@ -325,6 +327,14 @@ const App: React.FC = () => {
         setInteractionState(prev => ({ ...prev, caseEdited: true }));
     };
 
+    const handleDiscussNode = (nodeInfo: { node: KnowledgeNode; abstract: string; loading: boolean }) => {
+        if (nodeInfo.loading || !nodeInfo.abstract) return;
+        setActiveDiscussionTopic({
+            aspect: `Concept: ${nodeInfo.node.label}`,
+            consideration: `Discipline: ${nodeInfo.node.discipline}\n\n${nodeInfo.abstract}`
+        });
+    };
+
     // -- RENDER LOGIC --
 
     if (showEvaluationScreen) {
@@ -370,6 +380,7 @@ const App: React.FC = () => {
                                         T={T}
                                         onSaveSnippet={handleSaveSnippet}
                                         onOpenShare={() => setIsShareModalOpen(true)}
+                                        onOpenDiscussion={(topic) => setActiveDiscussionTopic(topic)}
                                     />
                                 </div>
                                 
@@ -385,6 +396,7 @@ const App: React.FC = () => {
                                             caseTitle={patientCase.title}
                                             language={language}
                                             T={T}
+                                            onDiscussNode={handleDiscussNode}
                                         />
                                     </div>
                                 )}
@@ -461,6 +473,16 @@ const App: React.FC = () => {
                 onClose={() => setIsFeedbackModalOpen(false)}
                 T={T}
             />
+             {activeDiscussionTopic && (
+                <DiscussionModal
+                    isOpen={!!activeDiscussionTopic}
+                    onClose={() => setActiveDiscussionTopic(null)}
+                    topic={activeDiscussionTopic}
+                    caseTitle={patientCase?.title || ''}
+                    language={language}
+                    T={T}
+                />
+            )}
             
             <UpdateNotifier />
         </div>

@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { Discipline } from '../types';
 import type { KnowledgeMapData, KnowledgeNode } from '../types';
@@ -183,6 +184,7 @@ interface KnowledgeMapProps {
     caseTitle: string;
     language: string;
     T: Record<string, any>;
+    onDiscussNode: (nodeInfo: { node: KnowledgeNode; abstract: string; loading: boolean }) => void;
 }
 
 // Fix: Add export for KnowledgeMap component
@@ -195,7 +197,8 @@ export const KnowledgeMap: React.FC<KnowledgeMapProps> = ({
     setIsMapFullscreen,
     caseTitle,
     language,
-    T
+    T,
+    onDiscussNode
 }) => {
     const svgRef = useRef<SVGSVGElement | null>(null);
     const containerRef = useRef<HTMLDivElement | null>(null);
@@ -361,7 +364,7 @@ export const KnowledgeMap: React.FC<KnowledgeMapProps> = ({
                 onToggleFullscreen={() => setIsMapFullscreen(!isMapFullscreen)}
                 isFullscreen={isMapFullscreen}
             />
-            {selectedNodeInfo && <ConceptCard nodeInfo={selectedNodeInfo} onClose={onClearSelection} />}
+            {selectedNodeInfo && <ConceptCard nodeInfo={selectedNodeInfo} onClose={onClearSelection} onDiscuss={onDiscussNode} T={T} />}
 
             <ContextMenu 
                 position={contextMenu?.position || null} 

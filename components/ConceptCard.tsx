@@ -1,3 +1,4 @@
+
 import React from 'react';
 import type { KnowledgeNode } from '../types';
 import { DisciplineColors } from './KnowledgeMap';
@@ -9,6 +10,8 @@ interface ConceptCardProps {
     loading: boolean;
   };
   onClose: () => void;
+  onDiscuss: (nodeInfo: ConceptCardProps['nodeInfo']) => void;
+  T: Record<string, any>;
 }
 
 const LoadingSpinner: React.FC = () => (
@@ -20,7 +23,7 @@ const LoadingSpinner: React.FC = () => (
     </div>
 );
 
-export const ConceptCard: React.FC<ConceptCardProps> = ({ nodeInfo, onClose }) => {
+export const ConceptCard: React.FC<ConceptCardProps> = ({ nodeInfo, onClose, onDiscuss, T }) => {
   const { node, abstract, loading } = nodeInfo;
   const color = DisciplineColors[node.discipline] || '#6b7280';
   
@@ -50,6 +53,15 @@ export const ConceptCard: React.FC<ConceptCardProps> = ({ nodeInfo, onClose }) =
         ) : (
           <p className="whitespace-pre-wrap">{abstract}</p>
         )}
+      </div>
+      <div className="mt-4 pt-3 border-t border-gray-200">
+          <button
+              onClick={() => onDiscuss(nodeInfo)}
+              disabled={loading}
+              className="w-full bg-blue-100 hover:bg-blue-200 text-brand-blue font-semibold py-2 px-4 rounded-md transition text-sm disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed"
+          >
+              {T.discussButton}
+          </button>
       </div>
     </div>
   );
