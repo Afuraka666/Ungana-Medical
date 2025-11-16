@@ -11,14 +11,6 @@ import { SourceSearchModal } from './SourceSearchModal';
 import { enrichCaseWithWebSources } from '../services/geminiService';
 import { DisciplineIcon } from './DisciplineIcon';
 
-declare const jspdf: any;
-declare global {
-    interface Window {
-        jspdf: any;
-    }
-}
-
-
 interface PatientCaseViewProps {
   patientCase: PatientCase;
   onSave: (updatedCase: PatientCase) => void;
@@ -370,9 +362,8 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
   const handleDownloadPdf = () => {
     if (!patientCase) return;
 
-    const { jsPDF } = jspdf;
+    const { jsPDF } = (window as any).jspdf;
     const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
-    const autoTable = (window as any).jspdf.autoTable;
 
     const brandColor = '#1e3a8a';
     const textColor = '#111827';
@@ -391,7 +382,7 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
     };
 
     // --- Title ---
-    autoTable(doc, {
+    (doc as any).autoTable({
         body: [[patientCase.title]],
         startY: 15,
         theme: 'plain',
@@ -407,13 +398,13 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
     // --- Helper for simple text block sections ---
     const addSection = (title: string, content: string) => {
         if (!content) return;
-        autoTable(doc, {
+        (doc as any).autoTable({
             startY: (doc as any).lastAutoTable.finalY + 8,
             body: [[content]],
             head: [[title]],
             theme: 'grid',
             headStyles: { fillColor: brandColor, fontSize: 14 },
-            bodyStyles: { textColor: textColor, fontSize: 10, cellPadding: 3 },
+            bodyStyles: { textColor: textColor, fontSize: 10, cellPadding: 3, minCellHeight: 10 },
             didDrawPage: (data: any) => { pageHeader(data); pageFooter(data); },
         });
     };
@@ -443,13 +434,13 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
     // --- Table for multi-item sections ---
     const addTableSection = (title: string, head: string[], body: any[][]) => {
         if (body.length === 0) return;
-        autoTable(doc, {
+        (doc as any).autoTable({
             startY: (doc as any).lastAutoTable.finalY + 8,
             head: [[{ content: title, colSpan: head.length, styles: { halign: 'center', fillColor: brandColor, fontSize: 14 } }]],
             body: [head, ...body],
             theme: 'grid',
             headStyles: { fillColor: '#3b82f6' }, // Sub-header color
-            bodyStyles: { textColor: textColor, fontSize: 10 },
+            bodyStyles: { textColor: textColor, fontSize: 10, cellPadding: 2 },
             didDrawPage: (data: any) => { pageHeader(data); pageFooter(data); },
         });
     };

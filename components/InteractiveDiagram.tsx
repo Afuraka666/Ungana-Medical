@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useId, useState, useCallback } from 'react';
 import type { DiagramData, DiagramNode as DiagramNodeType, DiagramLink as DiagramLinkType } from '../types';
 
@@ -216,8 +217,8 @@ export const InteractiveDiagram: React.FC<InteractiveDiagramProps> = ({ data }) 
   };
   
   return (
-    <div ref={containerRef} className={`relative w-full h-full bg-white ${isDiagramFullscreen ? 'fixed inset-0 z-40' : ''}`}>
-      <svg ref={svgRef} className="w-full h-full"></svg>
+    <div ref={containerRef} className={`relative w-full h-full bg-white ${isDiagramFullscreen ? 'fixed inset-0 z-[60]' : ''}`}>
+      <svg ref={svgRef} className="w-full h-full" style={{ touchAction: 'none' }}></svg>
       <div className="absolute top-2 left-2 flex flex-col gap-2 z-10 transition-opacity duration-300">
             <button onClick={() => handleZoomIn()} title="Zoom In" className="bg-white/80 hover:bg-white p-2 rounded-lg shadow-md border"><svg className="h-4 w-4 text-gray-700" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg></button>
             <button onClick={() => handleZoomOut()} title="Zoom Out" className="bg-white/80 hover:bg-white p-2 rounded-lg shadow-md border"><svg className="h-4 w-4 text-gray-700" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" /></svg></button>
