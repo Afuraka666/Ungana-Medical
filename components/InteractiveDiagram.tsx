@@ -62,6 +62,18 @@ export const InteractiveDiagram: React.FC<InteractiveDiagramProps> = ({ data, id
   }, []);
 
   useEffect(() => {
+    const observer = new ResizeObserver(() => {
+      handleResetZoom();
+    });
+    if (containerRef.current) {
+      observer.observe(containerRef.current);
+    }
+    return () => {
+      observer.disconnect();
+    };
+  }, [handleResetZoom]);
+
+  useEffect(() => {
     if (!data || !svgRef.current || !containerRef.current) return;
     
     const { nodes, links } = data;

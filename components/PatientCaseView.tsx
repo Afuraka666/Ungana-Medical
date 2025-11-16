@@ -256,54 +256,58 @@ const Section: React.FC<{
 };
 
 const svgToDataURL = async (svgEl: SVGSVGElement): Promise<string> => {
-    // Add a white background rectangle as the first child of the SVG
-    // This ensures the background is not transparent in the PNG.
-    const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    bgRect.setAttribute('width', '100%');
-    bgRect.setAttribute('height', '100%');
-    bgRect.setAttribute('fill', 'white');
-    svgEl.prepend(bgRect);
+    const g = svgEl.querySelector('g');
+    if (!g) return '';
+
+    const bbox = g.getBBox();
+    if (bbox.width === 0 || bbox.height === 0) return '';
+
+    const padding = 40;
+    const width = bbox.width + padding * 2;
+    const height = bbox.height + padding * 2;
+
+    const svgClone = svgEl.cloneNode(true) as SVGSVGElement;
+    svgClone.setAttribute('width', width.toString());
+    svgClone.setAttribute('height', height.toString());
+    svgClone.setAttribute('viewBox', `${bbox.x - padding} ${bbox.y - padding} ${width} ${height}`);
+
+    const gClone = svgClone.querySelector('g');
+    if (gClone) {
+        gClone.removeAttribute('transform');
+    }
     
-    const xml = new XMLSerializer().serializeToString(svgEl);
+    const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bgRect.setAttribute('width', width.toString());
+    bgRect.setAttribute('height', height.toString());
+    bgRect.setAttribute('fill', 'white');
+    bgRect.setAttribute('x', `${bbox.x - padding}`);
+    bgRect.setAttribute('y', `${bbox.y - padding}`);
+    svgClone.prepend(bgRect);
 
-    // Remove the temporary background rect so it doesn't affect the live view
-    svgEl.removeChild(bgRect);
-
-    // Use unescape and encodeURIComponent to handle special characters correctly
+    const xml = new XMLSerializer().serializeToString(svgClone);
     const svg64 = btoa(unescape(encodeURIComponent(xml)));
-    const b64start = 'data:image/svg+xml;base64,';
-    const image64 = b64start + svg64;
+    const image64 = `data:image/svg+xml;base64,${svg64}`;
 
     return new Promise((resolve) => {
         const img = new Image();
-
         img.onload = () => {
             const canvas = document.createElement('canvas');
-            // Add some padding to prevent clipping
-            const padding = 20;
-            const viewBox = svgEl.viewBox.baseVal;
-            const svgWidth = viewBox && viewBox.width > 0 ? viewBox.width : img.width;
-            const svgHeight = viewBox && viewBox.height > 0 ? viewBox.height : img.height;
-
-            canvas.width = svgWidth + padding * 2;
-            canvas.height = svgHeight + padding * 2;
-            
+            const scale = 2;
+            canvas.width = width * scale;
+            canvas.height = height * scale;
             const ctx = canvas.getContext('2d');
             if (ctx) {
-                // Fill canvas with white background
-                ctx.fillStyle = '#FFFFFF';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.drawImage(img, padding, padding, svgWidth, svgHeight);
-                resolve(canvas.toDataURL('image/png'));
+                ctx.scale(scale, scale);
+                ctx.drawImage(img, 0, 0, width, height);
+                resolve(canvas.toDataURL('image/png', 1.0));
             } else {
-                resolve(''); // Fallback
+                resolve('');
             }
         };
-
-        img.onerror = () => {
-            resolve(''); // Fallback on error
+        img.onerror = (e) => {
+            console.error("Failed to load SVG image for canvas conversion", e);
+            resolve('');
         };
-
         img.src = image64;
     });
 };
