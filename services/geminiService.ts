@@ -227,7 +227,7 @@ const patientCaseSchema = {
     },
     quiz: {
         type: Type.ARRAY,
-        description: "A multiple-choice quiz with 3-5 questions to test understanding of the case.",
+        description: "A multiple-choice quiz with 5 questions to test understanding of the case.",
         items: quizQuestionSchema
     }
   },
@@ -350,7 +350,7 @@ export const generatePatientCaseAndMap = async (condition: string, discipline: s
         *   **If it's a non-diagram mechanism (e.g., a physiological process):** The description must be expanded to 2-3 detailed paragraphs, providing an in-depth explanation for a medical student. You MUST include a specific, high-quality reference, such as a review article from a major journal (e.g., NEJM, The Lancet).
     4.  **Include Educational Content:** Add 1-2 pieces of rich educational content in the 'educationalContent' array. These should be distinct from the biochemical pathway and can cover other topics like pharmacology, pathophysiology graphs, etc. For each, provide a title, a detailed text description, and a reference. **Crucially, if the content type is 'Diagram', you MUST also generate the structured \`diagramData\` containing nodes and links for an interactive visualization. If a diagram is not applicable, set \`diagramData\` to null.**
     5.  **Suggest Further Readings:** List 2-3 high-quality references (e.g., review articles, clinical guidelines) for deeper learning.
-    6.  **Create a Quiz:** Generate a multiple-choice quiz with 3 questions to test understanding of the key multidisciplinary concepts in this case. For each question, provide four string options, the 0-based index of the correct answer, and a brief explanation for the answer. The quiz difficulty should match the overall case difficulty.
+    6.  **Create a Quiz:** Generate a multiple-choice quiz with 5 questions to test understanding of the key multidisciplinary concepts in this case. For each question, provide four string options, the 0-based index of the correct answer, and a brief explanation for the answer. The quiz difficulty should match the overall case difficulty.
     7.  **Include Procedural and Outcome Data:** If applicable, provide plausible details for the main procedure, the patient's ASA physical status, and the final outcome (ICU admission, length of stay, summary).
 
     **KNOWLEDGE MAP GENERATION:**
