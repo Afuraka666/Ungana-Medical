@@ -1,6 +1,5 @@
 
 
-
 import React, { useEffect, useRef, useCallback, useState, useMemo, forwardRef, useImperativeHandle } from 'react';
 import { Discipline } from '../types';
 import type { KnowledgeMapData, KnowledgeNode } from '../types';
@@ -307,7 +306,6 @@ export const KnowledgeMap = forwardRef<any, KnowledgeMapProps>(({
         
         if (width === 0 || height === 0) return;
 
-        // FIX: Define midX and midY which are the center of the graph's bounding box.
         const midX = x + width / 2;
         const midY = y + height / 2;
         const scale = 0.9 / Math.max(width / fullWidth, height / fullHeight);
@@ -360,29 +358,48 @@ export const KnowledgeMap = forwardRef<any, KnowledgeMapProps>(({
         });
         zoomRef.current = zoom;
         svg.call(zoom);
+        // Clear selection on background click
+        svg.on("click", onClearSelection);
 
         simulationRef.current = d3.forceSimulation(nodes)
-            .force('link', d3.forceLink(links).id((d: any) => d.id).distance(150))
-            .force('charge', d3.forceManyBody().strength(-300))
-            .force('center', d3.forceCenter(width / 2, height / 2))
+            .force('link', d3.forceLink(links).id((d: any) => d.id).distance(150).strength(0.7))
+            .force('charge', d3.forceManyBody().strength(-800))
+            .force('x', d3.forceX(width / 2).strength(0.1))
+            .force('y', d3.forceY(height / 2).strength(0.1))
+            .force('collide', d3.forceCollide().radius(50))
             .on('end', () => {
                 setIsLoading(false);
                 resetZoom();
             });
 
-        const link = g.append('g')
-            .attr('stroke', '#999')
-            .attr('stroke-opacity', 0.6)
-            .selectAll('line')
+        const linkGroup = g.append("g")
+            .selectAll("g")
             .data(links)
-            .join('line')
-            .attr('stroke-width', 1.5);
+            .join("g")
+            .attr("class", "link-group");
+
+        const link = linkGroup.append("line")
+            .attr("stroke", "#999")
+            .attr("stroke-opacity", 0.6)
+            .attr("stroke-width", 1.5);
+
+        const linkLabel = linkGroup.append("text")
+            .text((d: any) => d.description)
+            .attr("font-size", "10px")
+            .attr("fill", "#555")
+            .attr("text-anchor", "middle")
+            .attr("paint-order", "stroke") // Render stroke before fill
+            .attr("stroke", "white")
+            .attr("stroke-width", "3px")
+            .attr("stroke-linecap", "round")
+            .attr("stroke-linejoin", "round")
+            .style("pointer-events", "none");
 
         const node = g.append('g')
             .selectAll('g')
             .data(nodes)
             .join('g')
-            .attr('class', 'cursor-pointer')
+            .attr('class', 'node-group cursor-pointer')
             .call(d3.drag()
                 .on('start', (event: any, d: any) => {
                     if (!event.active) simulationRef.current.alphaTarget(0.3).restart();
@@ -398,7 +415,10 @@ export const KnowledgeMap = forwardRef<any, KnowledgeMapProps>(({
                     d.fx = null;
                     d.fy = null;
                 }))
-            .on('click', (event: MouseEvent, d: any) => onNodeClick(d))
+            .on('click', (event: MouseEvent, d: any) => {
+                event.stopPropagation(); // Prevent background click from firing
+                onNodeClick(d);
+            })
             .on('contextmenu', (event: MouseEvent, d: any) => handleNodeRightClick(event, d));
 
         node.append('circle')
@@ -420,13 +440,18 @@ export const KnowledgeMap = forwardRef<any, KnowledgeMapProps>(({
                 .attr('y1', (d: any) => d.source.y)
                 .attr('x2', (d: any) => d.target.x)
                 .attr('y2', (d: any) => d.target.y);
+            
+            linkLabel
+                .attr('x', (d: any) => (d.source.x + d.target.x) / 2)
+                .attr('y', (d: any) => (d.source.y + d.target.y) / 2);
+
             node.attr('transform', (d: any) => `translate(${d.x}, ${d.y})`);
         });
 
         return () => {
             simulationRef.current.stop();
         };
-    }, [data, nodes, links, onNodeClick, resetZoom]);
+    }, [data, nodes, links, onNodeClick, resetZoom, onClearSelection]);
     
     useEffect(() => {
         if(isMapFullscreen) {
@@ -434,8 +459,50 @@ export const KnowledgeMap = forwardRef<any, KnowledgeMapProps>(({
         }
     }, [isMapFullscreen, resetZoom]);
     
+    // Effect for highlighting based on selection
+    useEffect(() => {
+        const nodeElements = d3.selectAll('.node-group');
+        const linkElements = d3.selectAll('.link-group');
+    
+        if (selectedNodeInfo) {
+            const selectedId = selectedNodeInfo.node.id;
+    
+            // Create a set of all nodes that should be highlighted
+            const linkedNodeIds = new Set([selectedId]);
+            links.forEach(link => {
+                if (link.source === selectedId) {
+                    linkedNodeIds.add(link.target);
+                } else if (link.target === selectedId) {
+                    linkedNodeIds.add(link.source);
+                }
+            });
+    
+            // Fade out non-connected nodes
+            nodeElements
+                .transition().duration(300)
+                .style('opacity', (d: any) => linkedNodeIds.has(d.id) ? 1 : 0.15);
+    
+            // Fade out non-connected links
+            linkElements
+                .transition().duration(300)
+                .style('opacity', (d: any) => (d.source.id === selectedId || d.target.id === selectedId) ? 1 : 0.15);
+                
+        } else {
+            // Restore full opacity when no node is selected
+            nodeElements.transition().duration(300).style('opacity', 1);
+            linkElements.transition().duration(300).style('opacity', 1);
+        }
+    }, [selectedNodeInfo, links]);
+
     return (
-        <div ref={containerRef} className="relative w-full h-full bg-slate-50 rounded-lg shadow-inner border border-gray-200 overflow-hidden">
+        <div
+            ref={containerRef}
+            className={`w-full h-full bg-slate-50 shadow-inner border border-gray-200 overflow-hidden ${
+                isMapFullscreen
+                    ? 'fixed inset-0 z-30'
+                    : 'relative rounded-lg'
+            }`}
+        >
             {isLoading && <LoadingSpinner />}
             <svg ref={svgRef} className="w-full h-full"></svg>
             <MapControls

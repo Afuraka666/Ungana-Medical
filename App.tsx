@@ -397,44 +397,52 @@ export const App: React.FC = () => {
                     <TipsCarousel interactionState={interactionState} T={T} />
                     
                     {patientCase ? (
-                        <div className="flex-grow flex flex-col lg:flex-row gap-4 overflow-hidden h-full">
-                            {/* Mobile: Full-width case view */}
-                            <div className={`w-full lg:w-1/2 h-full overflow-y-auto bg-white rounded-lg shadow-lg border border-gray-200 ${mobileView === 'case' ? 'block' : 'hidden'} lg:block`}>
-                                <PatientCaseView
-                                    patientCase={patientCase}
-                                    isGeneratingDetails={isGeneratingDetails}
-                                    onSave={handlePatientCaseUpdate}
-                                    language={language}
-                                    T={T}
-                                    onSaveSnippet={handleSaveSnippet}
-                                    onOpenShare={() => setIsShareModalOpen(true)}
-                                    onOpenDiscussion={(topic) => setActiveDiscussionTopic(topic)}
-                                    onGetMapImage={getKnowledgeMapImage}
-                                    mapData={mapData}
-                                />
-                            </div>
-
-                            {/* Mobile: Full-width map view */}
-                            <div className={`w-full lg:w-1/2 h-full flex flex-col gap-4 ${mobileView === 'map' ? 'flex' : 'hidden'} lg:flex`}>
-                                {mapData ? (
-                                    <KnowledgeMap
-                                        ref={knowledgeMapRef}
-                                        data={mapData}
-                                        onNodeClick={handleNodeClick}
-                                        selectedNodeInfo={selectedNodeInfo}
-                                        onClearSelection={handleClearNodeSelection}
-                                        isMapFullscreen={isMapFullscreen}
-                                        setIsMapFullscreen={setIsMapFullscreen}
-                                        caseTitle={patientCase.title}
-                                        language={language}
-                                        T={T}
-                                        onDiscussNode={handleDiscussNode}
-                                    />
-                                ) : isGeneratingDetails ? (
-                                    <div className="w-full h-full flex items-center justify-center bg-white rounded-lg shadow-lg border border-gray-200 p-8 text-center">
-                                        <LoadingOverlay message={T.buildingMapMessage} subMessages={[]} />
+                        <div className="flex-grow overflow-hidden h-full">
+                            {/* Sliding container for mobile view */}
+                            <div 
+                                className="flex h-full transition-transform duration-300 ease-in-out lg:transform-none lg:flex-row lg:gap-4"
+                                style={{ transform: `translateX(${mobileView === 'map' ? '-100%' : '0%'})` }}
+                            >
+                                {/* Case View Wrapper */}
+                                <div className="w-full flex-shrink-0 h-full lg:w-3/5">
+                                    <div className="h-full overflow-y-auto bg-white rounded-lg shadow-lg border border-gray-200">
+                                        <PatientCaseView
+                                            patientCase={patientCase}
+                                            isGeneratingDetails={isGeneratingDetails}
+                                            onSave={handlePatientCaseUpdate}
+                                            language={language}
+                                            T={T}
+                                            onSaveSnippet={handleSaveSnippet}
+                                            onOpenShare={() => setIsShareModalOpen(true)}
+                                            onOpenDiscussion={(topic) => setActiveDiscussionTopic(topic)}
+                                            onGetMapImage={getKnowledgeMapImage}
+                                            mapData={mapData}
+                                        />
                                     </div>
-                                ) : null}
+                                </div>
+
+                                {/* Map View Wrapper */}
+                                <div className="w-full flex-shrink-0 h-full flex flex-col lg:w-2/5">
+                                    {mapData ? (
+                                        <KnowledgeMap
+                                            ref={knowledgeMapRef}
+                                            data={mapData}
+                                            onNodeClick={handleNodeClick}
+                                            selectedNodeInfo={selectedNodeInfo}
+                                            onClearSelection={handleClearNodeSelection}
+                                            isMapFullscreen={isMapFullscreen}
+                                            setIsMapFullscreen={setIsMapFullscreen}
+                                            caseTitle={patientCase.title}
+                                            language={language}
+                                            T={T}
+                                            onDiscussNode={handleDiscussNode}
+                                        />
+                                    ) : isGeneratingDetails ? (
+                                        <div className="w-full h-full flex items-center justify-center bg-white rounded-lg shadow-lg border border-gray-200 p-8 text-center">
+                                            <LoadingOverlay message={T.buildingMapMessage} subMessages={[]} />
+                                        </div>
+                                    ) : null}
+                                </div>
                             </div>
                         </div>
                     ) : (
