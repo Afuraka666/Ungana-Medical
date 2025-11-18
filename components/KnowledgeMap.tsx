@@ -1,5 +1,4 @@
 
-
 import React, { useEffect, useRef, useCallback, useState, useMemo, forwardRef, useImperativeHandle } from 'react';
 import { Discipline } from '../types';
 import type { KnowledgeMapData, KnowledgeNode } from '../types';
@@ -308,7 +307,7 @@ export const KnowledgeMap = forwardRef<any, KnowledgeMapProps>(({
 
         const midX = x + width / 2;
         const midY = y + height / 2;
-        const scale = 0.9 / Math.max(width / fullWidth, height / fullHeight);
+        const scale = 0.85 / Math.max(width / fullWidth, height / fullHeight); // Slightly zoomed out initial view
         const translate = [fullWidth / 2 - scale * midX, fullHeight / 2 - scale * midY];
 
         const transform = d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale);
@@ -347,6 +346,28 @@ export const KnowledgeMap = forwardRef<any, KnowledgeMapProps>(({
 
         const svg = d3.select(svgRef.current);
         svg.selectAll('*').remove(); // Clear previous render
+        
+        // Define Drop Shadow Filter
+        const defs = svg.append("defs");
+        const filter = defs.append("filter")
+            .attr("id", "drop-shadow")
+            .attr("height", "130%");
+        
+        filter.append("feGaussianBlur")
+            .attr("in", "SourceAlpha")
+            .attr("stdDeviation", 2)
+            .attr("result", "blur");
+        
+        filter.append("feOffset")
+            .attr("in", "blur")
+            .attr("dx", 1)
+            .attr("dy", 1)
+            .attr("result", "offsetBlur");
+        
+        const feMerge = filter.append("feMerge");
+        feMerge.append("feMergeNode").attr("in", "offsetBlur");
+        feMerge.append("feMergeNode").attr("in", "SourceGraphic");
+
 
         const { width, height } = containerRef.current.getBoundingClientRect();
 
@@ -358,44 +379,72 @@ export const KnowledgeMap = forwardRef<any, KnowledgeMapProps>(({
         });
         zoomRef.current = zoom;
         svg.call(zoom);
-        // Clear selection on background click
         svg.on("click", onClearSelection);
 
+        // Significantly adjusted forces for reduced clutter
         simulationRef.current = d3.forceSimulation(nodes)
-            .force('link', d3.forceLink(links).id((d: any) => d.id).distance(150).strength(0.7))
-            .force('charge', d3.forceManyBody().strength(-800))
-            .force('x', d3.forceX(width / 2).strength(0.1))
-            .force('y', d3.forceY(height / 2).strength(0.1))
-            .force('collide', d3.forceCollide().radius(50))
+            .force('link', d3.forceLink(links).id((d: any) => d.id).distance(200).strength(0.5)) // Increased distance
+            .force('charge', d3.forceManyBody().strength(-2500)) // Increased repulsion
+            .force('center', d3.forceCenter(width / 2, height / 2))
+            .force('collide', d3.forceCollide().radius(70).iterations(2)) // Increased collision radius
             .on('end', () => {
                 setIsLoading(false);
                 resetZoom();
             });
 
-        const linkGroup = g.append("g")
-            .selectAll("g")
+        // --- Links (Lines) ---
+        const linkLines = g.append("g")
+            .attr("class", "links")
+            .selectAll("line")
             .data(links)
-            .join("g")
-            .attr("class", "link-group");
-
-        const link = linkGroup.append("line")
+            .join("line")
             .attr("stroke", "#999")
-            .attr("stroke-opacity", 0.6)
+            .attr("stroke-opacity", 0.5)
             .attr("stroke-width", 1.5);
 
-        const linkLabel = linkGroup.append("text")
+        // --- Link Labels (Parallel text with background) ---
+        const linkLabels = g.append("g")
+            .attr("class", "link-labels")
+            .selectAll("g")
+            .data(links)
+            .join("g");
+
+        // Background pill for text readability
+        linkLabels.append("rect")
+            .attr("rx", 4)
+            .attr("ry", 4)
+            .attr("fill", "white")
+            .attr("fill-opacity", 0.9)
+            .attr("stroke", "#e5e7eb")
+            .attr("stroke-width", 1);
+
+        // The text itself
+        linkLabels.append("text")
             .text((d: any) => d.description)
             .attr("font-size", "10px")
-            .attr("fill", "#555")
+            .attr("fill", "#4b5563")
             .attr("text-anchor", "middle")
-            .attr("paint-order", "stroke") // Render stroke before fill
-            .attr("stroke", "white")
-            .attr("stroke-width", "3px")
-            .attr("stroke-linecap", "round")
-            .attr("stroke-linejoin", "round")
-            .style("pointer-events", "none");
+            .attr("dy", "0.35em")
+            .attr("font-family", "sans-serif")
+            .each(function(d: any) {
+                // Calculate width for the background rect
+                // @ts-ignore
+                const bbox = this.getBBox();
+                d.width = bbox.width + 8;
+                d.height = bbox.height + 4;
+            });
+        
+        // Apply dimensions to rects after text rendering
+        linkLabels.select("rect")
+            .attr("width", (d: any) => d.width)
+            .attr("height", (d: any) => d.height)
+            .attr("x", (d: any) => -d.width / 2)
+            .attr("y", (d: any) => -d.height / 2);
 
+
+        // --- Nodes ---
         const node = g.append('g')
+            .attr("class", "nodes")
             .selectAll('g')
             .data(nodes)
             .join('g')
@@ -416,35 +465,59 @@ export const KnowledgeMap = forwardRef<any, KnowledgeMapProps>(({
                     d.fy = null;
                 }))
             .on('click', (event: MouseEvent, d: any) => {
-                event.stopPropagation(); // Prevent background click from firing
+                event.stopPropagation(); 
                 onNodeClick(d);
             })
             .on('contextmenu', (event: MouseEvent, d: any) => handleNodeRightClick(event, d));
 
+        // Main circle with shadow
         node.append('circle')
-            .attr('r', 12)
+            .attr('r', 16) // Slightly larger nodes
             .attr('fill', (d: any) => DisciplineColors[d.discipline] || '#ccc')
             .attr('stroke', '#fff')
-            .attr('stroke-width', 2);
+            .attr('stroke-width', 3)
+            .style("filter", "url(#drop-shadow)"); // 3D pop effect
             
+        // Label
         node.append('text')
             .text((d: any) => d.label)
-            .attr('x', 16)
-            .attr('y', 4)
-            .attr('font-size', '12px')
-            .attr('font-weight', 500)
-            .attr('fill', '#333');
+            .attr('x', 22)
+            .attr('y', 5)
+            .attr("font-family", "sans-serif")
+            .attr('font-size', '13px')
+            .attr('font-weight', 'bold')
+            .attr('fill', '#1f2937')
+            .style("text-shadow", "1px 1px 0 #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff"); // Outline effect for readability
 
         simulationRef.current.on('tick', () => {
-            link.attr('x1', (d: any) => d.source.x)
+            // Update Lines
+            linkLines
+                .attr('x1', (d: any) => d.source.x)
                 .attr('y1', (d: any) => d.source.y)
                 .attr('x2', (d: any) => d.target.x)
                 .attr('y2', (d: any) => d.target.y);
             
-            linkLabel
-                .attr('x', (d: any) => (d.source.x + d.target.x) / 2)
-                .attr('y', (d: any) => (d.source.y + d.target.y) / 2);
+            // Update Labels (Rotation & Position)
+            linkLabels.attr('transform', (d: any) => {
+                if (!d.source.x || !d.target.x) return null;
 
+                const dx = d.target.x - d.source.x;
+                const dy = d.target.y - d.source.y;
+                const x = (d.source.x + d.target.x) / 2;
+                const y = (d.source.y + d.target.y) / 2;
+
+                // Calculate angle in degrees
+                let angle = Math.atan2(dy, dx) * 180 / Math.PI;
+
+                // Flip text to be readable (never upside down)
+                if (angle > 90 || angle < -90) {
+                    angle += 180;
+                }
+
+                return `translate(${x}, ${y}) rotate(${angle})`;
+            });
+
+            // Update Nodes
             node.attr('transform', (d: any) => `translate(${d.x}, ${d.y})`);
         });
 
@@ -462,35 +535,45 @@ export const KnowledgeMap = forwardRef<any, KnowledgeMapProps>(({
     // Effect for highlighting based on selection
     useEffect(() => {
         const nodeElements = d3.selectAll('.node-group');
-        const linkElements = d3.selectAll('.link-group');
+        const linkElements = d3.selectAll('.links line');
+        const labelElements = d3.selectAll('.link-labels g');
     
         if (selectedNodeInfo) {
             const selectedId = selectedNodeInfo.node.id;
     
-            // Create a set of all nodes that should be highlighted
             const linkedNodeIds = new Set([selectedId]);
-            links.forEach(link => {
-                if (link.source === selectedId) {
-                    linkedNodeIds.add(link.target);
-                } else if (link.target === selectedId) {
-                    linkedNodeIds.add(link.source);
+            const linkedEdgeIds = new Set();
+
+            links.forEach((link: any) => {
+                // D3 converts source/target strings to objects, so check .id if available, else check raw
+                const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+                const targetId = typeof link.target === 'object' ? link.target.id : link.target;
+
+                if (sourceId === selectedId) {
+                    linkedNodeIds.add(targetId);
+                    linkedEdgeIds.add(link.index); // Use D3's index or a unique link ID
+                } else if (targetId === selectedId) {
+                    linkedNodeIds.add(sourceId);
+                    linkedEdgeIds.add(link.index);
                 }
             });
     
-            // Fade out non-connected nodes
             nodeElements
                 .transition().duration(300)
                 .style('opacity', (d: any) => linkedNodeIds.has(d.id) ? 1 : 0.15);
     
-            // Fade out non-connected links
             linkElements
                 .transition().duration(300)
-                .style('opacity', (d: any) => (d.source.id === selectedId || d.target.id === selectedId) ? 1 : 0.15);
+                .style('opacity', (d: any) => linkedEdgeIds.has(d.index) ? 1 : 0.1);
+            
+            labelElements
+                .transition().duration(300)
+                .style('opacity', (d: any) => linkedEdgeIds.has(d.index) ? 1 : 0.1);
                 
         } else {
-            // Restore full opacity when no node is selected
             nodeElements.transition().duration(300).style('opacity', 1);
             linkElements.transition().duration(300).style('opacity', 1);
+            labelElements.transition().duration(300).style('opacity', 1);
         }
     }, [selectedNodeInfo, links]);
 
