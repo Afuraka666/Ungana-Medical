@@ -347,23 +347,39 @@ export const KnowledgeMap = forwardRef<any, KnowledgeMapProps>(({
         const svg = d3.select(svgRef.current);
         svg.selectAll('*').remove(); // Clear previous render
         
-        // Define Drop Shadow Filter
         const defs = svg.append("defs");
+
+        // Define Arrow Marker
+        defs.append("marker")
+            .attr("id", "arrow-head-map")
+            .attr("viewBox", "0 -5 10 10")
+            .attr("refX", 30) // Node radius 18 + gap + stroke safety
+            .attr("refY", 0)
+            .attr("markerWidth", 8)
+            .attr("markerHeight", 8)
+            .attr("orient", "auto")
+            .attr("markerUnits", "userSpaceOnUse")
+            .append("path")
+            .attr("d", "M0,-5L10,0L0,5")
+            .attr("fill", "#9ca3af")
+            .attr("fill-opacity", 0.8);
+
+        // Define Drop Shadow Filter for pseudo-3D effect
         const filter = defs.append("filter")
             .attr("id", "drop-shadow")
-            .attr("height", "130%");
+            .attr("height", "140%");
         
         filter.append("feGaussianBlur")
             .attr("in", "SourceAlpha")
-            .attr("stdDeviation", 2)
+            .attr("stdDeviation", 3)
             .attr("result", "blur");
         
         filter.append("feOffset")
             .attr("in", "blur")
-            .attr("dx", 1)
-            .attr("dy", 1)
+            .attr("dx", 2)
+            .attr("dy", 2)
             .attr("result", "offsetBlur");
-        
+            
         const feMerge = filter.append("feMerge");
         feMerge.append("feMergeNode").attr("in", "offsetBlur");
         feMerge.append("feMergeNode").attr("in", "SourceGraphic");
@@ -381,12 +397,12 @@ export const KnowledgeMap = forwardRef<any, KnowledgeMapProps>(({
         svg.call(zoom);
         svg.on("click", onClearSelection);
 
-        // Significantly adjusted forces for reduced clutter
+        // Optimized physics for reduced clutter
         simulationRef.current = d3.forceSimulation(nodes)
-            .force('link', d3.forceLink(links).id((d: any) => d.id).distance(200).strength(0.5)) // Increased distance
-            .force('charge', d3.forceManyBody().strength(-2500)) // Increased repulsion
+            .force('link', d3.forceLink(links).id((d: any) => d.id).distance(220).strength(0.3)) // Longer, slightly looser links
+            .force('charge', d3.forceManyBody().strength(-2500)) // Very strong repulsion to push nodes apart
             .force('center', d3.forceCenter(width / 2, height / 2))
-            .force('collide', d3.forceCollide().radius(70).iterations(2)) // Increased collision radius
+            .force('collide', d3.forceCollide().radius(80).iterations(3)) // High collision radius to avoid text overlap
             .on('end', () => {
                 setIsLoading(false);
                 resetZoom();
@@ -398,9 +414,10 @@ export const KnowledgeMap = forwardRef<any, KnowledgeMapProps>(({
             .selectAll("line")
             .data(links)
             .join("line")
-            .attr("stroke", "#999")
-            .attr("stroke-opacity", 0.5)
-            .attr("stroke-width", 1.5);
+            .attr("stroke", "#9ca3af")
+            .attr("stroke-opacity", 0.6)
+            .attr("stroke-width", 1.5)
+            .attr("marker-end", "url(#arrow-head-map)"); // Add arrows
 
         // --- Link Labels (Parallel text with background) ---
         const linkLabels = g.append("g")
@@ -411,27 +428,28 @@ export const KnowledgeMap = forwardRef<any, KnowledgeMapProps>(({
 
         // Background pill for text readability
         linkLabels.append("rect")
-            .attr("rx", 4)
-            .attr("ry", 4)
+            .attr("rx", 10) // Rounded corners like a pill
+            .attr("ry", 10)
             .attr("fill", "white")
-            .attr("fill-opacity", 0.9)
+            .attr("fill-opacity", 0.95)
             .attr("stroke", "#e5e7eb")
             .attr("stroke-width", 1);
 
         // The text itself
         linkLabels.append("text")
             .text((d: any) => d.description)
-            .attr("font-size", "10px")
+            .attr("font-size", "16px") // Increased font size
             .attr("fill", "#4b5563")
             .attr("text-anchor", "middle")
             .attr("dy", "0.35em")
             .attr("font-family", "sans-serif")
+            .attr("pointer-events", "none") // Click through to select links if needed
             .each(function(d: any) {
                 // Calculate width for the background rect
                 // @ts-ignore
                 const bbox = this.getBBox();
-                d.width = bbox.width + 8;
-                d.height = bbox.height + 4;
+                d.width = bbox.width + 14;
+                d.height = bbox.height + 8;
             });
         
         // Apply dimensions to rects after text rendering
@@ -470,24 +488,25 @@ export const KnowledgeMap = forwardRef<any, KnowledgeMapProps>(({
             })
             .on('contextmenu', (event: MouseEvent, d: any) => handleNodeRightClick(event, d));
 
-        // Main circle with shadow
+        // Main circle with shadow (Pseudo-3D)
         node.append('circle')
-            .attr('r', 16) // Slightly larger nodes
+            .attr('r', 18) 
             .attr('fill', (d: any) => DisciplineColors[d.discipline] || '#ccc')
             .attr('stroke', '#fff')
             .attr('stroke-width', 3)
-            .style("filter", "url(#drop-shadow)"); // 3D pop effect
+            .style("filter", "url(#drop-shadow)"); 
             
+        
         // Label
         node.append('text')
             .text((d: any) => d.label)
-            .attr('x', 22)
+            .attr('x', 24)
             .attr('y', 5)
             .attr("font-family", "sans-serif")
-            .attr('font-size', '13px')
+            .attr('font-size', '18px') // Increased font size
             .attr('font-weight', 'bold')
             .attr('fill', '#1f2937')
-            .style("text-shadow", "1px 1px 0 #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff"); // Outline effect for readability
+            .style("text-shadow", "2px 2px 0px #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff");
 
         simulationRef.current.on('tick', () => {
             // Update Lines
@@ -497,7 +516,7 @@ export const KnowledgeMap = forwardRef<any, KnowledgeMapProps>(({
                 .attr('x2', (d: any) => d.target.x)
                 .attr('y2', (d: any) => d.target.y);
             
-            // Update Labels (Rotation & Position)
+            // Update Labels (Rotation parallel to line)
             linkLabels.attr('transform', (d: any) => {
                 if (!d.source.x || !d.target.x) return null;
 
@@ -509,7 +528,7 @@ export const KnowledgeMap = forwardRef<any, KnowledgeMapProps>(({
                 // Calculate angle in degrees
                 let angle = Math.atan2(dy, dx) * 180 / Math.PI;
 
-                // Flip text to be readable (never upside down)
+                // Flip text to be readable (left-to-right)
                 if (angle > 90 || angle < -90) {
                     angle += 180;
                 }
