@@ -84,6 +84,13 @@ export interface ProcedureDetails {
   asaScore: '1' | '2' | '3' | '4' | '5' | '6' | '1E' | '2E' | '3E' | '4E' | '5E' | '6E';
 }
 
+export interface ChatMessage {
+    role: 'user' | 'model' | 'system';
+    text: string;
+    diagramData?: DiagramData;
+    timestamp?: number;
+}
+
 export interface PatientCase {
   title: string;
   patientProfile: string;
@@ -98,6 +105,8 @@ export interface PatientCase {
   traceableEvidence?: TraceableEvidence[];
   furtherReadings?: FurtherReading[];
   quiz?: QuizQuestion[];
+  // Map of discussion topic IDs to array of chat messages
+  discussions?: Record<string, ChatMessage[]>;
 }
 
 export interface KnowledgeNode {

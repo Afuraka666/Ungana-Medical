@@ -4,7 +4,7 @@ self.addEventListener('message', event => {
   }
 });
 
-const CACHE_NAME = 'synapsis-medical-cache-v17';
+const CACHE_NAME = 'ungana-medical-cache-v18';
 const URLS_TO_CACHE = [
   '/',
   '/index.html',
@@ -23,7 +23,7 @@ self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
-        console.log('Opened cache and caching app shell v17');
+        console.log('Opened cache and caching app shell v18');
         return cache.addAll(URLS_TO_CACHE);
       })
   );

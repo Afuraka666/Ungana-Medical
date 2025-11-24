@@ -29,7 +29,7 @@ import {
 } from './services/geminiService';
 
 // Types
-import type { PatientCase, KnowledgeMapData, KnowledgeNode, SavedCase, Snippet, InteractionState, DisciplineSpecificConsideration } from './types';
+import type { PatientCase, KnowledgeMapData, KnowledgeNode, SavedCase, Snippet, InteractionState, DisciplineSpecificConsideration, ChatMessage } from './types';
 
 // i18n
 import { translations, supportedLanguages } from './i18n';
@@ -518,9 +518,17 @@ export const App: React.FC = () => {
                     isOpen={!!activeDiscussionTopic}
                     onClose={() => setActiveDiscussionTopic(null)}
                     topic={activeDiscussionTopic}
+                    topicId={activeDiscussionTopic.aspect}
                     caseTitle={patientCase?.title || 'this case'}
                     language={language}
                     T={T}
+                    initialHistory={patientCase?.discussions?.[activeDiscussionTopic.aspect]}
+                    onSaveDiscussion={(topicId, messages) => {
+                        if (patientCase) {
+                            const updatedDiscussions = { ...(patientCase.discussions || {}), [topicId]: messages };
+                            handlePatientCaseUpdate({ ...patientCase, discussions: updatedDiscussions });
+                        }
+                    }}
                 />
             )}
 

@@ -77,7 +77,7 @@ export const UpdateNotifier: React.FC = () => {
                         New Updates Available!
                     </p>
                     <p className="mt-1 text-sm text-gray-600">
-                        Synapsis Medical has been enhanced. Refresh to get the latest features.
+                        Ungana Medical has been enhanced. Refresh to get the latest features.
                     </p>
                     <div className="mt-3 flex space-x-3">
                         <button

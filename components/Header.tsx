@@ -15,8 +15,8 @@ export const Header: React.FC<HeaderProps> = ({ supportedLanguages, currentLangu
     <header className={`bg-brand-blue shadow-md text-white ${className || ''}`}>
       <div className="container mx-auto px-4 md:px-6 py-3 flex items-center justify-between">
         <div className="flex items-center space-x-3">
-          <img src={logoDataUri} alt="Synapsis Medical Logo" className="w-8 h-8 sm:w-10 sm:h-10" />
-          <h1 className="text-lg sm:text-xl font-bold tracking-tight">Synapsis Medical</h1>
+          <img src={logoDataUri} alt="Ungana Medical Logo" className="w-8 h-8 sm:w-10 sm:h-10" />
+          <h1 className="text-lg sm:text-xl font-bold tracking-tight">Ungana Medical</h1>
         </div>
         <div className="flex items-center space-x-4">
           <p className="text-sm text-blue-200 hidden md:block">{T.headerSubtitle}</p>

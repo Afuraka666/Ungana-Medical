@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useReducer } from 'react';
 import { EducationalContentType, Discipline } from '../types';
 import type { PatientCase, EducationalContent, QuizQuestion, DisciplineSpecificConsideration, MultidisciplinaryConnection, TraceableEvidence, FurtherReading, ProcedureDetails, PatientOutcome, KnowledgeMapData } from '../types';
@@ -494,7 +495,7 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
         const pageHeader = (data: any) => {
             doc.setFontSize(10);
             doc.setTextColor('#4a5568');
-            doc.text('Synapsis Medical Case Study', data.settings.margin.left, 10);
+            doc.text('Ungana Medical Case Study', data.settings.margin.left, 10);
         };
 
         const pageFooter = (data: any) => {
