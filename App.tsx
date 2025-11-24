@@ -86,7 +86,7 @@ export const App: React.FC = () => {
     const knowledgeMapRef = useRef<{ captureAsImage: () => Promise<string> } | null>(null);
 
     // Internationalization State
-    const [language, setLanguage] = useState(localStorage.getItem('synapsis_language') || 'en');
+    const [language, setLanguage] = useState(localStorage.getItem('ungana_language') || 'en');
 
     // Modal States
     const [isSavedWorkOpen, setIsSavedWorkOpen] = useState(false);
@@ -127,6 +127,47 @@ export const App: React.FC = () => {
     
     // -- EFFECTS --
 
+    // MIGRATION: Move 'synapsis_' data to 'ungana_' data automatically
+    useEffect(() => {
+        try {
+            // 1. Language
+            if (!localStorage.getItem('ungana_language') && localStorage.getItem('synapsis_language')) {
+                localStorage.setItem('ungana_language', localStorage.getItem('synapsis_language')!);
+                setLanguage(localStorage.getItem('synapsis_language')!);
+            }
+
+            // 2. Saved Cases
+            if (!localStorage.getItem('ungana_saved_cases') && localStorage.getItem('synapsis_saved_cases')) {
+                localStorage.setItem('ungana_saved_cases', localStorage.getItem('synapsis_saved_cases')!);
+                // Trigger reload of state below
+            }
+
+            // 3. Saved Snippets
+            if (!localStorage.getItem('ungana_saved_snippets') && localStorage.getItem('synapsis_saved_snippets')) {
+                localStorage.setItem('ungana_saved_snippets', localStorage.getItem('synapsis_saved_snippets')!);
+            }
+
+            // 4. Generation Count
+            if (!localStorage.getItem('ungana_generation_count') && localStorage.getItem('synapsis_generation_count')) {
+                localStorage.setItem('ungana_generation_count', localStorage.getItem('synapsis_generation_count')!);
+            }
+
+            // 5. Evaluation Data
+            if (!localStorage.getItem('ungana_trial_start_date') && localStorage.getItem('synapsis_trial_start_date')) {
+                localStorage.setItem('ungana_trial_start_date', localStorage.getItem('synapsis_trial_start_date')!);
+            }
+            if (!localStorage.getItem('ungana_feedback_submitted') && localStorage.getItem('synapsis_feedback_submitted')) {
+                localStorage.setItem('ungana_feedback_submitted', localStorage.getItem('synapsis_feedback_submitted')!);
+            }
+            
+            // Force update document title for branding
+            document.title = "Ungana Medical";
+
+        } catch (e) {
+            console.error("Migration error:", e);
+        }
+    }, []);
+
     // Check evaluation status on load
     useEffect(() => {
         const urlParams = new URLSearchParams(window.location.search);
@@ -136,15 +177,15 @@ export const App: React.FC = () => {
         }
 
         try {
-            const trialStartDateStr = localStorage.getItem('synapsis_trial_start_date');
-            const hasSubmitted = localStorage.getItem('synapsis_feedback_submitted') === 'true';
+            const trialStartDateStr = localStorage.getItem('ungana_trial_start_date');
+            const hasSubmitted = localStorage.getItem('ungana_feedback_submitted') === 'true';
 
             let trialStartDate: Date;
             if (trialStartDateStr) {
                 trialStartDate = new Date(trialStartDateStr);
             } else {
                 trialStartDate = new Date();
-                localStorage.setItem('synapsis_trial_start_date', trialStartDate.toISOString());
+                localStorage.setItem('ungana_trial_start_date', trialStartDate.toISOString());
             }
 
             const now = new Date();
@@ -172,9 +213,9 @@ export const App: React.FC = () => {
         }
 
         try {
-            const cases = JSON.parse(localStorage.getItem('synapsis_saved_cases') || '[]');
-            const snippets = JSON.parse(localStorage.getItem('synapsis_saved_snippets') || '[]');
-            const count = parseInt(localStorage.getItem('synapsis_generation_count') || '0', 10);
+            const cases = JSON.parse(localStorage.getItem('ungana_saved_cases') || '[]');
+            const snippets = JSON.parse(localStorage.getItem('ungana_saved_snippets') || '[]');
+            const count = parseInt(localStorage.getItem('ungana_generation_count') || '0', 10);
             setSavedCases(cases);
             setSavedSnippets(snippets);
             setGenerationCount(count);
@@ -229,11 +270,11 @@ export const App: React.FC = () => {
     
     const handleLanguageChange = (langCode: string) => {
         setLanguage(langCode);
-        localStorage.setItem('synapsis_language', langCode);
+        localStorage.setItem('ungana_language', langCode);
     };
 
     const handleFeedbackSubmitted = () => {
-        localStorage.setItem('synapsis_feedback_submitted', 'true');
+        localStorage.setItem('ungana_feedback_submitted', 'true');
         setShowEvaluationScreen(false);
     };
 
@@ -256,7 +297,7 @@ export const App: React.FC = () => {
 
             const newCount = generationCount + 1;
             setGenerationCount(newCount);
-            localStorage.setItem('synapsis_generation_count', String(newCount));
+            localStorage.setItem('ungana_generation_count', String(newCount));
             
             // Stage 2: Generate remaining details and map in parallel
             const promises = [
@@ -330,7 +371,7 @@ export const App: React.FC = () => {
         };
         const updatedCases = [...savedCases, newSavedCase];
         setSavedCases(updatedCases);
-        localStorage.setItem('synapsis_saved_cases', JSON.stringify(updatedCases));
+        localStorage.setItem('ungana_saved_cases', JSON.stringify(updatedCases));
         setInteractionState(prev => ({...prev, caseSaved: true }));
         alert('Case saved successfully!');
     };
@@ -348,7 +389,7 @@ export const App: React.FC = () => {
     const handleDeleteCase = (caseId: string) => {
         const updatedCases = savedCases.filter(c => c.id !== caseId);
         setSavedCases(updatedCases);
-        localStorage.setItem('synapsis_saved_cases', JSON.stringify(updatedCases));
+        localStorage.setItem('ungana_saved_cases', JSON.stringify(updatedCases));
     };
 
     const handleSaveSnippet = (title: string, content: string) => {
@@ -361,14 +402,14 @@ export const App: React.FC = () => {
         };
         const updatedSnippets = [...savedSnippets, newSnippet];
         setSavedSnippets(updatedSnippets);
-        localStorage.setItem('synapsis_saved_snippets', JSON.stringify(updatedSnippets));
+        localStorage.setItem('ungana_saved_snippets', JSON.stringify(updatedSnippets));
         setInteractionState(prev => ({ ...prev, snippetSaved: true }));
     };
     
     const handleDeleteSnippet = (snippetId: string) => {
         const updatedSnippets = savedSnippets.filter(s => s.id !== snippetId);
         setSavedSnippets(updatedSnippets);
-        localStorage.setItem('synapsis_saved_snippets', JSON.stringify(updatedSnippets));
+        localStorage.setItem('ungana_saved_snippets', JSON.stringify(updatedSnippets));
     };
     
     const handlePatientCaseUpdate = (updatedCase: PatientCase) => {
