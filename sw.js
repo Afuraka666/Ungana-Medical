@@ -4,12 +4,12 @@ self.addEventListener('message', event => {
   }
 });
 
-const CACHE_NAME = 'ungana-medical-cache-v20';
+const CACHE_NAME = 'ungana-medical-cache-v25';
 const URLS_TO_CACHE = [
   '/',
   '/index.html',
   '/index.tsx',
-  '/favicon.svg?v=3',
+  '/favicon.svg?v=5',
   'https://cdn.tailwindcss.com',
   'https://d3js.org/d3.v7.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
@@ -23,7 +23,7 @@ self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
-        console.log('Opened cache and caching app shell v20');
+        console.log('Opened cache and caching app shell v25');
         return cache.addAll(URLS_TO_CACHE);
       })
   );

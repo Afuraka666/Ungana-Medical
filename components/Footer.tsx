@@ -13,7 +13,7 @@ export const Footer: React.FC<FooterProps> = ({ T, evaluationDaysRemaining, onOp
     return (
         <footer className={`bg-gray-200 text-xs text-gray-600 p-3 border-t border-gray-300 ${className || ''}`}>
             <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-center sm:justify-between items-center gap-2">
-                <span className="hidden sm:block flex-1 text-left">© {currentYear} Ungana Medical. All rights reserved.</span>
+                <span className="hidden sm:block flex-1 text-left">© {currentYear} Samuel Sibanda. All rights reserved. Ungana Medical.</span>
                 
                 <button 
                     onClick={onOpenFeedback} 
