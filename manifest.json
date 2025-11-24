@@ -4,18 +4,18 @@
   "description": "An AI-enhanced application for medical students to integrate knowledge across disciplines.",
   "icons": [
     {
-      "src": "/favicon.svg?v=7",
+      "src": "/favicon.svg?v=8",
       "type": "image/svg+xml",
       "sizes": "any",
       "purpose": "any"
     },
     {
-      "src": "/icons/icon-192x192.png?v=7",
+      "src": "/icons/icon-192x192.png?v=8",
       "type": "image/png",
       "sizes": "192x192"
     },
     {
-      "src": "/icons/icon-512x512.png?v=7",
+      "src": "/icons/icon-512x512.png?v=8",
       "type": "image/png",
       "sizes": "512x512"
     }

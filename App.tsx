@@ -160,8 +160,27 @@ export const App: React.FC = () => {
                 localStorage.setItem('ungana_feedback_submitted', localStorage.getItem('synapsis_feedback_submitted')!);
             }
             
-            // Force update document title for branding
+            // Force update document title and meta tags for branding immediately
             document.title = "Ungana Medical";
+            
+            const updateMeta = (property: string, content: string) => {
+                let tag = document.querySelector(`meta[property="${property}"]`) || document.querySelector(`meta[name="${property}"]`);
+                if (!tag) {
+                    tag = document.createElement('meta');
+                    if (property.startsWith('og:')) {
+                        tag.setAttribute('property', property);
+                    } else {
+                        tag.setAttribute('name', property);
+                    }
+                    document.head.appendChild(tag);
+                }
+                tag.setAttribute('content', content);
+            };
+            
+            updateMeta('og:title', 'Ungana Medical');
+            updateMeta('og:site_name', 'Ungana Medical');
+            updateMeta('application-name', 'Ungana Medical');
+            updateMeta('apple-mobile-web-app-title', 'Ungana Medical');
 
         } catch (e) {
             console.error("Migration error:", e);
