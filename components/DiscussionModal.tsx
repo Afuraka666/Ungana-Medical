@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import type { DisciplineSpecificConsideration, ChatMessage } from '../types';
 import { GoogleGenAI, Chat, GenerateContentResponse, Content } from "@google/genai";
@@ -68,9 +67,14 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
                 setIsSaved(false);
             }
 
+            // Using gemini-3-pro-preview with thinking budget for deeper reasoning
+            // especially useful for complex medical topics (physics, physiology).
             chatRef.current = ai.chats.create({
-              model: 'gemini-2.5-flash',
-              config: { systemInstruction },
+              model: 'gemini-3-pro-preview',
+              config: { 
+                  systemInstruction,
+                  thinkingConfig: { thinkingBudget: 32768 }
+              },
               history: chatHistory
             });
             

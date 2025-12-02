@@ -1,11 +1,23 @@
-
-
 import { GoogleGenAI, Type, GenerateContentResponse, Modality, GenerateImagesResponse } from "@google/genai";
 import type { PatientCase, KnowledgeMapData, KnowledgeNode, KnowledgeLink, TraceableEvidence, FurtherReading, DiagramData } from '../types';
 
 const getAiClient = () => {
     return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
+
+// Configuration for Thinking Mode (Gemini 3 Pro)
+// Used for complex reasoning tasks like case generation, pathophysiology explanation, and diagram logic.
+const THINKING_MODEL = "gemini-3-pro-preview";
+const THINKING_CONFIG = {
+    thinkingConfig: { thinkingBudget: 32768 } // Max budget for deep reasoning
+};
+
+// Configuration for Fast/Utility tasks
+const FAST_MODEL = "gemini-2.5-flash";
+
+const SYNTHESIS_GUIDELINE = `
+**Guideline:** When discussing concepts, equations, graphs, and diagrams, examples from traceable references may be used to enhance clarification. If there is synthesis of any of the above mentioned, the bases (evidence) must be provided and a synthesis label (e.g., "[Synthesis]") must be attached to the synthesised item.
+`;
 
 /**
  * A utility function to retry an API call with exponential backoff.
@@ -303,13 +315,16 @@ export const getConceptAbstract = async (concept: string, caseContext: string, l
     const prompt = `
         In the context of a patient with "${caseContext}", provide a concise, one-paragraph abstract (around 50-70 words) explaining the significance of "${concept}".
         The explanation should be stimulating for a medical student, highlighting its importance and encouraging further exploration of its connections.
+        
+        ${SYNTHESIS_GUIDELINE}
+
         Please provide the response in the following language: ${language}.
     `;
     const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: THINKING_MODEL,
         contents: prompt,
         config: {
-            temperature: 0.4,
+            ...THINKING_CONFIG,
         },
     }));
     return response.text;
@@ -347,7 +362,6 @@ const getDifficultyInstructions = (difficulty: string) => {
 
 export const generateCorePatientCase = async (condition: string, discipline: string, difficulty: string, language: string): Promise<PatientCase> => {
     const ai = getAiClient();
-    const model = "gemini-2.5-flash";
     const difficultyInstructions = getDifficultyInstructions(difficulty);
 
     const prompt = `
@@ -357,6 +371,8 @@ export const generateCorePatientCase = async (condition: string, discipline: str
         **Crucially, tailor the case for a student in **${discipline}**.
 
         ${difficultyInstructions}
+        
+        ${SYNTHESIS_GUIDELINE}
 
         **Your task is to generate ONLY the following sections:**
         1.  **title:** A concise title for the case.
@@ -371,12 +387,12 @@ export const generateCorePatientCase = async (condition: string, discipline: str
     `;
 
     const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
-        model: model,
+        model: THINKING_MODEL,
         contents: prompt,
         config: {
+            ...THINKING_CONFIG,
             responseMimeType: "application/json",
             responseSchema: corePatientCaseSchema,
-            temperature: 0.4,
         },
     }));
     
@@ -395,7 +411,6 @@ const generateCasePart = async (
     responseSchema: any
 ) => {
     const ai = getAiClient();
-    const model = "gemini-2.5-flash";
     const difficultyInstructions = getDifficultyInstructions(difficulty);
 
     const coreCaseContext = `
@@ -415,6 +430,8 @@ const generateCasePart = async (
         **Crucially, tailor the content for a student in **${discipline}**.
 
         ${difficultyInstructions}
+        
+        ${SYNTHESIS_GUIDELINE}
 
         **Your task is to generate ONLY the following sections:**
         ${taskDescription}
@@ -424,12 +441,12 @@ const generateCasePart = async (
   `;
 
     const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
-        model: model,
+        model: THINKING_MODEL,
         contents: prompt,
         config: {
+            ...THINKING_CONFIG,
             responseMimeType: "application/json",
             responseSchema: responseSchema,
-            temperature: 0.4,
         },
     }));
 
@@ -468,7 +485,6 @@ export const generateKnowledgeMap = async (coreCase: PatientCase, discipline: st
 
 export const enrichCaseWithWebSources = async (patientCase: PatientCase, language: string): Promise<{ newEvidence: TraceableEvidence[]; newReadings: FurtherReading[]; groundingSources: any[] }> => {
     const ai = getAiClient();
-    const model = "gemini-2.5-flash";
 
     const prompt = `
         Regarding the patient case titled "${patientCase.title}", which involves "${patientCase.presentingComplaint}", please act as a medical research assistant.
@@ -497,7 +513,7 @@ export const enrichCaseWithWebSources = async (patientCase: PatientCase, languag
     `;
 
     const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
-        model: model,
+        model: FAST_MODEL,
         contents: prompt,
         config: {
             tools: [{ googleSearch: {} }],
@@ -530,7 +546,6 @@ export const enrichCaseWithWebSources = async (patientCase: PatientCase, languag
 
 export const searchForSource = async (sourceQuery: string, language: string): Promise<{ summary: string; sources: any[] }> => {
     const ai = getAiClient();
-    const model = "gemini-2.5-flash";
 
     const prompt = `
         Please act as a medical research assistant. Use Google Search to find information about the following medical source: "${sourceQuery}".
@@ -543,7 +558,7 @@ export const searchForSource = async (sourceQuery: string, language: string): Pr
     `;
 
     const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
-        model: model,
+        model: FAST_MODEL,
         contents: prompt,
         config: {
             tools: [{ googleSearch: {} }],
@@ -603,10 +618,13 @@ export const interpretEcg = async (findings: EcgFindings, imageBase64: string | 
         });
     }
 
+    // ECG Interpretation benefits from thinking mode
     const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: THINKING_MODEL,
         contents: { parts: contentParts },
-        config: { temperature: 0.3 }
+        config: { 
+            ...THINKING_CONFIG 
+        }
     }));
 
     return response.text;
@@ -639,7 +657,6 @@ export const generateVisualAid = async (prompt: string): Promise<string> => {
 
 export const checkDrugInteractions = async (drugNames: string[], language: string): Promise<string> => {
     const ai = getAiClient();
-    const model = "gemini-2.5-flash";
 
     const prompt = `
         As an expert clinical pharmacologist, analyze the following list of paediatric drugs for potential interactions. For each clinically significant interaction you identify, provide a concise summary in Markdown format.
@@ -657,7 +674,7 @@ export const checkDrugInteractions = async (drugNames: string[], language: strin
     `;
 
     const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
-        model: model,
+        model: FAST_MODEL,
         contents: prompt,
         config: {
             temperature: 0.2,
@@ -701,13 +718,16 @@ export const getConceptConnectionExplanation = async (conceptA: string, conceptB
         For a medical student studying a patient case about "${caseContext}", explain the pathophysiological or clinical connection between "${conceptA}" and "${conceptB}".
         Keep the explanation concise (2-3 sentences, around 70-90 words) and focused on the most critical link between them in this specific medical context.
         The tone should be educational and clear.
+        
+        ${SYNTHESIS_GUIDELINE}
+
         Please provide the response in the following language: ${language}.
     `;
     const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: THINKING_MODEL,
         contents: prompt,
         config: {
-            temperature: 0.4,
+            ...THINKING_CONFIG,
         },
     }));
     return response.text;
@@ -715,7 +735,6 @@ export const getConceptConnectionExplanation = async (conceptA: string, conceptB
 
 export const generateDiagramForDiscussion = async (prompt: string, chatContext: string, language: string): Promise<DiagramData> => {
     const ai = getAiClient();
-    const model = "gemini-2.5-flash";
 
     const fullPrompt = `
         You are an assistant creating educational visual aids for a medical student during a tutoring session.
@@ -739,12 +758,12 @@ export const generateDiagramForDiscussion = async (prompt: string, chatContext: 
     `;
 
     const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
-        model: model,
+        model: THINKING_MODEL,
         contents: fullPrompt,
         config: {
+            ...THINKING_CONFIG,
             responseMimeType: "application/json",
             responseSchema: diagramDataSchema,
-            temperature: 0.3,
         },
     }));
 
