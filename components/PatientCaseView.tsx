@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useReducer } from 'react';
 import { EducationalContentType, Discipline } from '../types';
 import type { PatientCase, EducationalContent, QuizQuestion, DisciplineSpecificConsideration, MultidisciplinaryConnection, TraceableEvidence, FurtherReading, ProcedureDetails, PatientOutcome, KnowledgeMapData } from '../types';
@@ -10,6 +9,7 @@ import { InteractiveDiagram } from './InteractiveDiagram';
 import { SourceSearchModal } from './SourceSearchModal';
 import { enrichCaseWithWebSources, getConceptAbstract } from '../services/geminiService';
 import { DisciplineIcon } from './DisciplineIcon';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 interface PatientCaseViewProps {
   patientCase: PatientCase;
@@ -655,7 +655,9 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
             onChange={onChange}
             className="w-full p-2 border border-blue-200 rounded-md focus:ring-2 focus:ring-brand-blue-light transition bg-blue-50/50 text-black resize-none"
         />
-    ) : <p className="whitespace-pre-wrap">{value}</p>;
+    ) : (
+        <MarkdownRenderer content={value} />
+    );
   };
   
   return (
@@ -741,7 +743,9 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
                     </button>
                 </div>
                 <p className="text-xs text-gray-500 italic mb-2">{patientCase.biochemicalPathway.reference}</p>
-                <p className="whitespace-pre-wrap">{patientCase.biochemicalPathway.description}</p>
+                <div className="mt-2">
+                    <MarkdownRenderer content={patientCase.biochemicalPathway.description} />
+                </div>
                 {patientCase.biochemicalPathway.diagramData && <div className="mt-4 h-80 rounded-lg border border-gray-200"><InteractiveDiagram id="diagram-biochem" data={patientCase.biochemicalPathway.diagramData} /></div>}
             </Section>
         ) : isGeneratingDetails ? (
@@ -752,14 +756,37 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
             <Section title={T.multidisciplinaryConnections} onCopy={() => {}} onSaveSnippet={() => onSaveSnippet(T.multidisciplinaryConnections, patientCase.multidisciplinaryConnections!.map(c => `${c.discipline}: ${c.connection}`).join('\n'))} T={T}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {patientCase.multidisciplinaryConnections.map((conn, index) => (
-                        <div key={index} className="bg-gray-50 border border-gray-200 rounded-lg p-4 transition hover:shadow-md hover:border-blue-200">
-                            <div className="flex items-center mb-2">
-                                <div className="p-2 rounded-full mr-3" style={{ backgroundColor: `${DisciplineColors[conn.discipline]}20` }}>
-                                    <DisciplineIcon discipline={conn.discipline} className="h-5 w-5" style={{ color: DisciplineColors[conn.discipline] }} />
+                        <div 
+                            key={index} 
+                            onClick={() => onOpenDiscussion({ aspect: conn.discipline, consideration: conn.connection })}
+                            className="bg-gray-50 border border-gray-200 rounded-lg p-4 transition hover:shadow-md hover:border-blue-300 flex flex-col justify-between h-full cursor-pointer group"
+                        >
+                            <div>
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center">
+                                        <div className="p-2 rounded-full mr-3 group-hover:bg-blue-100 transition-colors" style={{ backgroundColor: `${DisciplineColors[conn.discipline]}20` }}>
+                                            <DisciplineIcon discipline={conn.discipline} className="h-5 w-5" style={{ color: DisciplineColors[conn.discipline] }} />
+                                        </div>
+                                        <h5 className="font-bold group-hover:text-brand-blue transition-colors" style={{ color: DisciplineColors[conn.discipline] }}>{conn.discipline}</h5>
+                                    </div>
                                 </div>
-                                <h5 className="font-bold" style={{ color: DisciplineColors[conn.discipline] }}>{conn.discipline}</h5>
+                                <div className="text-sm text-gray-700 leading-relaxed mb-3">
+                                    <MarkdownRenderer content={conn.connection} />
+                                </div>
                             </div>
-                            <p className="text-sm text-gray-700 leading-relaxed">{conn.connection}</p>
+                            {/* Explicit Button - now always visible */}
+                            <div className="mt-2 flex justify-end">
+                                <button 
+                                    onClick={(e) => {
+                                        e.stopPropagation(); 
+                                        onOpenDiscussion({ aspect: conn.discipline, consideration: conn.connection });
+                                    }} 
+                                    className="flex items-center space-x-1.5 text-xs bg-brand-blue text-white hover:bg-blue-700 font-semibold py-2 px-4 rounded-md transition shadow-sm"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
+                                    <span>{T.discussButton}</span>
+                                </button>
+                            </div>
                         </div>
                     ))}
                 </div>
@@ -777,7 +804,9 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
                                 <strong className="text-gray-800">{item.aspect}</strong>
                                 <button onClick={() => onOpenDiscussion(item)} title={T.discussButton} className="text-sm bg-blue-100 hover:bg-blue-200 text-brand-blue font-semibold py-1 px-3 rounded-md transition">{T.discussButton}</button>
                             </div>
-                            <p className="mt-1">{item.consideration}</p>
+                            <div className="mt-1">
+                                <MarkdownRenderer content={item.consideration} />
+                            </div>
                         </li>
                     ))}
                 </ul>
@@ -809,7 +838,9 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
                                     </button>
                                 </div>
                             </div>
-                            <p className="mt-2">{item.description}</p>
+                            <div className="mt-2">
+                                <MarkdownRenderer content={item.description} />
+                            </div>
                             {item.diagramData && <div className="mt-3 h-72 rounded-lg border border-gray-200 bg-white"><InteractiveDiagram id={`diagram-edu-${index}`} data={item.diagramData} /></div>}
                             {item.imageData && (
                                 <div className="mt-3">

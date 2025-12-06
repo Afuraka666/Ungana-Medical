@@ -3,6 +3,7 @@ import type { DisciplineSpecificConsideration, ChatMessage } from '../types';
 import { GoogleGenAI, Chat, GenerateContentResponse, Content } from "@google/genai";
 import { retryWithBackoff, generateDiagramForDiscussion } from '../services/geminiService';
 import { InteractiveDiagram } from './InteractiveDiagram';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 interface DiscussionModalProps {
     isOpen: boolean;
@@ -44,6 +45,10 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
             
             **Guideline:** When discussing concepts, equations, graphs, and diagrams, examples from traceable references may be used to enhance clarification. If there is synthesis of any of the above mentioned, the bases (evidence) must be provided and a synthesis label (e.g., "[Synthesis]") must be attached to the synthesised item.
 
+            **Formatting:** Use standard LaTeX formatting for all mathematical equations, formulas, and physics concepts.
+            - Inline math: Enclose in single dollar signs, e.g., $E = mc^2$, $EtCO_2$.
+            - Block math: Enclose in double dollar signs, e.g., $$F = ma$$.
+
             When providing factual information or clinical guidance, you MUST cite traceable, high-quality evidence (e.g., from systematic reviews, RCTs, or major clinical guidelines). Use a clear citation format like '[Source: JAMA 2023]'. Respond in the following language: ${language}.`;
             
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -67,8 +72,6 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
                 setIsSaved(false);
             }
 
-            // Using gemini-3-pro-preview with thinking budget for deeper reasoning
-            // especially useful for complex medical topics (physics, physiology).
             chatRef.current = ai.chats.create({
               model: 'gemini-3-pro-preview',
               config: { 
@@ -287,7 +290,12 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
                             <div key={index} className={`flex items-end gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                 {msg.role === 'model' && <div className="w-6 h-6 bg-brand-blue text-white rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold">AI</div>}
                                 <div className={`max-w-xs md:max-w-sm px-4 py-2 rounded-2xl text-sm ${msg.role === 'user' ? 'bg-brand-blue text-white rounded-br-none' : msg.role === 'model' ? 'bg-gray-200 text-brand-text rounded-bl-none' : 'text-center w-full text-gray-500 italic'}`}>
-                                    <p className="whitespace-pre-wrap">{msg.text}</p>
+                                    {/* Use MarkdownRenderer for model messages to support Math */}
+                                    {msg.role === 'model' ? (
+                                        <MarkdownRenderer content={msg.text} />
+                                    ) : (
+                                        <p className="whitespace-pre-wrap">{msg.text}</p>
+                                    )}
                                      {msg.diagramData && (
                                         <div className="mt-2 h-64 w-full rounded-lg border border-gray-300 bg-white">
                                             <InteractiveDiagram data={msg.diagramData} />
