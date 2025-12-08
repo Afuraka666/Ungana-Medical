@@ -260,9 +260,9 @@ export const KnowledgeMap = forwardRef<any, KnowledgeMapProps>(({
     const svgRef = useRef<SVGSVGElement | null>(null);
     const containerRef = useRef<HTMLDivElement | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-    const simulationRef = useRef<any>();
-    const zoomRef = useRef<any>();
-    const gRef = useRef<any>();
+    const simulationRef = useRef<any>(null);
+    const zoomRef = useRef<any>(null);
+    const gRef = useRef<any>(null);
 
     const [contextMenu, setContextMenu] = useState<{ position: { x: number; y: number }; node: KnowledgeNode } | null>(null);
     const [explanationModal, setExplanationModal] = useState<{ source: KnowledgeNode; target: KnowledgeNode } | null>(null);

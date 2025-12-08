@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useId, useState, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import type { DiagramData, DiagramNode as DiagramNodeType, DiagramLink as DiagramLinkType } from '../types';
@@ -18,9 +19,9 @@ export const InteractiveDiagram: React.FC<InteractiveDiagramProps> = ({ data, id
   const [selectedElement, setSelectedElement] = useState<DiagramNodeType | DiagramLinkType | null>(null);
   const [isDiagramFullscreen, setIsDiagramFullscreen] = useState(false);
 
-  const simulationRef = useRef<any>();
-  const zoomRef = useRef<any>();
-  const gRef = useRef<any>();
+  const simulationRef = useRef<any>(null);
+  const zoomRef = useRef<any>(null);
+  const gRef = useRef<any>(null);
 
   // We use refs to persist the simulation nodes/links state (positions/velocities)
   // to avoid resetting physics when the component re-renders.

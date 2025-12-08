@@ -758,7 +758,10 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
                     {patientCase.multidisciplinaryConnections.map((conn, index) => (
                         <div 
                             key={index} 
-                            onClick={() => onOpenDiscussion({ aspect: conn.discipline, consideration: conn.connection })}
+                            onClick={(e) => {
+                                // Make the entire card clickable
+                                onOpenDiscussion({ aspect: conn.discipline, consideration: conn.connection });
+                            }}
                             className="bg-gray-50 border border-gray-200 rounded-lg p-4 transition hover:shadow-md hover:border-blue-300 flex flex-col justify-between h-full cursor-pointer group"
                         >
                             <div>
@@ -774,19 +777,18 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
                                     <MarkdownRenderer content={conn.connection} />
                                 </div>
                             </div>
+                            
                             {/* Explicit Button - now always visible */}
-                            <div className="mt-2 flex justify-end">
-                                <button 
-                                    onClick={(e) => {
-                                        e.stopPropagation(); 
-                                        onOpenDiscussion({ aspect: conn.discipline, consideration: conn.connection });
-                                    }} 
-                                    className="flex items-center space-x-1.5 text-xs bg-brand-blue text-white hover:bg-blue-700 font-semibold py-2 px-4 rounded-md transition shadow-sm"
-                                >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
-                                    <span>{T.discussButton}</span>
-                                </button>
-                            </div>
+                            <button 
+                                onClick={(e) => {
+                                    e.stopPropagation(); // Prevent double triggering
+                                    onOpenDiscussion({ aspect: conn.discipline, consideration: conn.connection });
+                                }} 
+                                className="self-end mt-2 flex items-center space-x-1 text-xs bg-white border border-blue-200 text-brand-blue hover:bg-blue-50 font-semibold py-1.5 px-3 rounded-md transition shadow-sm"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
+                                <span>{T.discussButton}</span>
+                            </button>
                         </div>
                     ))}
                 </div>
