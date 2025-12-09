@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 
 // Components
 import { Header } from './components/Header';
@@ -123,7 +123,14 @@ export const App: React.FC = () => {
     const lastScrollTop = useRef(0);
     const caseScrollRef = useRef<HTMLDivElement>(null);
 
-    const T = translations[language] || translations.en;
+    // Merge selected language with English fallback to ensure all keys exist
+    const T = useMemo(() => {
+        const selectedTranslation = translations[language];
+        // If the language doesn't exist at all, default to English
+        if (!selectedTranslation) return translations.en;
+        // If it exists, merge it over English so missing keys fall back to English
+        return { ...translations.en, ...selectedTranslation };
+    }, [language]);
     
     // -- EFFECTS --
 
