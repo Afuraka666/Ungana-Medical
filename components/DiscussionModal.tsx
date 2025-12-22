@@ -9,6 +9,23 @@ import { MarkdownRenderer } from './MarkdownRenderer';
 const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 const isSpeechRecognitionSupported = !!SpeechRecognition;
 
+// Helper to map app language to BCP-47 for speech recognition
+const getBCP47Language = (lang: string): string => {
+    const map: Record<string, string> = {
+        'en': 'en-US',
+        'es': 'es-ES',
+        'fr': 'fr-FR',
+        'zh': 'zh-CN',
+        'hi': 'hi-IN',
+        'sw': 'sw-KE',
+        'ar': 'ar-SA',
+        'pt': 'pt-PT',
+        'ru': 'ru-RU',
+        'el': 'el-GR',
+    };
+    return map[lang] || 'en-US';
+};
+
 interface DiscussionModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -45,6 +62,7 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
 
     // Voice Input State
     const [isListening, setIsListening] = useState(false);
+    const [micError, setMicError] = useState<string | null>(null);
     const recognitionRef = useRef<any>(null);
 
     useEffect(() => {
@@ -55,8 +73,8 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
 
             **Molecular Formulas & Notations:** 
             Always use Unicode subscript characters (e.g., ₀, ₁, ₂, ₃, ₄, ₅, ₆, ₇, ₈, ₉) and superscript characters (e.g., ⁰, ¹, ², ³, ⁴, ⁵, ⁶, ⁷, ⁸, ⁹, ⁺, ⁻) for all formulas. 
-            - Examples: CO₂, SpO₂, H₂O, C₆H₁₂O₆, Na⁺, Cl⁻, Ca²⁺, HCO₃⁻. 
-            - **CRITICAL:** DO NOT use LaTeX symbols ($), math mode, or markdown bolding for chemical/molecular formulas. Use plain text with Unicode subscripts/superscripts only.
+            - Examples: CO₂, SpO₂, SaO₂, H₂O, C₆H₁₂O₆, Na⁺, Cl⁻, Ca²⁺, HCO₃⁻, PO₄³⁻. 
+            - **CRITICAL:** DO NOT use LaTeX symbols ($), math mode, or markdown bolding for chemical/molecular/clinical formulas. Use plain text with Unicode subscripts/superscripts only.
 
             **Formatting:** Use standard LaTeX formatting for complex mathematical equations, formulas, and physics concepts ONLY.
             - Inline math: Enclose in single dollar signs, e.g., $E = mc^2$.
@@ -97,6 +115,7 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
             chatRef.current = null;
             setIsSaved(false);
             setShowShareMenu(false);
+            setMicError(null);
             if (recognitionRef.current) recognitionRef.current.abort();
         }
     }, [isOpen, topic, caseTitle, language, T, initialHistory, topicId]);
@@ -107,22 +126,42 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
         const recognition = new SpeechRecognition();
         recognition.continuous = false;
         recognition.interimResults = false;
-        recognition.onstart = () => setIsListening(true);
-        recognition.onend = () => setIsListening(false);
+        
+        recognition.onstart = () => {
+            setIsListening(true);
+            setMicError(null);
+        };
+        
+        recognition.onend = () => {
+            setIsListening(false);
+        };
+        
+        recognition.onerror = (event: any) => {
+            console.error('Discussion Mic Error:', event.error);
+            if (event.error === 'not-allowed') setMicError(T.micPermissionError);
+            else setMicError(T.micGenericError);
+            setIsListening(false);
+        };
+
         recognition.onresult = (event: any) => {
             const transcript = event.results[0][0].transcript;
             setUserInput(prev => (prev ? `${prev} ${transcript}` : transcript));
         };
+        
         recognitionRef.current = recognition;
-    }, []);
+    }, [T.micPermissionError, T.micGenericError]);
 
     const handleMicClick = () => {
         if (!recognitionRef.current) return;
         if (isListening) {
             recognitionRef.current.stop();
         } else {
-            recognitionRef.current.lang = language;
-            recognitionRef.current.start();
+            try {
+                recognitionRef.current.lang = getBCP47Language(language);
+                recognitionRef.current.start();
+            } catch (err) {
+                console.error("Failed to start speech recognition:", err);
+            }
         }
     };
 
@@ -351,6 +390,12 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
                 </main>
 
                 <footer className="p-4 border-t border-gray-200 bg-white rounded-b-xl z-10">
+                    {micError && (
+                        <div className="mb-2 text-xs text-red-600 flex items-center gap-1 bg-red-50 p-1 rounded animate-fade-in">
+                            <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"></path></svg>
+                            {micError}
+                        </div>
+                    )}
                     {isGeneratingDiagram && (
                         <form onSubmit={handleGenerateDiagram} className="p-2 border border-gray-200 rounded-lg mb-2 bg-gray-50 animate-fade-in">
                             <label htmlFor="diagram-prompt" className="text-xs font-semibold text-gray-600">Describe the diagram or graph you want to see:</label>
@@ -390,7 +435,7 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
                                 type="button"
                                 onClick={handleMicClick}
                                 disabled={isLoading}
-                                className={`flex items-center gap-1.5 px-3 py-2 rounded-md border transition flex-shrink-0 ${isListening ? 'text-red-500 border-red-500 bg-red-50 animate-pulse' : 'text-gray-600 border-gray-300 bg-white hover:bg-gray-100'}`}
+                                className={`flex items-center gap-1.5 px-3 py-2 rounded-md border transition flex-shrink-0 ${isListening ? 'text-red-500 border-red-500 bg-red-50 animate-pulse shadow-inner' : 'text-gray-600 border-gray-300 bg-white hover:bg-gray-100 shadow-sm'}`}
                                 title="Speech to Text"
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
