@@ -23,6 +23,12 @@ const SYNTHESIS_GUIDELINE = `
 Always use Unicode subscript characters (e.g., ₀, ₁, ₂, ₃, ₄, ₅, ₆, ₇, ₈, ₉) and superscript characters (e.g., ⁰, ¹, ², ³, ⁴, ⁵, ⁶, ⁷, ⁸, ⁹, ⁺, ⁻) for all formulas. 
 - Examples: CO₂, SpO₂, SaO₂, H₂O, C₆H₁₂O₆, Na⁺, Cl⁻, Ca²⁺, HCO₃⁻, PO₄³⁻. 
 - **CRITICAL:** DO NOT use LaTeX symbols ($), math mode, or markdown bolding for chemical/molecular/clinical formulas. Use plain text with Unicode subscripts/superscripts only.
+
+**Regional Anaesthesia Guideline:**
+If a regional block is suggested or mentioned, especially for analgesia, you MUST provide:
+1.  **A specific block name** (e.g., ESP block, TAP block, Femoral Nerve Block).
+2.  **A specific dose per kg AND total volume dose** of a standard local anaesthetic (e.g., "0.25% Bupivacaine at 2mg/kg (approx. 0.8mL/kg)").
+3.  **The type of coverage** provided (explicitly state if it covers **somatosensory**, **visceral**, or **both**).
 `;
 
 /**
@@ -36,7 +42,7 @@ Always use Unicode subscript characters (e.g., ₀, ₁, ₂, ₃, ₄, ₅, ₆
 export const retryWithBackoff = async <T>(
   apiCall: () => Promise<T>,
   maxRetries = 5,
-  initialDelay = 1000
+  initialDelay = 2000 // Increased initial delay for better quota safety
 ): Promise<T> => {
   let attempt = 0;
   while (attempt < maxRetries) {
@@ -67,8 +73,8 @@ export const retryWithBackoff = async <T>(
       
       if (isRetryable && attempt < maxRetries) {
         // For rate limits (429), use a significantly longer backoff to allow quota to reset.
-        const backoffMultiplier = isRateLimit ? 3 : 2;
-        const delay = initialDelay * Math.pow(backoffMultiplier, attempt - 1) + Math.random() * 2000; 
+        const backoffMultiplier = isRateLimit ? 4 : 2;
+        const delay = initialDelay * Math.pow(backoffMultiplier, attempt - 1) + Math.random() * 3000; 
         
         console.warn(`API call failed with ${isRateLimit ? 'Rate Limit (429)' : 'Server Error'}. Attempt ${attempt}/${maxRetries}. Retrying in ${delay.toFixed(0)}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
@@ -208,7 +214,7 @@ const mainDetailsSchema = {
                 description: "The medical discipline (e.g., Pharmacology, Psychology, Sociology).",
                 enum: ["Biochemistry", "Pharmacology", "Physiology", "Psychology", "Sociology", "Pathology", "Immunology", "Genetics", "Diagnostics", "Treatment", "Physiotherapy", "Occupational Therapy"]
               },
-              connection: { type: Type.STRING, description: "A detailed explanation of how this discipline connects to the patient's case." },
+              connection: { type: Type.STRING, description: "A detailed explanation of how this discipline connects to the patient's case. If regional blocks are mentioned, include block name, dose per kg, volume dose, and somatosensory/visceral coverage." },
             },
             required: ["discipline", "connection"],
           },
@@ -227,7 +233,7 @@ const managementAndContentSchema = {
               type: Type.OBJECT,
               properties: {
                 aspect: { type: Type.STRING, description: "The specific aspect of care (e.g., 'Diagnostic Imaging', 'Post-operative Care', 'Patient Education')." },
-                consideration: { type: Type.STRING, description: "The detailed consideration or action plan for this aspect from the specified discipline's viewpoint." }
+                consideration: { type: Type.STRING, description: "The detailed consideration or action plan for this aspect from the specified discipline's viewpoint. If regional blocks are mentioned, include block name, dose per kg, volume dose, and somatosensory/visceral coverage." }
               },
               required: ["aspect", "consideration"]
             }
@@ -293,7 +299,7 @@ const knowledgeMapSchema = {
                         description: "The primary medical discipline this concept belongs to.",
                         enum: ["Biochemistry", "Pharmacology", "Physiology", "Psychology", "Sociology", "Pathology", "Immunology", "Genetics", "Diagnostics", "Treatment", "Physiotherapy", "Occupational Therapy"]
                     },
-                    summary: { type: Type.STRING, description: "A concise, one-paragraph abstract (50-70 words) explaining the node's significance in the context of the case." }
+                    summary: { type: Type.STRING, description: "A concise, one-paragraph abstract (50-70 words) explaining the node's significance in the context of the case. If regional blocks are mentioned, include block name, dose per kg, volume dose, and somatosensory/visceral coverage." }
                 },
                 required: ["id", "label", "discipline", "summary"]
             }

@@ -67,6 +67,7 @@ async function decodeAndDecompress(encodedString: string): Promise<any | null> {
     }
 }
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // FIX: Exported the App component to make it available for import.
 export const App: React.FC = () => {
@@ -327,21 +328,25 @@ export const App: React.FC = () => {
             localStorage.setItem('ungana_generation_count', String(newCount));
             
             // Stage 2: Generate remaining details and map SEQUENTIALLY to avoid quota (429) errors.
-            // Spacing them out slightly gives the API time to process without hitting parallel limits.
+            // Spacing them out significantly with sleep calls to ensure quota resets.
             
             try {
+                await sleep(1500);
                 // Task 1: Main Details
                 const mainDetails = await generateMainDetails(coreCase, discipline, difficulty, language);
                 setPatientCase(prev => prev ? { ...prev, ...mainDetails } : null);
                 
+                await sleep(2000);
                 // Task 2: Management & Content
                 const management = await generateManagementAndContent(coreCase, discipline, difficulty, language);
                 setPatientCase(prev => prev ? { ...prev, ...management } : null);
 
+                await sleep(2000);
                 // Task 3: Evidence & Quiz
                 const evidence = await generateEvidenceAndQuiz(coreCase, discipline, difficulty, language);
                 setPatientCase(prev => prev ? { ...prev, ...evidence } : null);
 
+                await sleep(2000);
                 // Task 4: Knowledge Map
                 const map = await generateKnowledgeMap(coreCase, discipline, difficulty, language);
                 setMapData(map);

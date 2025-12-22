@@ -78,6 +78,12 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
             - Examples: CO₂, SpO₂, SaO₂, H₂O, C₆H₁₂O₆, Na⁺, Cl⁻, Ca²⁺, HCO₃⁻, PO₄³⁻. 
             - **CRITICAL:** DO NOT use LaTeX symbols ($), math mode, or markdown bolding for chemical/molecular/clinical formulas. Use plain text with Unicode subscripts/superscripts only.
 
+            **Regional Anaesthesia Guideline:**
+            If you suggest or mention a regional block for analgesia, you MUST provide:
+            1.  A specific block name.
+            2.  A specific dose per kg of local anaesthetic.
+            3.  Explicitly state whether it covers somatosensory, visceral, or both.
+
             **Formatting:** Use standard LaTeX formatting for complex mathematical equations, formulas, and physics concepts ONLY.
             - Inline math: Enclose in single dollar signs, e.g., $E = mc^2$.
             - Block math: Enclose in double dollar signs.
