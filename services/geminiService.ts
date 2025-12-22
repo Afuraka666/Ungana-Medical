@@ -19,7 +19,10 @@ const FAST_MODEL = "gemini-2.5-flash";
 const SYNTHESIS_GUIDELINE = `
 **Guideline:** When discussing concepts, equations, graphs, and diagrams, examples from traceable references may be used to enhance clarification. If there is synthesis of any of the above mentioned, the bases (evidence) must be provided and a synthesis label (e.g., "[Synthesis]") must be attached to the synthesised item.
 
-**Molecular Formulas:** Use Unicode subscript characters (e.g., ₀, ₁, ₂, ₃, ₄, ₅, ₆, ₇, ₈, ₉) for chemical formulas like CO₂, H₂O, or C₆H₁₂O₆. DO NOT use LaTeX symbols ($) or markdown bolding for simple chemical notation.
+**Molecular Formulas & Notations:** 
+Always use Unicode subscript characters (e.g., ₀, ₁, ₂, ₃, ₄, ₅, ₆, ₇, ₈, ₉) and superscript characters (e.g., ⁰, ¹, ², ³, ⁴, ⁵, ⁶, ⁷, ⁸, ⁹, ⁺, ⁻) for all formulas. 
+- Examples: CO₂, SpO₂, H₂O, C₆H₁₂O₆, Na⁺, Cl⁻, Ca²⁺, HCO₃⁻. 
+- **CRITICAL:** DO NOT use LaTeX symbols ($), math mode, or markdown bolding for chemical/molecular formulas. Use plain text with Unicode subscripts/superscripts only.
 `;
 
 /**

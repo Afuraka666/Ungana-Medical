@@ -53,11 +53,14 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
             
             **Guideline:** When discussing concepts, equations, graphs, and diagrams, examples from traceable references may be used to enhance clarification. If there is synthesis of any of the above mentioned, the bases (evidence) must be provided and a synthesis label (e.g., "[Synthesis]") must be attached to the synthesised item.
 
-            **Molecular Formulas:** Use Unicode subscript characters (e.g., ₀, ₁, ₂, ₃, ₄, ₅, ₆, ₇, ₈, ₉) for chemical formulas like CO₂, H₂O, or C₆H₁₂O₆. DO NOT use LaTeX symbols ($) or markdown bolding for simple chemical notation.
+            **Molecular Formulas & Notations:** 
+            Always use Unicode subscript characters (e.g., ₀, ₁, ₂, ₃, ₄, ₅, ₆, ₇, ₈, ₉) and superscript characters (e.g., ⁰, ¹, ², ³, ⁴, ⁵, ⁶, ⁷, ⁸, ⁹, ⁺, ⁻) for all formulas. 
+            - Examples: CO₂, SpO₂, H₂O, C₆H₁₂O₆, Na⁺, Cl⁻, Ca²⁺, HCO₃⁻. 
+            - **CRITICAL:** DO NOT use LaTeX symbols ($), math mode, or markdown bolding for chemical/molecular formulas. Use plain text with Unicode subscripts/superscripts only.
 
             **Formatting:** Use standard LaTeX formatting for complex mathematical equations, formulas, and physics concepts ONLY.
-            - Inline math: Enclose in single dollar signs, e.g., $E = mc^2$, $EtCO_2$.
-            - Block math: Enclose in double dollar signs, e.g., $$F = ma$$.
+            - Inline math: Enclose in single dollar signs, e.g., $E = mc^2$.
+            - Block math: Enclose in double dollar signs.
 
             When providing factual information or clinical guidance, you MUST cite traceable, high-quality evidence (e.g., from systematic reviews, RCTs, or major clinical guidelines). Use a clear citation format like '[Source: JAMA 2023]'. Respond in the following language: ${language}.`;
             
@@ -387,12 +390,13 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
                                 type="button"
                                 onClick={handleMicClick}
                                 disabled={isLoading}
-                                className={`p-2 rounded-md border border-gray-300 bg-white hover:bg-gray-100 transition flex-shrink-0 ${isListening ? 'text-red-500 border-red-200 animate-pulse' : 'text-gray-600'}`}
+                                className={`flex items-center gap-1.5 px-3 py-2 rounded-md border transition flex-shrink-0 ${isListening ? 'text-red-500 border-red-500 bg-red-50 animate-pulse' : 'text-gray-600 border-gray-300 bg-white hover:bg-gray-100'}`}
                                 title="Speech to Text"
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                     <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm-1 4a4 4 0 108 0V4a4 4 0 10-8 0v4zM2 11a1 1 0 011-1h1a1 1 0 011 1v.5a.5.5 0 001 0V11a3 3 0 013-3h0a3 3 0 013 3v.5a.5.5 0 001 0V11a1 1 0 011 1h1a1 1 0 110 2h-1a1 1 0 01-1-1v-.5a2.5 2.5 0 00-5 0v.5a1 1 0 01-1 1H3a1 1 0 01-1-1v-2z" clipRule="evenodd" />
                                 </svg>
+                                <span className="hidden sm:inline text-xs font-bold uppercase tracking-tight">Voice</span>
                             </button>
                         )}
                         <input
