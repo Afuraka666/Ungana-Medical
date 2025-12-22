@@ -72,8 +72,8 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
             
             **Guideline:** When discussing concepts, equations, graphs, and diagrams, examples from traceable references may be used to enhance clarification. If there is synthesis of any of the above mentioned, the bases (evidence) must be provided and a synthesis label (e.g., "[Synthesis]") must be attached to the synthesised item.
 
-            **Molecular Formulas & Notations:** 
-            Always use Unicode subscript characters (e.g., ₀, ₁, ₂, ₃, ⁴, ₅, ₆, ₇, ₈, ₉) and superscript characters (e.g., ⁰, ¹, ², ³, ⁴, ⁵, ⁶, ⁷, ⁸, ⁹, ⁺, ⁻) for all formulas. 
+            **Molecular Formulas & Clinical Notations:** 
+            Always use Unicode subscript characters (e.g., ₀, ₁, ₂, ₃, ₄, ₅, ₆, ₇, ₈, ₉) and superscript characters (e.g., ⁰, ¹, ², ³, ⁴, ⁵, ⁶, ⁷, ⁸, ⁹, ⁺, ⁻) for all formulas. 
             - Examples: CO₂, SpO₂, SaO₂, H₂O, C₆H₁₂O₆, Na⁺, Cl⁻, Ca²⁺, HCO₃⁻, PO₄³⁻. 
             - **CRITICAL:** DO NOT use LaTeX symbols ($), math mode, or markdown bolding for chemical/molecular/clinical formulas. Use plain text with Unicode subscripts/superscripts only.
 
@@ -117,29 +117,41 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
             setIsSaved(false);
             setShowShareMenu(false);
             setMicError(null);
-            if (recognitionRef.current) recognitionRef.current.abort();
+            if (recognitionRef.current) {
+                recognitionRef.current.onend = null;
+                recognitionRef.current.abort();
+                recognitionRef.current = null;
+            }
         }
     }, [isOpen, topic, caseTitle, language, T, initialHistory, topicId]);
 
-    // STT Initialization
-    useEffect(() => {
+    const handleMicClick = () => {
         if (!isSpeechRecognitionSupported) return;
+
+        if (isListening && recognitionRef.current) {
+            recognitionRef.current.stop();
+            return;
+        }
+
+        setMicError(null);
+        
+        // Create a FRESH instance per click for better "not-allowed" error handling & cross-browser compatibility
         const recognition = new SpeechRecognition();
         recognition.continuous = false;
         recognition.interimResults = false;
-        
+        recognition.lang = getBCP47Language(language);
+
         recognition.onstart = () => {
             setIsListening(true);
-            setMicError(null);
         };
-        
+
         recognition.onend = () => {
             setIsListening(false);
+            recognitionRef.current = null;
         };
-        
+
         recognition.onerror = (event: any) => {
             console.error('Discussion Mic Error:', event.error);
-            // 'not-allowed' means permission denied or blocked by policy
             if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
                 setMicError(T.micPermissionError);
             } else {
@@ -152,26 +164,14 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
             const transcript = event.results[0][0].transcript;
             setUserInput(prev => (prev ? `${prev} ${transcript}` : transcript));
         };
-        
-        recognitionRef.current = recognition;
-    }, [T.micPermissionError, T.micGenericError]);
 
-    const handleMicClick = () => {
-        if (!recognitionRef.current) return;
-        if (isListening) {
-            recognitionRef.current.stop();
-        } else {
-            setMicError(null);
-            try {
-                // SpeechRecognition directly handles the permission prompt upon .start()
-                // in standard browser environments. Calling getUserMedia beforehand 
-                // can sometimes create a hardware lock race condition.
-                recognitionRef.current.lang = getBCP47Language(language);
-                recognitionRef.current.start();
-            } catch (err: any) {
-                console.error("Mic start failed:", err);
-                setMicError(T.micGenericError);
-            }
+        try {
+            recognitionRef.current = recognition;
+            recognition.start();
+        } catch (err: any) {
+            console.error("Mic start failed:", err);
+            setMicError(T.micGenericError);
+            setIsListening(false);
         }
     };
 

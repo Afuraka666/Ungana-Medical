@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback, useReducer } from 'react';
+
+import React, { useState, useEffect, useCallback, useReducer, useRef } from 'react';
 import { EducationalContentType, Discipline } from '../types';
 import type { PatientCase, EducationalContent, QuizQuestion, DisciplineSpecificConsideration, MultidisciplinaryConnection, TraceableEvidence, FurtherReading, ProcedureDetails, PatientOutcome, KnowledgeMapData } from '../types';
 import { DisciplineColors } from './KnowledgeMap';
@@ -10,6 +11,7 @@ import { SourceSearchModal } from './SourceSearchModal';
 import { enrichCaseWithWebSources, getConceptAbstract } from '../services/geminiService';
 import { DisciplineIcon } from './DisciplineIcon';
 import { MarkdownRenderer } from './MarkdownRenderer';
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ImageRun, Table, TableRow, TableCell, WidthType, BorderStyle } from 'docx';
 
 interface PatientCaseViewProps {
   patientCase: PatientCase;
@@ -335,11 +337,23 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
   const [evidenceSources, setEvidenceSources] = useState<any[]>([]);
   const [readingSources, setReadingSources] = useState<any[]>([]);
 
-  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     resetState(initialPatientCase);
   }, [initialPatientCase, resetState]);
+
+  useEffect(() => {
+      const handleClickOutside = (event: MouseEvent) => {
+          if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+              setShowExportMenu(false);
+          }
+      };
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>, key: keyof PatientCase) => {
     setPatientCase({ ...patientCase, [key]: e.target.value });
@@ -430,62 +444,56 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
         setIsEnrichingEvidence(false);
     }
   };
+
+  const getVisualAssets = async () => {
+      const visualPromises = [];
+      // Biochemical Pathway
+      if (patientCase.biochemicalPathway && (patientCase.biochemicalPathway.diagramData || patientCase.biochemicalPathway.imageData)) {
+          visualPromises.push((async () => {
+              let dataUrl: string | undefined;
+              if (patientCase.biochemicalPathway!.imageData) {
+                  dataUrl = `data:image/png;base64,${patientCase.biochemicalPathway!.imageData}`;
+              } else if (patientCase.biochemicalPathway!.diagramData) {
+                  const diagramEl = document.querySelector('#diagram-biochem svg') as SVGSVGElement;
+                  if (diagramEl) dataUrl = await svgToDataURL(diagramEl);
+              }
+              return { title: T.biochemicalPathwaySection, content: patientCase.biochemicalPathway!, dataUrl };
+          })());
+      }
+      // Visual Educational Content
+      if (patientCase.educationalContent) {
+          patientCase.educationalContent.forEach((item, i) => {
+              if (item.diagramData || item.imageData) {
+                  visualPromises.push((async () => {
+                      let dataUrl: string | undefined;
+                      if (item.imageData) {
+                          dataUrl = `data:image/png;base64,${item.imageData}`;
+                      } else if (item.diagramData) {
+                          const diagramEl = document.querySelector(`#diagram-edu-${i} svg`) as SVGSVGElement;
+                          if (diagramEl) dataUrl = await svgToDataURL(diagramEl);
+                      }
+                      return { title: item.title, content: item, dataUrl };
+                  })());
+              }
+          });
+      }
+      // Knowledge Map
+      if (onGetMapImage) {
+          visualPromises.push((async () => {
+              const mapImgData = await onGetMapImage();
+              return { title: T.knowledgeMapConcepts, content: { description: 'Overview of the key concepts and their connections.', reference: '' }, dataUrl: mapImgData };
+          })());
+      }
+      return (await Promise.all(visualPromises)).filter(v => v && v.dataUrl);
+  };
   
   const handleDownloadPdf = async () => {
     if (!patientCase) return;
-    setIsDownloadingPdf(true);
+    setIsExporting(true);
+    setShowExportMenu(false);
 
     try {
-        // --- 1. Pre-generate all visual data URLs async ---
-        const visualPromises = [];
-
-        // Biochemical Pathway
-        if (patientCase.biochemicalPathway && (patientCase.biochemicalPathway.diagramData || patientCase.biochemicalPathway.imageData)) {
-            const promise = (async () => {
-                let dataUrl: string | undefined;
-                if (patientCase.biochemicalPathway!.imageData) {
-                    dataUrl = `data:image/png;base64,${patientCase.biochemicalPathway!.imageData}`;
-                } else if (patientCase.biochemicalPathway!.diagramData) {
-                    const diagramEl = document.querySelector('#diagram-biochem svg') as SVGSVGElement;
-                    if (diagramEl) dataUrl = await svgToDataURL(diagramEl);
-                }
-                return { title: T.biochemicalPathwaySection, content: patientCase.biochemicalPathway!, dataUrl };
-            })();
-            visualPromises.push(promise);
-        }
-
-        // Visual Educational Content
-        if (patientCase.educationalContent) {
-            for (let i = 0; i < patientCase.educationalContent.length; i++) {
-                const item = patientCase.educationalContent[i];
-                if (item.diagramData || item.imageData) {
-                    const promise = (async () => {
-                        let dataUrl: string | undefined;
-                        if (item.imageData) {
-                            dataUrl = `data:image/png;base64,${item.imageData}`;
-                        } else if (item.diagramData) {
-                            const diagramEl = document.querySelector(`#diagram-edu-${i} svg`) as SVGSVGElement;
-                            if (diagramEl) dataUrl = await svgToDataURL(diagramEl);
-                        }
-                        return { title: item.title, content: item, dataUrl };
-                    })();
-                    visualPromises.push(promise);
-                }
-            }
-        }
-
-        // Knowledge Map
-        if (onGetMapImage) {
-            const promise = (async () => {
-                const mapImgData = await onGetMapImage();
-                return { title: T.knowledgeMapConcepts, content: { description: 'Overview of the key concepts and their connections in this case.', reference: '' }, dataUrl: mapImgData };
-            })();
-            visualPromises.push(promise);
-        }
-        
-        const resolvedVisuals = (await Promise.all(visualPromises)).filter(v => v && v.dataUrl);
-
-        // --- 2. Initialize jsPDF and build the document ---
+        const resolvedVisuals = await getVisualAssets();
         const { jsPDF } = (window as any).jspdf;
         const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
 
@@ -539,104 +547,133 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
             });
         };
 
-        // --- 3. Render all text/table content ---
         addSection(T.patientProfile, patientCase.patientProfile);
         addSection(T.presentingComplaint, patientCase.presentingComplaint);
         addSection(T.history, patientCase.history);
-
         if (patientCase.multidisciplinaryConnections?.length) addTableSection(T.multidisciplinaryConnections, ['Discipline', 'Connection'], patientCase.multidisciplinaryConnections.map(c => [c.discipline, c.connection]));
         if (patientCase.disciplineSpecificConsiderations?.length) addTableSection(T.managementConsiderations, ['Aspect', 'Consideration'], patientCase.disciplineSpecificConsiderations.map(c => [c.aspect, c.consideration]));
         if (patientCase.traceableEvidence?.length) addTableSection(T.traceableEvidence, ['Claim', 'Source'], patientCase.traceableEvidence.map(e => [e.claim, e.source]));
         if (patientCase.furtherReadings?.length) addTableSection(T.furtherReading, ['Topic', 'Reference'], patientCase.furtherReadings.map(r => [r.topic, r.reference]));
 
-        if (patientCase.quiz?.length) {
-            const quizContent = patientCase.quiz.map((q, i) => `${i + 1}. ${q.question}\n${q.options.map((opt, o) => `   ${String.fromCharCode(65 + o)}. ${opt}`).join('\n')}\n\n   ${T.quizExplanation}: ${q.explanation}`).join('\n\n');
-            addSection(T.quizTitle, quizContent);
-        }
-        
-        if (patientCase.educationalContent) {
-            patientCase.educationalContent.forEach(item => {
-                if (!item.diagramData && !item.imageData) {
-                    addSection(item.title, `${item.description}\n\nReference: ${item.reference}`);
-                }
-            });
-        }
-
-        if (mapData && mapData.nodes.length > 0) {
-            const nodeSummaries = mapData.nodes.map(node => [node.label, node.discipline, node.summary]);
-            addTableSection(T.conceptSummaries, ['Concept', 'Discipline', 'Summary'], nodeSummaries);
-        }
-
-        // --- 4. Render pre-generated visuals on new pages ---
         for (const visual of resolvedVisuals) {
             if (!visual.dataUrl) continue;
-            
             doc.addPage();
-            
             const margin = 15;
             const pageWidth = doc.internal.pageSize.getWidth();
             const pageHeight = doc.internal.pageSize.getHeight();
-
-            // Add title
             doc.setFontSize(14);
             doc.setTextColor(brandColor);
             doc.text(visual.title, pageWidth / 2, 20, { align: 'center' });
-
             let finalY = 30;
             try {
                 const imgProps = doc.getImageProperties(visual.dataUrl);
                 const maxWidth = pageWidth - 2 * margin;
-                const maxHeight = pageHeight - 70; // Reserve space for title, description, footer
-
+                const maxHeight = pageHeight - 70;
                 let imgWidth = imgProps.width;
                 let imgHeight = imgProps.height;
                 const aspectRatio = imgWidth / imgHeight;
-
-                if (imgWidth > maxWidth) {
-                    imgWidth = maxWidth;
-                    imgHeight = imgWidth / aspectRatio;
-                }
-                if (imgHeight > maxHeight) {
-                    imgHeight = maxHeight;
-                    imgWidth = imgHeight * aspectRatio;
-                }
-
-                const x = (pageWidth - imgWidth) / 2; // Center horizontally
-                const y = 30;
-
-                doc.addImage(visual.dataUrl, 'PNG', x, y, imgWidth, imgHeight);
-                finalY = y + imgHeight + 10;
-            } catch (e) {
-                console.error("PDF generation: Could not add image for title:", visual.title, e);
-                doc.text("Error: Could not render visual.", margin, 30);
-                finalY = 40;
-            }
-
-            const descriptionText = `${visual.content.description}${visual.content.reference ? `\n\nReference: ${visual.content.reference}` : ''}`;
-            if (descriptionText.trim()) {
-                doc.setFontSize(12);
-                doc.setTextColor(textColor);
-                const splitDescription = doc.splitTextToSize(descriptionText, pageWidth - 2 * margin);
-                doc.text(splitDescription, margin, finalY);
+                if (imgWidth > maxWidth) { imgWidth = maxWidth; imgHeight = imgWidth / aspectRatio; }
+                if (imgHeight > maxHeight) { imgHeight = maxHeight; imgWidth = imgHeight * aspectRatio; }
+                const x = (pageWidth - imgWidth) / 2;
+                doc.addImage(visual.dataUrl, 'PNG', x, 30, imgWidth, imgHeight);
+                finalY = 30 + imgHeight + 10;
+            } catch (e) { finalY = 40; }
+            const desc = `${visual.content.description}${visual.content.reference ? `\n\nReference: ${visual.content.reference}` : ''}`;
+            if (desc.trim()) {
+                doc.setFontSize(12); doc.setTextColor(textColor);
+                const splitDesc = doc.splitTextToSize(desc, pageWidth - 2 * margin);
+                doc.text(splitDesc, margin, finalY);
             }
         }
-        
-        // --- 5. Finalize page numbering and save ---
         const totalPages = (doc as any).internal.getNumberOfPages();
-        for (let i = 1; i <= totalPages; i++) {
-            doc.setPage(i);
-            // Re-apply header/footer to all pages
-            pageHeader({ settings: { margin: { left: 15 } } });
-            pageFooter({ pageNumber: i, totalPages, settings: { margin: { left: 15 } } });
+        for (let i = 1; i <= totalPages; i++) { doc.setPage(i); pageHeader({ settings: { margin: { left: 15 } } }); pageFooter({ pageNumber: i, totalPages, settings: { margin: { left: 15 } } }); }
+        doc.save(`${patientCase.title.replace(/\s+/g, '_')}.pdf`);
+    } catch (e) { alert("PDF generation failed."); } finally { setIsExporting(false); }
+  };
+
+  const handleDownloadWord = async () => {
+    if (!patientCase) return;
+    setIsExporting(true);
+    setShowExportMenu(false);
+
+    try {
+        const resolvedVisuals = await getVisualAssets();
+        const sections = [];
+
+        // Title
+        sections.push(new Paragraph({ text: patientCase.title, heading: HeadingLevel.HEADING_1, alignment: AlignmentType.CENTER, spacing: { after: 400 } }));
+
+        const addTextSection = (title: string, content: string) => {
+            if (!content) return;
+            sections.push(new Paragraph({ text: title, heading: HeadingLevel.HEADING_2, spacing: { before: 400, after: 200 } }));
+            sections.push(new Paragraph({ text: content, spacing: { after: 200 } }));
+        };
+
+        const addTableSection = (title: string, headers: string[], rows: string[][]) => {
+            if (rows.length === 0) return;
+            sections.push(new Paragraph({ text: title, heading: HeadingLevel.HEADING_2, spacing: { before: 400, after: 200 } }));
+            sections.push(new Table({
+                width: { size: 100, type: WidthType.PERCENTAGE },
+                rows: [
+                    new TableRow({ children: headers.map(h => new TableCell({ children: [new Paragraph({ text: h, style: 'bold' })], shading: { fill: "f3f4f6" } })) }),
+                    ...rows.map(row => new TableRow({ children: row.map(cell => new TableCell({ children: [new Paragraph({ text: cell })] })) }))
+                ]
+            }));
+        };
+
+        addTextSection(T.patientProfile, patientCase.patientProfile);
+        addTextSection(T.presentingComplaint, patientCase.presentingComplaint);
+        addTextSection(T.history, patientCase.history);
+        if (patientCase.multidisciplinaryConnections?.length) addTableSection(T.multidisciplinaryConnections, ['Discipline', 'Connection'], patientCase.multidisciplinaryConnections.map(c => [c.discipline, c.connection]));
+        if (patientCase.disciplineSpecificConsiderations?.length) addTableSection(T.managementConsiderations, ['Aspect', 'Consideration'], patientCase.disciplineSpecificConsiderations.map(c => [c.aspect, c.consideration]));
+        if (patientCase.traceableEvidence?.length) addTableSection(T.traceableEvidence, ['Claim', 'Source'], patientCase.traceableEvidence.map(e => [e.claim, e.source]));
+        if (patientCase.furtherReadings?.length) addTableSection(T.furtherReading, ['Topic', 'Reference'], patientCase.furtherReadings.map(r => [r.topic, r.reference]));
+
+        // Visuals
+        for (const visual of resolvedVisuals) {
+            sections.push(new Paragraph({ text: visual.title, heading: HeadingLevel.HEADING_2, spacing: { before: 400, after: 200 }, pageBreakBefore: true }));
+            try {
+                const base64Data = visual.dataUrl!.split(',')[1];
+                sections.push(new Paragraph({
+                    children: [new ImageRun({
+                        data: Uint8Array.from(atob(base64Data), c => c.charCodeAt(0)),
+                        transformation: { width: 500, height: 400 }
+                    })],
+                    alignment: AlignmentType.CENTER
+                }));
+            } catch (e) { sections.push(new Paragraph({ text: "[Visual Error: Could not render image]" })); }
+            sections.push(new Paragraph({ text: visual.content.description, spacing: { before: 200 } }));
+            if (visual.content.reference) sections.push(new Paragraph({ text: `Reference: ${visual.content.reference}`, style: 'italic' }));
         }
 
-        doc.save(`${patientCase.title.replace(/\s+/g, '_')}.pdf`);
-    } catch (e) {
-        console.error("Failed to generate PDF:", e);
-        alert("Sorry, an error occurred while generating the PDF.");
-    } finally {
-        setIsDownloadingPdf(false);
-    }
+        const doc = new Document({ sections: [{ children: sections }] });
+        const blob = await Packer.toBlob(doc);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${patientCase.title.replace(/\s+/g, '_')}.docx`;
+        a.click();
+    } catch (e) { console.error(e); alert("Word generation failed."); } finally { setIsExporting(false); }
+  };
+
+  const handleDownloadJson = () => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(patientCase));
+    const a = document.createElement('a');
+    a.setAttribute("href", dataStr);
+    a.setAttribute("download", `${patientCase.title.replace(/\s+/g, '_')}.json`);
+    a.click();
+    setShowExportMenu(false);
+  };
+
+  const handleDownloadText = () => {
+    const text = formatCaseForClipboard(patientCase, T);
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${patientCase.title.replace(/\s+/g, '_')}.txt`;
+    a.click();
+    setShowExportMenu(false);
   };
 
   const EditableText: React.FC<{ value: string; onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void; isEditing: boolean; }> = ({ value, onChange, isEditing }) => {
@@ -679,15 +716,44 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
               </>
             ) : (
               <>
-                <button onClick={handleDownloadPdf} disabled={isDownloadingPdf} title={T.downloadPdfButton} className="p-2 rounded-full text-gray-500 hover:bg-gray-100 hover:text-brand-blue transition disabled:text-gray-300 disabled:cursor-not-allowed">
-                   {isDownloadingPdf ? (
-                        <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                   ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                        </svg>
-                   )}
-                </button>
+                <div className="relative" ref={exportMenuRef}>
+                    <button 
+                        onClick={() => setShowExportMenu(!showExportMenu)} 
+                        disabled={isExporting} 
+                        title={T.exportButton} 
+                        className="p-2 rounded-full text-gray-500 hover:bg-gray-100 hover:text-brand-blue transition disabled:text-gray-300 disabled:cursor-not-allowed flex items-center"
+                    >
+                        {isExporting ? (
+                            <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        ) : (
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                            </svg>
+                        )}
+                        <svg className={`h-4 w-4 ml-0.5 transition-transform ${showExportMenu ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    {showExportMenu && (
+                        <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg border border-gray-200 z-20 animate-fade-in py-1">
+                            <button onClick={handleDownloadPdf} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2">
+                                <svg className="h-4 w-4 text-red-600" fill="currentColor" viewBox="0 0 24 24"><path d="M11.363 2c4.155 0 2.637 6 2.637 6s6-1.518 6 2.638v11.362c0 .552-.448 1-1 1h-17c-.552 0-1-.448-1-1v-19c0-.552.448-1 1-1h10.363zm4.137 17l-1.5-5h-1l-1.5 5h1.1l.3-1h1.2l.3 1h1.1zm-4.5-5h-2.5v5h1.1v-1.6h1.4c.828 0 1.5-.672 1.5-1.5s-.672-1.9-1.5-1.9zm-4 0h-2.5v5h2.5c.828 0 1.5-.672 1.5-1.5v-2c0-.828-.672-1.5-1.5-1.5zm6.5 1.4c0 .221-.179.4-.4.4h-1.4v-.8h1.4c.221 0 .4.179.4.4zm-4 1.1h-1.4v-1.1h1.4c.221 0 .4.179.4.4v.3c0 .221-.179.4-.4.4zm3.1-.7l-.4 1.3h-.8l-.4-1.3.1-.3h1.4l.1.3z" /></svg>
+                                <span>{T.downloadPdfButton}</span>
+                            </button>
+                            <button onClick={handleDownloadWord} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2">
+                                <svg className="h-4 w-4 text-blue-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2c5.514 0 10 4.486 10 10s-4.486 10-10 10-10-4.486-10-10 4.486-10 10-10zm0-2c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm-3 8h6v1h-6v-1zm0 2h6v1h-6v-1zm0 2h6v1h-6v-1zm0 2h6v1h-6v-1zm0 2h6v1h-6v-1z" /></svg>
+                                <span>{T.downloadWordButton}</span>
+                            </button>
+                            <div className="border-t border-gray-100 my-1"></div>
+                            <button onClick={handleDownloadJson} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2">
+                                <span className="font-mono font-bold text-xs text-gray-500">JSON</span>
+                                <span>{T.downloadJSONButton}</span>
+                            </button>
+                            <button onClick={handleDownloadText} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2">
+                                <span className="font-mono font-bold text-xs text-gray-500">TXT</span>
+                                <span>{T.downloadTextButton}</span>
+                            </button>
+                        </div>
+                    )}
+                </div>
                 <button onClick={onOpenShare} title={T.shareButtonTitle} className="p-2 rounded-full text-gray-500 hover:bg-gray-100 hover:text-brand-blue transition">
                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" /></svg>
                 </button>

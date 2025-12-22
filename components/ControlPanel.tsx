@@ -87,67 +87,62 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     };
   }, []);
 
-   useEffect(() => {
-    if (!isSpeechRecognitionSupported) {
-        return;
-    }
-    const recognition = new SpeechRecognition();
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    
-    recognition.onstart = () => {
-        setIsListening(true);
-        setMicError(null);
-    };
-    recognition.onend = () => {
-        setIsListening(false);
-        setActiveInput(null);
-    };
-    recognition.onerror = (event: any) => {
-        console.error('Speech recognition error:', event.error);
-        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-            setMicError(T.micPermissionError);
-        } else {
-            setMicError(T.micGenericError);
-        }
-        setIsListening(false);
-        setActiveInput(null);
-    };
-
-    recognitionRef.current = recognition;
-
-    return () => {
-        if(recognitionRef.current) {
-            recognitionRef.current.abort();
-        }
-    };
-  }, [T]);
-
   const handleMicClick = (targetInput: 'condition' | 'discipline') => {
-      const recognition = recognitionRef.current;
-      if (!recognition) return;
+      if (!isSpeechRecognitionSupported) return;
 
-      if (isListening) {
-          recognition.stop();
-      } else {
-          setMicError(null);
-          setActiveInput(targetInput);
-          // ChiBemba isn't widely supported in standard speech engines; fallback to English
-          recognition.lang = language === 'bem' ? 'en-US' : language;
-          recognition.onresult = (event: any) => {
-              const transcript = event.results[0][0].transcript;
-              if (targetInput === 'condition') {
-                  setConditionInput(transcript);
-              } else if (targetInput === 'discipline') {
-                  setDisciplineInput(transcript);
-              }
-          };
-          try {
-              recognition.start();
-          } catch (err) {
-              console.error("Failed to start speech recognition:", err);
+      if (isListening && activeInput === targetInput && recognitionRef.current) {
+          recognitionRef.current.stop();
+          return;
+      }
+
+      setMicError(null);
+      setActiveInput(targetInput);
+
+      // Create a FRESH instance per click for better "not-allowed" error handling & cross-browser compatibility
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      // ChiBemba fallback to English
+      recognition.lang = language === 'bem' ? 'en-US' : language;
+
+      recognition.onstart = () => {
+          setIsListening(true);
+      };
+
+      recognition.onend = () => {
+          setIsListening(false);
+          setActiveInput(null);
+          recognitionRef.current = null;
+      };
+
+      recognition.onerror = (event: any) => {
+          console.error('Main Mic Error:', event.error);
+          if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+              setMicError(T.micPermissionError);
+          } else {
               setMicError(T.micGenericError);
           }
+          setIsListening(false);
+          setActiveInput(null);
+      };
+
+      recognition.onresult = (event: any) => {
+          const transcript = event.results[0][0].transcript;
+          if (targetInput === 'condition') {
+              setConditionInput(transcript);
+          } else if (targetInput === 'discipline') {
+              setDisciplineInput(transcript);
+          }
+      };
+
+      try {
+          recognitionRef.current = recognition;
+          recognition.start();
+      } catch (err: any) {
+          console.error("Mic start failed:", err);
+          setMicError(T.micGenericError);
+          setIsListening(false);
+          setActiveInput(null);
       }
   };
 
@@ -316,11 +311,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                     <span>{micError}</span>
                 </div>
             )}
-            <div className="border-t border-gray-200 mt-4 pt-3 flex items-center justify-start">
-                <div className="flex flex-wrap items-center gap-2">
-                    {/* Saved Work & Clinical tools buttons are here */}
-                </div>
-            </div>
         </>
       ) : (
         <div className="flex items-center justify-between">

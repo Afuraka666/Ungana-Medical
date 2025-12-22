@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import type { PatientCase } from '../types';
+import { Document, Packer, Paragraph, HeadingLevel, AlignmentType, ImageRun, Table, TableRow, TableCell, WidthType } from 'docx';
 
 interface ShareModalProps {
     isOpen: boolean;
@@ -66,12 +67,14 @@ const formatCaseForTextFile = (patientCase: PatientCase, T: Record<string, any>)
     }
 
     text += `## ${T.multidisciplinaryConnections}\r\n`;
-    patientCase.multidisciplinaryConnections.forEach(conn => {
-        text += `- **${conn.discipline}:** ${conn.connection}\r\n`;
-    });
+    if (patientCase.multidisciplinaryConnections) {
+        patientCase.multidisciplinaryConnections.forEach(conn => {
+            text += `- **${conn.discipline}:** ${conn.connection}\r\n`;
+        });
+    }
     text += '\r\n';
 
-    if (patientCase.disciplineSpecificConsiderations?.length > 0) {
+    if (patientCase.disciplineSpecificConsiderations && patientCase.disciplineSpecificConsiderations.length > 0) {
         text += `## ${T.managementConsiderations}\r\n`;
         patientCase.disciplineSpecificConsiderations.forEach(item => {
             text += `- **${item.aspect}:** ${item.consideration}\r\n`;
@@ -79,7 +82,7 @@ const formatCaseForTextFile = (patientCase: PatientCase, T: Record<string, any>)
         text += '\r\n';
     }
 
-    if (patientCase.educationalContent?.length > 0) {
+    if (patientCase.educationalContent && patientCase.educationalContent.length > 0) {
         text += `## ${T.educationalContent}\r\n`;
         patientCase.educationalContent.forEach(item => {
             text += `### ${item.title} (${item.type})\r\n`;
@@ -88,7 +91,7 @@ const formatCaseForTextFile = (patientCase: PatientCase, T: Record<string, any>)
         });
     }
 
-    if (patientCase.traceableEvidence?.length > 0) {
+    if (patientCase.traceableEvidence && patientCase.traceableEvidence.length > 0) {
         text += `## ${T.traceableEvidence}\r\n`;
         patientCase.traceableEvidence.forEach(item => {
             text += `- **Claim:** "${item.claim}"\r\n`;
@@ -97,7 +100,7 @@ const formatCaseForTextFile = (patientCase: PatientCase, T: Record<string, any>)
         text += '\r\n';
     }
     
-    if (patientCase.furtherReadings?.length > 0) {
+    if (patientCase.furtherReadings && patientCase.furtherReadings.length > 0) {
         text += `## ${T.furtherReading}\r\n`;
         patientCase.furtherReadings.forEach(item => {
             text += `- **${item.topic}:** ${item.reference}\r\n`;
@@ -105,7 +108,7 @@ const formatCaseForTextFile = (patientCase: PatientCase, T: Record<string, any>)
         text += '\r\n';
     }
 
-    if (patientCase.quiz?.length > 0) {
+    if (patientCase.quiz && patientCase.quiz.length > 0) {
         text += `## ${T.quizTitle}\r\n`;
         patientCase.quiz.forEach((q, i) => {
             text += `${i + 1}. ${q.question}\r\n`;
@@ -156,29 +159,50 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, patient
         }
     }, [isWebShareSupported, shareLink, patientCase]);
     
-    const handleDownload = (format: 'json' | 'text') => {
+    const handleDownloadFormat = async (format: 'json' | 'text' | 'pdf' | 'word') => {
         if (!patientCase) return;
-        const filename = `${patientCase.title.replace(/ /g, '_')}.${format}`;
-        let content = '';
-        let mimeType = '';
-
+        
         if (format === 'json') {
-            content = JSON.stringify(patientCase, null, 2);
-            mimeType = 'application/json';
-        } else {
-            content = formatCaseForTextFile(patientCase, T);
-            mimeType = 'text/plain';
-        }
+            const content = JSON.stringify(patientCase, null, 2);
+            const blob = new Blob([content], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${patientCase.title.replace(/ /g, '_')}.json`;
+            a.click();
+        } else if (format === 'text') {
+            const content = formatCaseForTextFile(patientCase, T);
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${patientCase.title.replace(/ /g, '_')}.txt`;
+            a.click();
+        } else if (format === 'word') {
+            // Simplified Word export without images for share modal quick access
+            const sections = [];
+            sections.push(new Paragraph({ text: patientCase.title, heading: HeadingLevel.HEADING_1, alignment: AlignmentType.CENTER, spacing: { after: 400 } }));
+            
+            const addTxt = (h: string, c: string) => {
+                if(!c) return;
+                sections.push(new Paragraph({ text: h, heading: HeadingLevel.HEADING_2, spacing: { before: 200 } }));
+                sections.push(new Paragraph({ text: c }));
+            }
+            
+            addTxt(T.patientProfile, patientCase.patientProfile);
+            addTxt(T.presentingComplaint, patientCase.presentingComplaint);
+            addTxt(T.history, patientCase.history);
 
-        const blob = new Blob([content], { type: mimeType });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+            const doc = new Document({ sections: [{ children: sections }] });
+            const blob = await Packer.toBlob(doc);
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `${patientCase.title.replace(/ /g, '_')}.docx`;
+            a.click();
+        } else if (format === 'pdf') {
+            // PDFs are best generated from the PatientCaseView due to SVG/canvas dependencies
+            alert("Please use the Export menu in the main case view to generate a high-quality PDF with diagrams.");
+        }
     };
 
     if (!isOpen) return null;
@@ -212,20 +236,28 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose, patient
                             </button>
                         </div>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                        <button onClick={() => handleDownloadFormat('word')} className="flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition text-sm">
+                             <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2c5.514 0 10 4.486 10 10s-4.486 10-10 10-10-4.486-10-10 4.486-10 10-10zm0-2c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm-3 8h6v1h-6v-1zm0 2h6v1h-6v-1zm0 2h6v1h-6v-1zm0 2h6v1h-6v-1zm0 2h6v1h-6v-1z" /></svg>
+                             <span>{T.downloadWordButton}</span>
+                        </button>
+                        <button onClick={() => handleDownloadFormat('text')} className="flex items-center justify-center space-x-2 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition text-sm">
+                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                            <span>{T.downloadTextButton}</span>
+                        </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4 border-t border-gray-100">
                         {isWebShareSupported && (
                              <button onClick={handleNativeShare} disabled={isGeneratingLink} className="w-full flex items-center justify-center space-x-2 bg-brand-blue hover:bg-blue-800 text-white font-bold py-2 px-4 rounded-md transition disabled:bg-gray-400">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" /></svg>
                                 <span>{T.shareNativeButton}</span>
                             </button>
                         )}
-                        <button onClick={() => handleDownload('json')} className="w-full flex items-center justify-center space-x-2 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition">
+                        <button onClick={() => handleDownloadFormat('json')} className="w-full flex items-center justify-center space-x-2 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition">
                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
                             <span>{T.downloadJSONButton}</span>
-                        </button>
-                        <button onClick={() => handleDownload('text')} className="w-full flex items-center justify-center space-x-2 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-md transition">
-                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
-                            <span>{T.downloadTextButton}</span>
                         </button>
                     </div>
                 </main>
