@@ -23,6 +23,7 @@ const getBCP47Language = (lang: string): string => {
         'ru': 'ru-RU',
         'el': 'el-GR',
     };
+    // Fallback to English for languages where standard speech engines might not have a locale
     return map[lang] || 'en-US';
 };
 
@@ -72,7 +73,7 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
             **Guideline:** When discussing concepts, equations, graphs, and diagrams, examples from traceable references may be used to enhance clarification. If there is synthesis of any of the above mentioned, the bases (evidence) must be provided and a synthesis label (e.g., "[Synthesis]") must be attached to the synthesised item.
 
             **Molecular Formulas & Notations:** 
-            Always use Unicode subscript characters (e.g., ₀, ₁, ₂, ₃, ₄, ₅, ₆, ₇, ₈, ₉) and superscript characters (e.g., ⁰, ¹, ², ³, ⁴, ⁵, ⁶, ⁷, ⁸, ⁹, ⁺, ⁻) for all formulas. 
+            Always use Unicode subscript characters (e.g., ₀, ₁, ₂, ₃, ⁴, ₅, ₆, ₇, ₈, ₉) and superscript characters (e.g., ⁰, ¹, ², ³, ⁴, ⁵, ⁶, ⁷, ⁸, ⁹, ⁺, ⁻) for all formulas. 
             - Examples: CO₂, SpO₂, SaO₂, H₂O, C₆H₁₂O₆, Na⁺, Cl⁻, Ca²⁺, HCO₃⁻, PO₄³⁻. 
             - **CRITICAL:** DO NOT use LaTeX symbols ($), math mode, or markdown bolding for chemical/molecular/clinical formulas. Use plain text with Unicode subscripts/superscripts only.
 
@@ -138,8 +139,12 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
         
         recognition.onerror = (event: any) => {
             console.error('Discussion Mic Error:', event.error);
-            if (event.error === 'not-allowed') setMicError(T.micPermissionError);
-            else setMicError(T.micGenericError);
+            // 'not-allowed' means permission denied or blocked by policy
+            if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+                setMicError(T.micPermissionError);
+            } else {
+                setMicError(T.micGenericError);
+            }
             setIsListening(false);
         };
 
@@ -156,11 +161,16 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
         if (isListening) {
             recognitionRef.current.stop();
         } else {
+            setMicError(null);
             try {
+                // SpeechRecognition directly handles the permission prompt upon .start()
+                // in standard browser environments. Calling getUserMedia beforehand 
+                // can sometimes create a hardware lock race condition.
                 recognitionRef.current.lang = getBCP47Language(language);
                 recognitionRef.current.start();
-            } catch (err) {
-                console.error("Failed to start speech recognition:", err);
+            } catch (err: any) {
+                console.error("Mic start failed:", err);
+                setMicError(T.micGenericError);
             }
         }
     };
@@ -391,9 +401,9 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
 
                 <footer className="p-4 border-t border-gray-200 bg-white rounded-b-xl z-10">
                     {micError && (
-                        <div className="mb-2 text-xs text-red-600 flex items-center gap-1 bg-red-50 p-1 rounded animate-fade-in">
-                            <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"></path></svg>
-                            {micError}
+                        <div className="mb-2 text-xs text-red-600 flex items-start gap-1 bg-red-50 p-2 rounded border border-red-100 animate-fade-in">
+                            <svg className="h-4 w-4 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"></path></svg>
+                            <span className="leading-tight">{micError}</span>
                         </div>
                     )}
                     {isGeneratingDiagram && (

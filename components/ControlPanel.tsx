@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 
 interface ControlPanelProps {
@@ -129,8 +130,10 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       if (isListening) {
           recognition.stop();
       } else {
+          setMicError(null);
           setActiveInput(targetInput);
-          recognition.lang = language;
+          // ChiBemba isn't widely supported in standard speech engines; fallback to English
+          recognition.lang = language === 'bem' ? 'en-US' : language;
           recognition.onresult = (event: any) => {
               const transcript = event.results[0][0].transcript;
               if (targetInput === 'condition') {
@@ -139,7 +142,12 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                   setDisciplineInput(transcript);
               }
           };
-          recognition.start();
+          try {
+              recognition.start();
+          } catch (err) {
+              console.error("Failed to start speech recognition:", err);
+              setMicError(T.micGenericError);
+          }
       }
   };
 
