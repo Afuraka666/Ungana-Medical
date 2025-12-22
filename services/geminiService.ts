@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type, GenerateContentResponse, Modality, GenerateImagesResponse } from "@google/genai";
 import type { PatientCase, KnowledgeMapData, KnowledgeNode, KnowledgeLink, TraceableEvidence, FurtherReading, DiagramData } from '../types';
 
@@ -17,6 +18,8 @@ const FAST_MODEL = "gemini-2.5-flash";
 
 const SYNTHESIS_GUIDELINE = `
 **Guideline:** When discussing concepts, equations, graphs, and diagrams, examples from traceable references may be used to enhance clarification. If there is synthesis of any of the above mentioned, the bases (evidence) must be provided and a synthesis label (e.g., "[Synthesis]") must be attached to the synthesised item.
+
+**Molecular Formulas:** Use Unicode subscript characters (e.g., ₀, ₁, ₂, ₃, ₄, ₅, ₆, ₇, ₈, ₉) for chemical formulas like CO₂, H₂O, or C₆H₁₂O₆. DO NOT use LaTeX symbols ($) or markdown bolding for simple chemical notation.
 `;
 
 /**
@@ -149,7 +152,7 @@ const corePatientCaseSchema = {
     properties: {
         title: { type: Type.STRING, description: "A concise title for the patient case, e.g., 'Type 2 Diabetes Mellitus with Complicating Social Factors'." },
         patientProfile: { type: Type.STRING, description: "A brief profile of the patient including age, gender, and occupation." },
-        presentingComplaint: { type: Type.STRING, description: "The main reason the patient is seeking medical attention." },
+        presentingComplaint: { type: Type.STRING, description: "The main reason for seeking medical attention." },
         history: { type: Type.STRING, description: "A detailed history of the present illness, past medical history, social history, and family history. This should be a comprehensive narrative." },
         procedureDetails: {
             type: Type.OBJECT,

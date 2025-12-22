@@ -1,9 +1,13 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import type { DisciplineSpecificConsideration, ChatMessage } from '../types';
 import { GoogleGenAI, Chat, GenerateContentResponse, Content } from "@google/genai";
 import { retryWithBackoff, generateDiagramForDiscussion } from '../services/geminiService';
 import { InteractiveDiagram } from './InteractiveDiagram';
 import { MarkdownRenderer } from './MarkdownRenderer';
+
+const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+const isSpeechRecognitionSupported = !!SpeechRecognition;
 
 interface DiscussionModalProps {
     isOpen: boolean;
@@ -39,13 +43,19 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const shareMenuRef = useRef<HTMLDivElement | null>(null);
 
+    // Voice Input State
+    const [isListening, setIsListening] = useState(false);
+    const recognitionRef = useRef<any>(null);
+
     useEffect(() => {
         if (isOpen) {
             const systemInstruction = `You are an expert medical tutor. A student is reviewing a patient case about "${caseTitle}". They want to discuss the following management consideration: "(${topic.aspect}) ${topic.consideration}". Your role is to facilitate a deep, Socratic discussion. Answer their questions clearly, challenge their understanding, and help them explore alternatives and rationale. Keep your responses concise and educational.
             
             **Guideline:** When discussing concepts, equations, graphs, and diagrams, examples from traceable references may be used to enhance clarification. If there is synthesis of any of the above mentioned, the bases (evidence) must be provided and a synthesis label (e.g., "[Synthesis]") must be attached to the synthesised item.
 
-            **Formatting:** Use standard LaTeX formatting for all mathematical equations, formulas, and physics concepts.
+            **Molecular Formulas:** Use Unicode subscript characters (e.g., ₀, ₁, ₂, ₃, ₄, ₅, ₆, ₇, ₈, ₉) for chemical formulas like CO₂, H₂O, or C₆H₁₂O₆. DO NOT use LaTeX symbols ($) or markdown bolding for simple chemical notation.
+
+            **Formatting:** Use standard LaTeX formatting for complex mathematical equations, formulas, and physics concepts ONLY.
             - Inline math: Enclose in single dollar signs, e.g., $E = mc^2$, $EtCO_2$.
             - Block math: Enclose in double dollar signs, e.g., $$F = ma$$.
 
@@ -58,8 +68,6 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
             // Restore history if provided
             if (initialHistory && initialHistory.length > 0) {
                 setMessages(initialHistory);
-                // Convert internal ChatMessage to Google GenAI SDK Content format
-                // Filter out system messages as they confuse the model history usually
                 chatHistory = initialHistory
                     .filter(m => m.role === 'user' || m.role === 'model')
                     .map(m => ({
@@ -86,8 +94,34 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
             chatRef.current = null;
             setIsSaved(false);
             setShowShareMenu(false);
+            if (recognitionRef.current) recognitionRef.current.abort();
         }
     }, [isOpen, topic, caseTitle, language, T, initialHistory, topicId]);
+
+    // STT Initialization
+    useEffect(() => {
+        if (!isSpeechRecognitionSupported) return;
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.onstart = () => setIsListening(true);
+        recognition.onend = () => setIsListening(false);
+        recognition.onresult = (event: any) => {
+            const transcript = event.results[0][0].transcript;
+            setUserInput(prev => (prev ? `${prev} ${transcript}` : transcript));
+        };
+        recognitionRef.current = recognition;
+    }, []);
+
+    const handleMicClick = () => {
+        if (!recognitionRef.current) return;
+        if (isListening) {
+            recognitionRef.current.stop();
+        } else {
+            recognitionRef.current.lang = language;
+            recognitionRef.current.start();
+        }
+    };
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -175,11 +209,10 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
         setIsSaved(true);
     };
 
-    // Helper to format transcript
     const formatTranscript = () => {
         const header = `Discussion Topic: ${topic.aspect}\nContext: ${topic.consideration}\nDate: ${new Date().toLocaleDateString()}\n\n`;
         const body = messages
-            .filter(m => m.role !== 'system') // Filter out system prompts
+            .filter(m => m.role !== 'system') 
             .map(m => {
                 const speaker = m.role === 'user' ? 'Student' : 'AI Tutor';
                 return `[${speaker}]: ${m.text}`;
@@ -236,7 +269,6 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
                                 </span>
                             )}
                             
-                            {/* Share Button & Menu */}
                             <div className="relative" ref={shareMenuRef}>
                                 <button 
                                     onClick={() => setShowShareMenu(!showShareMenu)}
@@ -290,7 +322,6 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
                             <div key={index} className={`flex items-end gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                 {msg.role === 'model' && <div className="w-6 h-6 bg-brand-blue text-white rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold">AI</div>}
                                 <div className={`max-w-xs md:max-w-sm px-4 py-2 rounded-2xl text-sm ${msg.role === 'user' ? 'bg-brand-blue text-white rounded-br-none' : msg.role === 'model' ? 'bg-gray-200 text-brand-text rounded-bl-none' : 'text-center w-full text-gray-500 italic'}`}>
-                                    {/* Use MarkdownRenderer for model messages to support Math */}
                                     {msg.role === 'model' ? (
                                         <MarkdownRenderer content={msg.text} />
                                     ) : (
@@ -339,7 +370,7 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
                             </div>
                         </form>
                     )}
-                    <form onSubmit={handleSendMessage} className="flex items-center gap-3 mb-3">
+                    <form onSubmit={handleSendMessage} className="flex items-center gap-2 mb-3">
                          <button
                             type="button"
                             onClick={() => setIsGeneratingDiagram(prev => !prev)}
@@ -351,6 +382,19 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
                                 <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" />
                             </svg>
                         </button>
+                        {isSpeechRecognitionSupported && (
+                            <button
+                                type="button"
+                                onClick={handleMicClick}
+                                disabled={isLoading}
+                                className={`p-2 rounded-md border border-gray-300 bg-white hover:bg-gray-100 transition flex-shrink-0 ${isListening ? 'text-red-500 border-red-200 animate-pulse' : 'text-gray-600'}`}
+                                title="Speech to Text"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm-1 4a4 4 0 108 0V4a4 4 0 10-8 0v4zM2 11a1 1 0 011-1h1a1 1 0 011 1v.5a.5.5 0 001 0V11a3 3 0 013-3h0a3 3 0 013 3v.5a.5.5 0 001 0V11a1 1 0 011 1h1a1 1 0 110 2h-1a1 1 0 01-1-1v-.5a2.5 2.5 0 00-5 0v.5a1 1 0 01-1 1H3a1 1 0 01-1-1v-2z" clipRule="evenodd" />
+                                </svg>
+                            </button>
+                        )}
                         <input
                             type="text"
                             value={userInput}
