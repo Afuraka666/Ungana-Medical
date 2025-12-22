@@ -27,7 +27,7 @@ Always use Unicode subscript characters (e.g., ₀, ₁, ₂, ₃, ₄, ₅, ₆
 
 /**
  * A utility function to retry an API call with exponential backoff.
- * This is useful for handling transient errors like 503 "model overloaded".
+ * This is useful for handling transient errors like 503 "model overloaded" or 429 "quota exceeded".
  * @param apiCall The async function to call.
  * @param maxRetries The maximum number of retries.
  * @param initialDelay The initial delay in milliseconds.
@@ -36,7 +36,7 @@ Always use Unicode subscript characters (e.g., ₀, ₁, ₂, ₃, ₄, ₅, ₆
 export const retryWithBackoff = async <T>(
   apiCall: () => Promise<T>,
   maxRetries = 5,
-  initialDelay = 500
+  initialDelay = 1000
 ): Promise<T> => {
   let attempt = 0;
   while (attempt < maxRetries) {
@@ -45,8 +45,7 @@ export const retryWithBackoff = async <T>(
     } catch (error: any) {
       attempt++;
       
-      // Create a searchable string from the error. This is more robust because it properly
-      // serializes properties of Error objects, which JSON.stringify alone does not do.
+      // Create a searchable string from the error.
       let searchableString = error?.message || '';
       try {
         const stringified = JSON.stringify(error, Object.getOwnPropertyNames(error));
@@ -54,27 +53,30 @@ export const retryWithBackoff = async <T>(
           searchableString += ` ${stringified}`;
         }
       } catch (e) {
-        // Fallback for non-serializable errors
-        if (!searchableString) {
-          searchableString = String(error);
-        }
+        if (!searchableString) searchableString = String(error);
       }
 
       const errorMessage = searchableString.toLowerCase();
-      // Check for retryable server errors (e.g., 500, 503, overloaded, unavailable)
-      const isRetryable = errorMessage.includes("500") || errorMessage.includes("internal server error") || errorMessage.includes("503") || errorMessage.includes("overloaded") || errorMessage.includes("unavailable") || errorMessage.includes("try again later");
+      
+      // Determine if the error is retryable.
+      // 429: Resource Exhausted (Quota), 500: Internal, 503: Service Unavailable/Overloaded
+      const isRateLimit = errorMessage.includes("429") || errorMessage.includes("resource_exhausted") || errorMessage.includes("quota exceeded");
+      const isServerError = errorMessage.includes("500") || errorMessage.includes("internal server error") || errorMessage.includes("503") || errorMessage.includes("overloaded") || errorMessage.includes("unavailable");
+      
+      const isRetryable = isRateLimit || isServerError;
       
       if (isRetryable && attempt < maxRetries) {
-        const delay = initialDelay * Math.pow(2, attempt - 1) + Math.random() * 1000; // Add jitter
-        console.warn(`API call failed with retryable error (attempt ${attempt}/${maxRetries}). Retrying in ${delay.toFixed(0)}ms...`, error);
+        // For rate limits (429), use a significantly longer backoff to allow quota to reset.
+        const backoffMultiplier = isRateLimit ? 3 : 2;
+        const delay = initialDelay * Math.pow(backoffMultiplier, attempt - 1) + Math.random() * 2000; 
+        
+        console.warn(`API call failed with ${isRateLimit ? 'Rate Limit (429)' : 'Server Error'}. Attempt ${attempt}/${maxRetries}. Retrying in ${delay.toFixed(0)}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       } else {
-        // Not a retryable error or max retries reached, throw
         throw error;
       }
     }
   }
-  // This part should not be reachable due to the throw in the loop
   throw new Error("Retry logic failed unexpectedly.");
 };
 

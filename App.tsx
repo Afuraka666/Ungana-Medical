@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 
 // Components
@@ -325,29 +326,29 @@ export const App: React.FC = () => {
             setGenerationCount(newCount);
             localStorage.setItem('ungana_generation_count', String(newCount));
             
-            // Stage 2: Generate remaining details and map in parallel
-            const promises = [
-                generateMainDetails(coreCase, discipline, difficulty, language),
-                generateManagementAndContent(coreCase, discipline, difficulty, language),
-                generateEvidenceAndQuiz(coreCase, discipline, difficulty, language),
-                generateKnowledgeMap(coreCase, discipline, difficulty, language)
-            ];
+            // Stage 2: Generate remaining details and map SEQUENTIALLY to avoid quota (429) errors.
+            // Spacing them out slightly gives the API time to process without hitting parallel limits.
+            
+            try {
+                // Task 1: Main Details
+                const mainDetails = await generateMainDetails(coreCase, discipline, difficulty, language);
+                setPatientCase(prev => prev ? { ...prev, ...mainDetails } : null);
+                
+                // Task 2: Management & Content
+                const management = await generateManagementAndContent(coreCase, discipline, difficulty, language);
+                setPatientCase(prev => prev ? { ...prev, ...management } : null);
 
-            const results = await Promise.allSettled(promises);
+                // Task 3: Evidence & Quiz
+                const evidence = await generateEvidenceAndQuiz(coreCase, discipline, difficulty, language);
+                setPatientCase(prev => prev ? { ...prev, ...evidence } : null);
 
-            results.forEach((result, index) => {
-                if (result.status === 'fulfilled') {
-                    const data = result.value;
-                    if (index === 3) { // This is the Knowledge Map from the promise array order
-                        setMapData(data as KnowledgeMapData);
-                    } else { // These are parts of the Patient Case
-                        setPatientCase(prevCase => prevCase ? { ...prevCase, ...data } : null);
-                    }
-                } else {
-                    console.error(`Failed to generate part of the case (Promise index ${index}):`, result.reason);
-                    // The UI will simply not show the sections that failed, which is a graceful fallback.
-                }
-            });
+                // Task 4: Knowledge Map
+                const map = await generateKnowledgeMap(coreCase, discipline, difficulty, language);
+                setMapData(map);
+            } catch (backgroundError) {
+                console.error("Failed to complete some background generation parts:", backgroundError);
+                // We don't set a global error here because core case is already visible.
+            }
             
             setInteractionState(prev => ({ ...prev, caseGenerated: true, caseEdited: false, caseSaved: false, nodeClicks: 0, snippetSaved: false }));
 
