@@ -5,7 +5,7 @@ import { GoogleGenAI, Chat, GenerateContentResponse, Content } from "@google/gen
 import { retryWithBackoff, generateDiagramForDiscussion } from '../services/geminiService';
 import { InteractiveDiagram } from './InteractiveDiagram';
 import { MarkdownRenderer } from './MarkdownRenderer';
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } from 'docx';
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle } from 'docx';
 
 const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 const isSpeechRecognitionSupported = !!SpeechRecognition;
@@ -24,7 +24,6 @@ const getBCP47Language = (lang: string): string => {
         'ru': 'ru-RU',
         'el': 'el-GR',
     };
-    // Fallback to English for languages where standard speech engines might not have a locale
     return map[lang] || 'en-US';
 };
 
@@ -94,7 +93,6 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
             
             let chatHistory: Content[] | undefined = undefined;
 
-            // Restore history if provided
             if (initialHistory && initialHistory.length > 0) {
                 setMessages(initialHistory);
                 chatHistory = initialHistory
@@ -119,7 +117,6 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
             });
             
         } else {
-            // Reset on close
             chatRef.current = null;
             setIsSaved(false);
             setShowShareMenu(false);
@@ -142,7 +139,6 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
 
         setMicError(null);
         
-        // Create a FRESH instance per click for better "not-allowed" error handling & cross-browser compatibility
         const recognition = new SpeechRecognition();
         recognition.continuous = false;
         recognition.interimResults = false;
@@ -186,7 +182,6 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages, isLoading]);
 
-    // Close share menu on click outside
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (shareMenuRef.current && !shareMenuRef.current.contains(event.target as Node)) {
@@ -205,7 +200,7 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
         setMessages(prev => [...prev, newUserMessage]);
         setUserInput('');
         setIsLoading(true);
-        setIsSaved(false); // Unsaved changes
+        setIsSaved(false); 
         
         try {
             const result = await retryWithBackoff<AsyncIterable<GenerateContentResponse>>(() => chatRef.current!.sendMessageStream({ message: userInput }));
@@ -253,7 +248,7 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
                 timestamp: Date.now()
             };
             setMessages(prev => [...prev, diagramMessage]);
-            setDiagramPrompt(''); // Clear prompt on success
+            setDiagramPrompt(''); 
             setIsSaved(false);
         } catch (error) {
             console.error("Diagram generation error:", error);
@@ -307,67 +302,130 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
         const doc = new jsPDF();
         const margin = 20;
         const pageWidth = doc.internal.pageSize.getWidth();
+        const brandColor = '#1e3a8a';
+        const grayColor = '#4b5563';
         
-        doc.setFontSize(18);
-        doc.setTextColor('#1e3a8a');
-        doc.text(T.discussionTitle, margin, 20);
+        // Header
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(20);
+        doc.setTextColor(brandColor);
+        doc.text('Ungana Medical', margin, 20);
         
+        doc.setDrawColor(brandColor);
+        doc.setLineWidth(0.5);
+        doc.line(margin, 22, pageWidth - margin, 22);
+        
+        // Topic Info
         doc.setFontSize(12);
-        doc.setTextColor('#4b5563');
-        doc.text(`Topic: ${topic.aspect}`, margin, 30);
+        doc.setTextColor(brandColor);
+        doc.text(`DISCUSSION: ${topic.aspect.toUpperCase()}`, margin, 32);
         
+        doc.setFont('helvetica', 'italic');
         doc.setFontSize(10);
+        doc.setTextColor(grayColor);
         const contextLines = doc.splitTextToSize(`Context: ${topic.consideration}`, pageWidth - 2 * margin);
-        doc.text(contextLines, margin, 36);
+        doc.text(contextLines, margin, 38);
         
-        let y = 36 + (contextLines.length * 5) + 10;
+        let y = 38 + (contextLines.length * 5) + 12;
+
+        // Content
         messages.filter(m => m.role !== 'system').forEach(m => {
-            const role = m.role === 'user' ? 'Student' : 'AI Tutor';
-            doc.setFontSize(11);
-            doc.setTextColor(m.role === 'user' ? '#1e3a8a' : '#111827');
-            doc.setFont(undefined, 'bold');
+            const role = m.role === 'user' ? 'STUDENT' : 'AI TUTOR';
+            const roleColor = m.role === 'user' ? brandColor : '#374151';
+            
+            // Role label
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(10);
+            doc.setTextColor(roleColor);
             doc.text(`[${role}]`, margin, y);
             y += 6;
             
-            doc.setFont(undefined, 'normal');
-            doc.setTextColor('#374151');
+            // Message text
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(11);
+            doc.setTextColor('#111827');
             const lines = doc.splitTextToSize(m.text, pageWidth - 2 * margin);
-            doc.text(lines, margin, y);
-            y += lines.length * 5 + 8;
             
-            if (y > 270) {
+            // Check for page break
+            if (y + (lines.length * 5) > 270) {
                 doc.addPage();
                 y = 20;
             }
+            
+            doc.text(lines, margin, y);
+            y += (lines.length * 5) + 10;
         });
         
-        doc.save(`Discussion_${topic.aspect.replace(/\s+/g, '_')}.pdf`);
+        // Footer
+        const totalPages = (doc as any).internal.getNumberOfPages();
+        for (let i = 1; i <= totalPages; i++) {
+            doc.setPage(i);
+            doc.setFontSize(8);
+            doc.setTextColor(grayColor);
+            doc.text(`Generated by Ungana Medical on ${new Date().toLocaleDateString()} - Page ${i} of ${totalPages}`, margin, 285);
+        }
+        
+        doc.save(`Ungana_Discussion_${topic.aspect.replace(/\s+/g, '_')}.pdf`);
         setShowShareMenu(false);
     };
 
     const handleDownloadWord = async () => {
+        const brandColor = '1e3a8a';
+        
         const sections = [];
-        sections.push(new Paragraph({ text: T.discussionTitle, heading: HeadingLevel.HEADING_1, alignment: AlignmentType.CENTER, spacing: { after: 400 } }));
-        sections.push(new Paragraph({ text: `Topic: ${topic.aspect}`, heading: HeadingLevel.HEADING_2 }));
-        sections.push(new Paragraph({ text: `Context: ${topic.consideration}`, spacing: { after: 400 } }));
+        
+        // Title
+        sections.push(new Paragraph({
+            children: [new TextRun({ text: 'Ungana Medical', bold: true, color: brandColor, size: 36 })],
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 200 }
+        }));
 
+        // Topic Section
+        sections.push(new Paragraph({
+            children: [new TextRun({ text: `Discussion: ${topic.aspect}`, bold: true, size: 28 })],
+            heading: HeadingLevel.HEADING_1,
+            border: { bottom: { color: brandColor, space: 1, style: BorderStyle.SINGLE, size: 6 } },
+            spacing: { after: 200 }
+        }));
+
+        sections.push(new Paragraph({
+            children: [new TextRun({ text: `Context: ${topic.consideration}`, italic: true, size: 20, color: '4b5563' })],
+            spacing: { after: 400 }
+        }));
+
+        // Messages
         messages.filter(m => m.role !== 'system').forEach(m => {
-            const role = m.role === 'user' ? 'Student' : 'AI Tutor';
+            const role = m.role === 'user' ? 'STUDENT' : 'AI TUTOR';
+            const roleCol = m.role === 'user' ? brandColor : '374151';
+            
             sections.push(new Paragraph({
                 children: [
-                    new TextRun({ text: `[${role}]: `, bold: true, color: m.role === 'user' ? '1e3a8a' : '000000' }),
-                    new TextRun({ text: m.text })
+                    new TextRun({ text: `[${role}]`, bold: true, color: roleCol, size: 20 }),
                 ],
-                spacing: { before: 200, after: 100 }
+                spacing: { before: 200 }
+            }));
+            
+            sections.push(new Paragraph({
+                children: [
+                    new TextRun({ text: m.text, size: 22 }),
+                ],
+                spacing: { after: 100 }
             }));
         });
 
-        const doc = new Document({ sections: [{ children: sections }] });
+        const doc = new Document({
+            sections: [{
+                properties: {},
+                children: sections,
+            }],
+        });
+
         const blob = await Packer.toBlob(doc);
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `Discussion_${topic.aspect.replace(/\s+/g, '_')}.docx`;
+        a.download = `Ungana_Discussion_${topic.aspect.replace(/\s+/g, '_')}.docx`;
         a.click();
         setShowShareMenu(false);
     };
