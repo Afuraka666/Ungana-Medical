@@ -2,7 +2,6 @@
   "name": "Ungana Medical",
   "description": "An AI-enhanced application for medical students to integrate knowledge across disciplines using multidisciplinary patient cases and interactive knowledge maps. It helps connect concepts from biochemistry to sociology for holistic patient care.",
   "requestFramePermissions": [
-    "camera",
     "microphone"
   ]
 }
