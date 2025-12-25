@@ -467,8 +467,9 @@ export const App: React.FC = () => {
         return <EvaluationScreen T={T} onFeedbackSubmitted={handleFeedbackSubmitted} />;
     }
     
+    // FIX: Using h-[100dvh] ensures full height on mobile browsers including address bars
     return (
-        <div className="flex flex-col h-screen bg-gray-100 font-sans">
+        <div className="flex flex-col h-[100dvh] bg-gray-100 font-sans">
             <Header
                 supportedLanguages={supportedLanguages}
                 currentLanguage={language}
@@ -477,7 +478,7 @@ export const App: React.FC = () => {
                 className={`sticky top-0 z-30 transition-transform duration-300 ${!isUiVisible && patientCase ? '-translate-y-full' : 'translate-y-0'}`}
             />
             
-            <main className="flex-grow p-2 sm:p-4 overflow-hidden">
+            <main className="flex-grow p-2 sm:p-4 overflow-hidden relative">
                 <div className="max-w-7xl mx-auto h-full flex flex-col space-y-4">
                     <ControlPanel
                         onGenerate={handleGenerate}
@@ -498,14 +499,14 @@ export const App: React.FC = () => {
                     </div>
                     
                     {patientCase ? (
-                        <div className="flex-grow overflow-hidden h-full">
+                        <div className="flex-grow overflow-hidden h-full relative">
                             {/* Sliding container for mobile view */}
                             <div 
-                                className="flex h-full transition-transform duration-300 ease-in-out lg:transform-none lg:flex-row lg:gap-4"
+                                className="flex h-full w-full transition-transform duration-300 ease-in-out lg:transform-none lg:flex-row lg:gap-4 absolute inset-0"
                                 style={{ transform: `translateX(${mobileView === 'map' ? '-100%' : '0%'})` }}
                             >
                                 {/* Case View Wrapper */}
-                                <div className="w-full flex-shrink-0 h-full lg:w-3/5">
+                                <div className="w-full flex-shrink-0 h-full lg:w-3/5 lg:flex-shrink">
                                     <div ref={caseScrollRef} onScroll={handleCaseScroll} className="h-full overflow-y-auto bg-white rounded-lg shadow-lg border border-gray-200">
                                         <PatientCaseView
                                             patientCase={patientCase}
@@ -523,7 +524,7 @@ export const App: React.FC = () => {
                                 </div>
 
                                 {/* Map View Wrapper */}
-                                <div className="w-full flex-shrink-0 h-full flex flex-col lg:w-2/5">
+                                <div className="w-full flex-shrink-0 h-full flex flex-col lg:w-2/5 lg:flex-shrink">
                                     {mapData ? (
                                         <KnowledgeMap
                                             ref={knowledgeMapRef}

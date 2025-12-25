@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type, GenerateContentResponse, Modality, GenerateImagesResponse } from "@google/genai";
 import type { PatientCase, KnowledgeMapData, KnowledgeNode, KnowledgeLink, TraceableEvidence, FurtherReading, DiagramData } from '../types';
 
@@ -8,9 +9,9 @@ const getAiClient = () => {
 // Configuration for Thinking Mode (Gemini 3 Pro)
 // Used for complex reasoning tasks like case generation, pathophysiology explanation, and diagram logic.
 const THINKING_MODEL = "gemini-3-pro-preview";
-const THINKING_CONFIG = {
-    thinkingConfig: { thinkingBudget: 32768 } // Max budget for deep reasoning
-};
+// FIX: Removed explicit thinkingBudget to prevent model from over-thinking and truncating output.
+// The model will manage its own thinking budget.
+const THINKING_CONFIG = {};
 
 // FIX: Updated FAST_MODEL to 'gemini-3-flash-preview' for basic text tasks to comply with latest performance recommendations.
 const FAST_MODEL = "gemini-3-flash-preview";
@@ -321,7 +322,7 @@ const knowledgeMapSchema = {
     required: ["nodes", "links"]
 };
 
-// --- END: Schemas for Parallel Generation ---
+// --- END: Parallel Generation Functions ---
 
 
 export const getConceptAbstract = async (concept: string, caseContext: string, language: string): Promise<string> => {
@@ -341,7 +342,7 @@ export const getConceptAbstract = async (concept: string, caseContext: string, l
             ...THINKING_CONFIG,
         },
     }));
-    return response.text;
+    return response.text || "";
 };
 
 const getDifficultyInstructions = (difficulty: string) => {
@@ -410,7 +411,7 @@ export const generateCorePatientCase = async (condition: string, discipline: str
         },
     }));
     
-    return JSON.parse(response.text) as PatientCase;
+    return JSON.parse(response.text || "{}") as PatientCase;
 };
 
 // --- START: Parallel Generation Functions ---
@@ -464,7 +465,7 @@ const generateCasePart = async (
         },
     }));
 
-    return JSON.parse(response.text);
+    return JSON.parse(response.text || "{}");
 };
 
 
@@ -539,7 +540,7 @@ export const enrichCaseWithWebSources = async (patientCase: PatientCase, languag
 
     try {
         // Extract JSON from markdown code block
-        const text = response.text;
+        const text = response.text || "";
         const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/);
         if (!jsonMatch || !jsonMatch[1]) {
             throw new Error("Model did not return a valid JSON code block.");
@@ -580,7 +581,7 @@ export const searchForSource = async (sourceQuery: string, language: string): Pr
         },
     }));
 
-    const summary = response.text;
+    const summary = response.text || "";
     const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
 
     return { summary, sources };
@@ -641,7 +642,7 @@ export const interpretEcg = async (findings: EcgFindings, imageBase64: string | 
         }
     }));
 
-    return response.text;
+    return response.text || "";
 };
 
 
@@ -704,7 +705,7 @@ export const checkDrugInteractions = async (drugNames: string[], language: strin
         },
     }));
 
-    return response.text;
+    return response.text || "";
 };
 
 export const generateSpeech = async (text: string, voiceName: string): Promise<string> => {
@@ -753,7 +754,7 @@ export const getConceptConnectionExplanation = async (conceptA: string, conceptB
             ...THINKING_CONFIG,
         },
     }));
-    return response.text;
+    return response.text || "";
 };
 
 export const generateDiagramForDiscussion = async (prompt: string, chatContext: string, language: string): Promise<DiagramData> => {
@@ -790,7 +791,7 @@ export const generateDiagramForDiscussion = async (prompt: string, chatContext: 
         },
     }));
 
-    const parsedResponse = JSON.parse(response.text);
+    const parsedResponse = JSON.parse(response.text || "{}");
 
     // Basic validation
     if (!parsedResponse || !parsedResponse.nodes || !parsedResponse.links) {
