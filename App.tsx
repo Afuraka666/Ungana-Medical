@@ -67,8 +67,6 @@ async function decodeAndDecompress(encodedString: string): Promise<any | null> {
     }
 }
 
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
 // FIX: Exported the App component to make it available for import.
 export const App: React.FC = () => {
     // Analytics
@@ -327,32 +325,31 @@ export const App: React.FC = () => {
             setGenerationCount(newCount);
             localStorage.setItem('ungana_generation_count', String(newCount));
             
-            // Stage 2: Generate remaining details and map SEQUENTIALLY to avoid quota (429) errors.
-            // Spacing them out significantly with sleep calls to ensure quota resets.
-            
+            // Stage 2: Generate remaining details and map in PARALLEL to significantly reduce wait time.
             try {
-                await sleep(1500);
-                // Task 1: Main Details
-                const mainDetails = await generateMainDetails(coreCase, discipline, difficulty, language);
-                setPatientCase(prev => prev ? { ...prev, ...mainDetails } : null);
+                // Fire all requests concurrently, and update the UI progressively as each part finishes.
+                const promises = [
+                    generateMainDetails(coreCase, discipline, difficulty, language).then(res => {
+                        setPatientCase(prev => prev ? { ...prev, ...res } : null);
+                    }),
+                    generateManagementAndContent(coreCase, discipline, difficulty, language).then(res => {
+                        setPatientCase(prev => prev ? { ...prev, ...res } : null);
+                    }),
+                    generateEvidenceAndQuiz(coreCase, discipline, difficulty, language).then(res => {
+                        setPatientCase(prev => prev ? { ...prev, ...res } : null);
+                    }),
+                    generateKnowledgeMap(coreCase, discipline, difficulty, language).then(res => {
+                        setMapData(res);
+                    })
+                ];
                 
-                await sleep(2000);
-                // Task 2: Management & Content
-                const management = await generateManagementAndContent(coreCase, discipline, difficulty, language);
-                setPatientCase(prev => prev ? { ...prev, ...management } : null);
+                // Wait for all promises to settle before hiding the final loading indicators.
+                await Promise.allSettled(promises);
 
-                await sleep(2000);
-                // Task 3: Evidence & Quiz
-                const evidence = await generateEvidenceAndQuiz(coreCase, discipline, difficulty, language);
-                setPatientCase(prev => prev ? { ...prev, ...evidence } : null);
-
-                await sleep(2000);
-                // Task 4: Knowledge Map
-                const map = await generateKnowledgeMap(coreCase, discipline, difficulty, language);
-                setMapData(map);
             } catch (backgroundError) {
                 console.error("Failed to complete some background generation parts:", backgroundError);
-                // We don't set a global error here because core case is already visible.
+                // We don't set a global error here because the core case is already visible.
+                // The user might see a partially loaded case, which is acceptable.
             }
             
             setInteractionState(prev => ({ ...prev, caseGenerated: true, caseEdited: false, caseSaved: false, nodeClicks: 0, snippetSaved: false }));
