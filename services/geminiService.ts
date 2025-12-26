@@ -258,7 +258,7 @@ const evidenceAndQuizSchema = {
                 type: Type.OBJECT,
                 properties: {
                     claim: { type: Type.STRING, description: "The clinical statement or claim being supported." },
-                    source: { type: Type.STRING, description: "The reference or source for the evidence (e.g., '(Systematic Review) JAMA 2023;329(1):7-8' or '(Clinical Guideline) UpToDate on COPD')." }
+                    source: { type: Type.STRING, description: "The reference or source for the evidence, including PMID or DOI where available (e.g., 'JAMA 2023;329(1):7-8. PMID: 12345678. DOI: 10.1001/jama.2023.xxxx')." }
                 },
                 required: ["claim", "source"]
             }
@@ -270,7 +270,7 @@ const evidenceAndQuizSchema = {
                 type: Type.OBJECT,
                 properties: {
                     topic: { type: Type.STRING, description: "The topic of the suggested reading." },
-                    reference: { type: Type.STRING, description: "The full citation or link to the suggested reading material." }
+                    reference: { type: Type.STRING, description: "The full citation or link to the suggested reading material, including PMID or DOI where available." }
                 },
                 required: ["topic", "reference"]
             }
@@ -504,8 +504,8 @@ export const enrichCaseWithWebSources = async (patientCase: PatientCase, languag
     const prompt = `
         Regarding the patient case titled "${patientCase.title}", which involves "${patientCase.presentingComplaint}", please act as a medical research assistant.
         Use Google Search to find the most recent, high-quality medical information to provide the following:
-        1.  **Two (2) Traceable Evidence items:** Each item must be a specific clinical claim relevant to the case, supported by a citable source found in your search.
-        2.  **Two (2) Further Reading suggestions:** These should be recent, relevant review articles or clinical guidelines.
+        1.  **Two (2) Traceable Evidence items:** Each item must be a specific clinical claim relevant to the case, supported by a citable source found in your search. **Crucially, include the PMID and/or DOI for each source if available.**
+        2.  **Two (2) Further Reading suggestions:** These should be recent, relevant review articles or clinical guidelines. **Include PMID/DOI if available.**
 
         **CRITICAL:** Format your entire response as a single JSON object inside a markdown code block (\`\`\`json ... \`\`\`). Do not include any other text outside this block.
         The JSON object must have two keys: "traceableEvidence" and "furtherReadings".
@@ -514,11 +514,11 @@ export const enrichCaseWithWebSources = async (patientCase: PatientCase, languag
         \`\`\`json
         {
           "traceableEvidence": [
-            { "claim": "A relevant clinical claim...", "source": "Citation from a top-tier journal or guideline, e.g., NEJM, The Lancet, UpToDate" },
-            { "claim": "Another relevant clinical claim...", "source": "Another high-quality source" }
+            { "claim": "A relevant clinical claim...", "source": "Citation from a top-tier journal, e.g., NEJM 2023;388:1-12. PMID: 12345678. DOI: 10.1056/NEJMoa2200001" },
+            { "claim": "Another relevant clinical claim...", "source": "Another high-quality source with PMID/DOI if available" }
           ],
           "furtherReadings": [
-            { "topic": "A specific topic for deeper study...", "reference": "Full citation or name of the article/guideline" },
+            { "topic": "A specific topic for deeper study...", "reference": "Full citation including PMID/DOI if available, e.g., Lancet 2023;401:1-15. PMID: 23456789" },
             { "topic": "Another specific topic...", "reference": "Another reference" }
           ]
         }
