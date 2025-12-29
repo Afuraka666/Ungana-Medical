@@ -7,7 +7,8 @@ import { retryWithBackoff, generateDiagramForDiscussion } from '../services/gemi
 import { InteractiveDiagram } from './InteractiveDiagram';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { ImageGenerator } from './ImageGenerator';
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle, ImageRun } from 'docx';
+import { SourceRenderer } from './SourceRenderer';
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle, ImageRun, Table, TableRow, TableCell, WidthType } from 'docx';
 
 const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 const isSpeechRecognitionSupported = !!SpeechRecognition;
@@ -52,6 +53,65 @@ const cleanTextForDownload = (text: string): string => {
         .replace(/\[(.*?)\]\(.*?\)/g, '$1')
         .trim();
 };
+
+// Helper: Simple Markdown Table Parser for Downloaders
+function parseMarkdownTable(text: string) {
+    const lines = text.trim().split('\n');
+    if (lines.length < 3) return null;
+    
+    const rows = lines
+        .filter(line => line.trim().startsWith('|'))
+        .map(line => line.split('|').filter(cell => cell.trim() !== '').map(cell => cell.trim()));
+    
+    if (rows.length < 2) return null;
+    
+    const header = rows[0];
+    const data = rows.slice(2); // Skip header and separator row
+    
+    if (header.length === 0) return null;
+    return { header, data };
+}
+
+// Helper: Splits message content into text and table blocks for smarter rendering/export
+function splitMessageContent(text: string) {
+    const parts: {type: 'text' | 'table', content?: string, table?: {header: string[], data: string[][]}}[] = [];
+    const lines = text.split('\n');
+    let currentText = '';
+    let inTable = false;
+    let tableLines: string[] = [];
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const isTableRow = line.trim().startsWith('|');
+
+        if (isTableRow) {
+            if (!inTable) {
+                if (currentText.trim()) parts.push({type: 'text', content: currentText.trim()});
+                currentText = '';
+                inTable = true;
+                tableLines = [line];
+            } else {
+                tableLines.push(line);
+            }
+        } else {
+            if (inTable) {
+                const table = parseMarkdownTable(tableLines.join('\n'));
+                if (table) parts.push({type: 'table', table});
+                else currentText += (currentText ? '\n' : '') + tableLines.join('\n');
+                inTable = false;
+                tableLines = [];
+            }
+            currentText += (currentText ? '\n' : '') + line;
+        }
+    }
+    if (inTable) {
+        const table = parseMarkdownTable(tableLines.join('\n'));
+        if (table) parts.push({type: 'table', table});
+        else currentText += (currentText ? '\n' : '') + tableLines.join('\n');
+    }
+    if (currentText.trim()) parts.push({type: 'text', content: currentText.trim()});
+    return parts;
+}
 
 // Helper: Converts SVG element to DataURL PNG
 const svgToDataURL = async (svgEl: SVGSVGElement): Promise<string> => {
@@ -146,10 +206,11 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
             const systemInstruction = `You are an expert medical tutor. Facilitate a Socratic discussion about "${topic.aspect}" in the context of "${caseTitle}". 
             
             **Guidelines:**
+            - Always cite sources for factual medical claims. Provide accurate PMIDs and DOIs whenever possible.
             - Use Unicode for formulas (CO₂, T½, Na⁺) instead of LaTeX where possible.
             - Format text in Markdown. Use TABLES when comparing medications, diagnostic criteria, or physiological parameters.
             - If you suggest a visual aid might be helpful, include a tag like [ILLUSTRATE: description of medical image] or [DIAGRAM: description of concept map] at the end of your message.
-            - If you suggest regional blocks, specify: Name, Dose per kg/volume (include 0.5% Bupivacaine alternative if Ropivacaine mentioned), and Coverage (somatosensory/visceral).
+            - If requested to conclude, provide a clear summary and a "References & Bibliography" section listing all sources used in the discussion with their verified PMIDs/DOIs.
             - Respond in ${language}.`;
             
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -193,16 +254,18 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages, isLoading]);
 
-    const handleSendMessage = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!userInput.trim() || isLoading || !chatRef.current) return;
-        const userMsg: ChatMessage = { role: 'user', text: userInput, timestamp: Date.now() };
+    const handleSendMessage = async (e?: React.FormEvent, customMsg?: string) => {
+        if (e) e.preventDefault();
+        const text = customMsg || userInput;
+        if (!text.trim() || isLoading || !chatRef.current) return;
+        
+        const userMsg: ChatMessage = { role: 'user', text, timestamp: Date.now() };
         setMessages(prev => [...prev, userMsg]);
         setUserInput('');
         setIsLoading(true);
         setIsSaved(false); 
         try {
-            const result = await retryWithBackoff(() => chatRef.current!.sendMessageStream({ message: userInput })) as AsyncIterable<GenerateContentResponse>;
+            const result = await retryWithBackoff(() => chatRef.current!.sendMessageStream({ message: text })) as AsyncIterable<GenerateContentResponse>;
             let currentResponse = '';
             setMessages(prev => [...prev, { role: 'model', text: '', timestamp: Date.now() }]);
             for await (const chunk of result) {
@@ -216,6 +279,10 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
         } catch (error) {
             setMessages(prev => [...prev, { role: 'system', text: T.errorChat }]);
         } finally { setIsLoading(false); }
+    };
+
+    const handleConclude = () => {
+        handleSendMessage(undefined, "Please provide a final summary of our discussion and list all the medical references and sources we used, including their PMIDs and DOIs.");
     };
 
     const handleGenerateDiagram = async (e: React.FormEvent) => {
@@ -262,14 +329,38 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
 
         for (const [idx, m] of messages.filter(msg => msg.role !== 'system').entries()) {
             const isUser = m.role === 'user';
+            
+            // User Label
+            if (y > 270) { doc.addPage(); y = 20; }
             doc.setFont('helvetica', 'bold').setFontSize(10).setTextColor(isUser ? brandColor : '#374151').text(`[${isUser ? 'STUDENT' : 'AI TUTOR'}]`, margin, y);
             y += 6;
-            doc.setFont('helvetica', 'normal').setFontSize(11).setTextColor('#111827');
-            const cleaned = cleanTextForDownload(m.text);
-            const lines = doc.splitTextToSize(cleaned, pageWidth - 2 * margin);
-            if (y + (lines.length * 5) > 275) { doc.addPage(); y = 20; }
-            doc.text(lines, margin, y);
-            y += (lines.length * 5) + 8;
+
+            // Content Blocks
+            const blocks = splitMessageContent(m.text);
+            for (const block of blocks) {
+                if (block.type === 'text') {
+                    doc.setFont('helvetica', 'normal').setFontSize(11).setTextColor('#111827');
+                    const cleaned = cleanTextForDownload(block.content || '');
+                    const lines = doc.splitTextToSize(cleaned, pageWidth - 2 * margin);
+                    if (y + (lines.length * 5) > 275) { doc.addPage(); y = 20; }
+                    doc.text(lines, margin, y);
+                    y += (lines.length * 5) + 4;
+                } else if (block.type === 'table' && block.table) {
+                    if (y > 250) { doc.addPage(); y = 20; }
+                    doc.autoTable({
+                        startY: y,
+                        head: [block.table.header],
+                        body: block.table.data,
+                        margin: { left: margin },
+                        styles: { fontSize: 9 },
+                        headStyles: { fillColor: brandColor },
+                        theme: 'grid'
+                    });
+                    y = (doc as any).lastAutoTable.finalY + 8;
+                }
+            }
+            
+            y += 4; // Spacing after message
 
             if (m.diagramData) {
                 const svgId = `diagram-chat-${idx}`;
@@ -306,8 +397,22 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
         for (const [idx, m] of messages.filter(msg => msg.role !== 'system').entries()) {
             const isUser = m.role === 'user';
             sections.push(new Paragraph({ children: [new TextRun({ text: `[${isUser ? 'STUDENT' : 'AI TUTOR'}]`, bold: true, color: isUser ? brandColor : '374151', size: 20 })], spacing: { before: 200 } }));
-            sections.push(new Paragraph({ children: [new TextRun({ text: cleanTextForDownload(m.text), size: 22 })], spacing: { after: 100 } }));
             
+            const blocks = splitMessageContent(m.text);
+            for (const block of blocks) {
+                if (block.type === 'text') {
+                    sections.push(new Paragraph({ children: [new TextRun({ text: cleanTextForDownload(block.content || ''), size: 22 })], spacing: { after: 100 } }));
+                } else if (block.type === 'table' && block.table) {
+                    sections.push(new Table({
+                        width: { size: 100, type: WidthType.PERCENTAGE },
+                        rows: [
+                            new TableRow({ children: block.table.header.map(h => new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: h, bold: true })] })], shading: { fill: 'f3f4f6' } })) }),
+                            ...block.table.data.map(row => new TableRow({ children: row.map(cell => new TableCell({ children: [new Paragraph({ text: cell })] })) }))
+                        ]
+                    }));
+                }
+            }
+
             if (m.diagramData) {
                 const svgId = `diagram-chat-${idx}`;
                 const svgEl = document.querySelector(`#${svgId} svg`) as SVGSVGElement;
@@ -345,8 +450,8 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
                                 {showShareMenu && (
                                     <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg border border-gray-200 z-20 animate-fade-in py-1">
                                         <button onClick={() => { navigator.clipboard.writeText(messages.map(m => `[${m.role.toUpperCase()}]: ${m.text}`).join('\n\n')); setShowShareMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>{T.copyTranscript}</button>
-                                        <button onClick={handleDownloadPdf} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"><svg className="h-4 w-4 text-red-600" fill="currentColor" viewBox="0 0 24 24"><path d="M11.363 2c4.155 0 2.637 6 2.637 6s6-1.518 6 2.638v11.362c0 .552-.448 1-1 1h-17c-.552 0-1-.448-1-1v-19c0-.552.448-1 1-1h10.363zm4.137 17l-1.5-5h-1l-1.5 5h1.1l.3-1h1.2l.3 1h1.1zm-4.5-5h-2.5v5h1.1v-1.6h1.4c.828 0 1.5-.672 1.5-1.5s-.672-1.9-1.5-1.9zm-4 0h-2.5v5h2.5c.828 0 1.5-.672 1.5-1.5v-2c0-.828-.672-1.5-1.5-1.5zm6.5 1.4c0 .221-.179.4-.4.4h-1.4v-.8h1.4c.221 0 .4.179.4.4zm-4 1.1h-1.4v-1.1h1.4c.221 0 .4.179.4.4v.3c0 .221-.179.4-.4.4zm3.1-.7l-.4 1.3h-.8l-.4-1.3.1-.3h1.4l.1.3z" /></svg>{T.downloadPdfButton}</button>
-                                        <button onClick={handleDownloadWord} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"><svg className="h-4 w-4 text-blue-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2c5.514 0 10 4.486 10 10s-4.486 10-10 10-10-4.486-10-10 4.486-10 10-10zm0-2c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm-3 8h6v1h-6v-1zm0 2h6v1h-6v-1zm0 2h6v1h-6v-1zm0 2h6v1h-6v-1zm0 2h6v1h-6v-1z" /></svg>{T.downloadWordButton}</button>
+                                        <button onClick={handleDownloadPdf} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"><svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"></path></svg>{T.downloadPdfButton}</button>
+                                        <button onClick={handleDownloadWord} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"><svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2c5.514 0 10 4.486 10 10s-4.486 10-10 10-10-4.486-10-10 4.486-10 10-10zm0-2c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm-3 8h6v1h-6v-1zm0 2h6v1h-6v-1zm0 2h6v1h-6v-1zm0 2h6v1h-6v-1zm0 2h6v1h-6v-1z" /></svg>{T.downloadWordButton}</button>
                                     </div>
                                 )}
                             </div>
@@ -357,9 +462,7 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
                 <main className="p-4 overflow-y-auto flex-grow bg-gray-50/50">
                     <div className="space-y-6">
                         {messages.map((msg, index) => {
-                            // Detect special tags for dynamic UI rendering
                             const illustrationMatch = msg.text.match(/\[ILLUSTRATE: (.*?)\]/);
-                            const diagramMatch = msg.text.match(/\[DIAGRAM: (.*?)\]/);
                             const textWithoutTags = msg.text.replace(/\[ILLUSTRATE:.*?\]/g, '').replace(/\[DIAGRAM:.*?\]/g, '').trim();
 
                             return (
@@ -367,7 +470,14 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
                                     {msg.role === 'model' && <div className="w-8 h-8 bg-brand-blue text-white rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold shadow-sm">AI</div>}
                                     <div className={`max-w-[85%] space-y-3 ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                                         <div className={`px-4 py-3 rounded-2xl text-sm shadow-sm ${msg.role === 'user' ? 'bg-brand-blue text-white rounded-tr-none' : msg.role === 'model' ? 'bg-white text-brand-text border border-gray-200 rounded-tl-none' : 'text-center w-full text-gray-500 italic bg-transparent shadow-none'}`}>
-                                            {msg.role === 'model' ? <MarkdownRenderer content={textWithoutTags} /> : <p className="whitespace-pre-wrap">{msg.text}</p>}
+                                            {msg.role === 'model' ? (
+                                                <div className="space-y-2">
+                                                    <MarkdownRenderer content={textWithoutTags} />
+                                                    <div className="pt-2 mt-2 border-t border-gray-50 text-[11px] text-gray-500 italic">
+                                                        <SourceRenderer text={msg.text} />
+                                                    </div>
+                                                </div>
+                                            ) : <p className="whitespace-pre-wrap">{msg.text}</p>}
                                             
                                             {illustrationMatch && !msg.imageData && (
                                                 <div className="mt-3 pt-3 border-t border-gray-100 flex justify-center">
@@ -391,9 +501,6 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
                                         {msg.diagramData && (
                                             <div id={`diagram-chat-${index}`} className="h-64 w-full rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden group relative">
                                                 <InteractiveDiagram data={msg.diagramData} />
-                                                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <span className="bg-gray-800/60 text-white text-[10px] px-2 py-1 rounded backdrop-blur-sm">Interactive Diagram</span>
-                                                </div>
                                             </div>
                                         )}
                                     </div>
@@ -410,6 +517,16 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
                     </div>
                 </main>
                 <footer className="p-4 border-t border-gray-200 bg-white rounded-b-xl z-10">
+                    <div className="flex justify-center mb-3">
+                        <button 
+                            onClick={handleConclude}
+                            disabled={isLoading}
+                            className="text-xs px-4 py-1.5 bg-brand-gray text-gray-700 hover:bg-gray-200 rounded-full border border-gray-300 transition-colors font-medium flex items-center gap-1.5"
+                        >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                            {T.concludeDiscussion}
+                        </button>
+                    </div>
                     {micError && <div className="mb-2 text-xs text-red-600 bg-red-50 p-2 rounded border border-red-100">{micError}</div>}
                     {isGeneratingDiagram && (
                         <form onSubmit={handleGenerateDiagram} className="p-2 border border-gray-200 rounded-lg mb-2 bg-gray-50 flex items-center gap-2">

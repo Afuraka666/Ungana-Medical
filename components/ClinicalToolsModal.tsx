@@ -1,5 +1,4 @@
 
-
 import React, { useState, useMemo } from 'react';
 import { checkDrugInteractions } from '../services/geminiService';
 import { EcgInterpreter } from './EcgInterpreter';
@@ -21,6 +20,7 @@ interface Drug {
     concentration?: string;
     maxDose?: string;
     notes?: string;
+    coverage?: string;
     adverseEvents?: string[];
     calculation?: (weight: number) => {
         dose?: number;
@@ -190,7 +190,7 @@ const drugDatabase: Drug[] = [
         }
     },
     {
-        name: 'Bupivacaine 0.5% Plain (Regional)',
+        name: 'Bupivacaine 0.5% Plain (Regional Bolus)',
         doseText: 'Bolus: 0.3-0.5 mg/kg; Infusion: 0.1-0.4 mg/kg/hr',
         concentration: '5 mg/mL',
         notes: 'Spinal/Epidural dose is complex. This is a guideline for educational purposes.',
@@ -634,6 +634,85 @@ const drugDatabase: Drug[] = [
         }
     },
     // R
+    // REGIONAL BLOCKS START
+    {
+        name: 'Regional: ESP (Erector Spinae Plane) Block',
+        doseText: '2 mg/kg (0.4 mL/kg of 0.5% Bupivacaine)',
+        notes: 'Interfascial plane block. Local anesthetic spreads to paravertebral space.',
+        coverage: 'Both (Somatosensory and Visceral, depending on dermatomal level)',
+        calculation: (weight) => {
+            const dose = 2 * weight; // 2mg/kg
+            const volume = 0.4 * weight; // 2mg / (5mg/mL) = 0.4mL
+            return { dose: parseFloat(dose.toFixed(1)), unit: 'mg', volume: parseFloat(volume.toFixed(1)), volumeUnit: 'mL', notes: 'Calculated using 0.5% Bupivacaine (5mg/mL).' };
+        }
+    },
+    {
+        name: 'Regional: Femoral Nerve Block',
+        doseText: '2 mg/kg (0.4 mL/kg of 0.5% Bupivacaine)',
+        notes: 'Targeting femoral nerve in the femoral crease/inguinal region.',
+        coverage: 'Somatosensory (Anterior thigh, medial lower leg, and knee joint)',
+        calculation: (weight) => {
+            const dose = 2 * weight;
+            const volume = 0.4 * weight;
+            return { dose: parseFloat(dose.toFixed(1)), unit: 'mg', volume: parseFloat(volume.toFixed(1)), volumeUnit: 'mL', notes: 'Calculated using 0.5% Bupivacaine (5mg/mL).' };
+        }
+    },
+    {
+        name: 'Regional: Interscalene Brachial Plexus Block',
+        doseText: '2 mg/kg (0.2-0.3 mL/kg of 0.5% Bupivacaine)',
+        notes: 'Targeting brachial plexus roots/trunks between scalene muscles. Phrenic nerve palsy is common.',
+        coverage: 'Somatosensory (Shoulder, lateral 2/3 of clavicle, proximal humerus)',
+        calculation: (weight) => {
+            const dose = 2 * weight;
+            const volume = 0.3 * weight;
+            return { dose: parseFloat(dose.toFixed(1)), unit: 'mg', volume: parseFloat(volume.toFixed(1)), volumeUnit: 'mL', notes: 'Calculated using 0.5% Bupivacaine (5mg/mL) at 0.3 mL/kg.' };
+        }
+    },
+    {
+        name: 'Regional: PECS I & II Blocks',
+        doseText: '2 mg/kg (0.4 mL/kg of 0.5% Bupivacaine)',
+        notes: 'Targeting pectoral, intercostobrachial, and long thoracic nerves.',
+        coverage: 'Somatosensory (Breast tissue, pectoralis major/minor, hemithorax)',
+        calculation: (weight) => {
+            const dose = 2 * weight;
+            const volume = 0.4 * weight;
+            return { dose: parseFloat(dose.toFixed(1)), unit: 'mg', volume: parseFloat(volume.toFixed(1)), volumeUnit: 'mL', notes: 'Calculated using 0.5% Bupivacaine (5mg/mL).' };
+        }
+    },
+    {
+        name: 'Regional: Popliteal Sciatic Block',
+        doseText: '2 mg/kg (0.3-0.4 mL/kg of 0.5% Bupivacaine)',
+        notes: 'Targeting sciatic nerve proximal to its division in the popliteal fossa.',
+        coverage: 'Somatosensory (Foot, ankle, and lower leg excluding medial strip)',
+        calculation: (weight) => {
+            const dose = 2 * weight;
+            const volume = 0.4 * weight;
+            return { dose: parseFloat(dose.toFixed(1)), unit: 'mg', volume: parseFloat(volume.toFixed(1)), volumeUnit: 'mL', notes: 'Calculated using 0.5% Bupivacaine (5mg/mL).' };
+        }
+    },
+    {
+        name: 'Regional: Rectus Sheath Block',
+        doseText: '2 mg/kg total (0.2 mL/kg per side of 0.5% Bupivacaine)',
+        notes: 'Local anesthetic deposited between rectus abdominis muscle and posterior sheath.',
+        coverage: 'Somatosensory (Midline anterior abdominal wall)',
+        calculation: (weight) => {
+            const dose = 2 * weight;
+            const volumePerSide = 0.2 * weight;
+            return { dose: parseFloat(dose.toFixed(1)), unit: 'mg', volume: parseFloat((volumePerSide * 2).toFixed(1)), volumeUnit: 'mL', notes: `Total Volume: ${(volumePerSide * 2).toFixed(1)} mL (${volumePerSide.toFixed(1)} mL per side).\nCalculated using 0.5% Bupivacaine (5mg/mL).` };
+        }
+    },
+    {
+        name: 'Regional: TAP (Transversus Abdominis Plane) Block',
+        doseText: '2 mg/kg (0.4 mL/kg of 0.5% Bupivacaine)',
+        notes: 'Targeting T6-L1 nerves in the plane between internal oblique and transversus abdominis.',
+        coverage: 'Somatosensory (Anterior abdominal wall skin and parietal peritoneum)',
+        calculation: (weight) => {
+            const dose = 2 * weight;
+            const volume = 0.4 * weight;
+            return { dose: parseFloat(dose.toFixed(1)), unit: 'mg', volume: parseFloat(volume.toFixed(1)), volumeUnit: 'mL', notes: 'Calculated using 0.5% Bupivacaine (5mg/mL).' };
+        }
+    },
+    // REGIONAL BLOCKS END
     {
         name: 'Rocuronium',
         doseText: 'Intubation: 0.6-1.2 mg/kg; Infusion: 5-15 mcg/kg/min',
@@ -796,6 +875,13 @@ const DrugDoseCalculator: React.FC<{ T: Record<string, any>, language: string }>
                         <h3 className="text-md font-bold text-brand-blue">{selectedDrug.name}</h3>
                         <p className="text-xs text-gray-500 italic">Based on {selectedDrug.doseText} {selectedDrug.maxDose ? `(${selectedDrug.maxDose})` : ''}</p>
                         
+                        {selectedDrug.coverage && (
+                            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                                <h4 className="text-sm font-bold text-gray-700">{T.coverageLabel}</h4>
+                                <p className="text-sm text-gray-800">{selectedDrug.coverage}</p>
+                            </div>
+                        )}
+
                         {selectedDrug.adverseEvents && (
                             <div className="bg-red-100 border-l-4 border-red-500 text-red-900 p-3 mt-2 rounded-r-lg" role="alert">
                                 <div className="flex">
