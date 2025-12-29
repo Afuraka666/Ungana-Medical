@@ -1,9 +1,12 @@
+
 import React, { useState, useEffect, useRef } from 'react';
-import type { DisciplineSpecificConsideration, ChatMessage, DiagramData } from '../types';
+import type { DisciplineSpecificConsideration, ChatMessage, DiagramData, EducationalContent } from '../types';
+import { EducationalContentType } from '../types';
 import { GoogleGenAI, Chat, GenerateContentResponse, Content } from "@google/genai";
 import { retryWithBackoff, generateDiagramForDiscussion } from '../services/geminiService';
 import { InteractiveDiagram } from './InteractiveDiagram';
 import { MarkdownRenderer } from './MarkdownRenderer';
+import { ImageGenerator } from './ImageGenerator';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle, ImageRun } from 'docx';
 
 const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -21,6 +24,9 @@ const getBCP47Language = (lang: string): string => {
 // Helper: Cleans LaTeX and Markdown symbols for text-based downloads
 const cleanTextForDownload = (text: string): string => {
     return text
+        // Clean special UI tags
+        .replace(/\[ILLUSTRATE:.*?\]/g, '')
+        .replace(/\[DIAGRAM:.*?\]/g, '')
         // Convert common medical LaTeX to Unicode
         .replace(/\$t_{1\/2}\$/g, 'T½')
         .replace(/\$t_\{1\/2\}\$/g, 'T½')
@@ -124,6 +130,8 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
     const [diagramPrompt, setDiagramPrompt] = useState('');
     const [isSaved, setIsSaved] = useState(false);
     const [showShareMenu, setShowShareMenu] = useState(false);
+    const [activeImagePrompt, setActiveImagePrompt] = useState<{prompt: string, index: number} | null>(null);
+    
     const chatRef = useRef<Chat | null>(null);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const shareMenuRef = useRef<HTMLDivElement | null>(null);
@@ -138,10 +146,11 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
             const systemInstruction = `You are an expert medical tutor. Facilitate a Socratic discussion about "${topic.aspect}" in the context of "${caseTitle}". 
             
             **Guidelines:**
-            - Use Unicode for formulas (CO₂, T½, Na⁺) instead of LaTeX where possible for better readability.
+            - Use Unicode for formulas (CO₂, T½, Na⁺) instead of LaTeX where possible.
+            - Format text in Markdown. Use TABLES when comparing medications, diagnostic criteria, or physiological parameters.
+            - If you suggest a visual aid might be helpful, include a tag like [ILLUSTRATE: description of medical image] or [DIAGRAM: description of concept map] at the end of your message.
             - If you suggest regional blocks, specify: Name, Dose per kg/volume (include 0.5% Bupivacaine alternative if Ropivacaine mentioned), and Coverage (somatosensory/visceral).
-            - Synthesize traceable evidence labels [Synthesis].
-            - Format text in Markdown. Respond in ${language}.`;
+            - Respond in ${language}.`;
             
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             let chatHistory: Content[] | undefined = undefined;
@@ -193,12 +202,10 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
         setIsLoading(true);
         setIsSaved(false); 
         try {
-            // FIX: Added explicit cast to AsyncIterable to fix the 'unknown' iterator error.
             const result = await retryWithBackoff(() => chatRef.current!.sendMessageStream({ message: userInput })) as AsyncIterable<GenerateContentResponse>;
             let currentResponse = '';
             setMessages(prev => [...prev, { role: 'model', text: '', timestamp: Date.now() }]);
             for await (const chunk of result) {
-                // FIX: Chunk text access is now safer using the .text property from the GenerateContentResponse.
                 currentResponse += chunk.text || '';
                 setMessages(prev => {
                     const newMessages = [...prev];
@@ -225,6 +232,16 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
         } catch (error) {
             setMessages(prev => [...prev, { role: 'system', text: "Diagram generation failed." }]);
         } finally { setIsLoading(false); }
+    };
+
+    const handleImageGenerated = (index: number, imageBase64: string) => {
+        setMessages(prev => {
+            const newMessages = [...prev];
+            newMessages[index] = { ...newMessages[index], imageData: imageBase64 };
+            return newMessages;
+        });
+        setActiveImagePrompt(null);
+        setIsSaved(false);
     };
 
     const handleDownloadPdf = async () => {
@@ -267,6 +284,12 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
                     }
                 }
             }
+            if (m.imageData) {
+                const imgW = 120; const imgH = 90;
+                if (y + imgH > 270) { doc.addPage(); y = 20; }
+                doc.addImage(`data:image/png;base64,${m.imageData}`, 'PNG', (pageWidth - imgW) / 2, y, imgW, imgH);
+                y += imgH + 10;
+            }
         }
         doc.save(`Ungana_Discussion_${topic.aspect.replace(/\s+/g, '_')}.pdf`);
         setShowShareMenu(false);
@@ -295,6 +318,9 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
                         sections.push(new Paragraph({ children: [new ImageRun({ data: Uint8Array.from(atob(base64), c => c.charCodeAt(0)), transformation: { width: 450, height: 330 } })], alignment: AlignmentType.CENTER, spacing: { before: 200, after: 200 } }));
                     }
                 }
+            }
+            if (m.imageData) {
+                sections.push(new Paragraph({ children: [new ImageRun({ data: Uint8Array.from(atob(m.imageData), c => c.charCodeAt(0)), transformation: { width: 450, height: 330 } })], alignment: AlignmentType.CENTER, spacing: { before: 200, after: 200 } }));
             }
         }
         const doc = new Document({ sections: [{ children: sections }] });
@@ -329,17 +355,57 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
                     </div>
                 </header>
                 <main className="p-4 overflow-y-auto flex-grow bg-gray-50/50">
-                    <div className="space-y-4">
-                        {messages.map((msg, index) => (
-                            <div key={index} className={`flex items-end gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                {msg.role === 'model' && <div className="w-6 h-6 bg-brand-blue text-white rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold">AI</div>}
-                                <div className={`max-w-[85%] px-4 py-2 rounded-2xl text-sm ${msg.role === 'user' ? 'bg-brand-blue text-white rounded-br-none' : msg.role === 'model' ? 'bg-gray-200 text-brand-text rounded-bl-none' : 'text-center w-full text-gray-500 italic'}`}>
-                                    {msg.role === 'model' ? <MarkdownRenderer content={msg.text} /> : <p className="whitespace-pre-wrap">{msg.text}</p>}
-                                    {msg.diagramData && <div id={`diagram-chat-${index}`} className="mt-2 h-64 w-full rounded-lg border border-gray-300 bg-white"><InteractiveDiagram data={msg.diagramData} /></div>}
+                    <div className="space-y-6">
+                        {messages.map((msg, index) => {
+                            // Detect special tags for dynamic UI rendering
+                            const illustrationMatch = msg.text.match(/\[ILLUSTRATE: (.*?)\]/);
+                            const diagramMatch = msg.text.match(/\[DIAGRAM: (.*?)\]/);
+                            const textWithoutTags = msg.text.replace(/\[ILLUSTRATE:.*?\]/g, '').replace(/\[DIAGRAM:.*?\]/g, '').trim();
+
+                            return (
+                                <div key={index} className={`flex items-start gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                                    {msg.role === 'model' && <div className="w-8 h-8 bg-brand-blue text-white rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold shadow-sm">AI</div>}
+                                    <div className={`max-w-[85%] space-y-3 ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                                        <div className={`px-4 py-3 rounded-2xl text-sm shadow-sm ${msg.role === 'user' ? 'bg-brand-blue text-white rounded-tr-none' : msg.role === 'model' ? 'bg-white text-brand-text border border-gray-200 rounded-tl-none' : 'text-center w-full text-gray-500 italic bg-transparent shadow-none'}`}>
+                                            {msg.role === 'model' ? <MarkdownRenderer content={textWithoutTags} /> : <p className="whitespace-pre-wrap">{msg.text}</p>}
+                                            
+                                            {illustrationMatch && !msg.imageData && (
+                                                <div className="mt-3 pt-3 border-t border-gray-100 flex justify-center">
+                                                    <button 
+                                                        onClick={() => setActiveImagePrompt({ prompt: illustrationMatch[1], index })}
+                                                        className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition text-xs font-semibold"
+                                                    >
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h14a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                                                        Generate Illustration
+                                                    </button>
+                                                </div>
+                                            )}
+
+                                            {msg.imageData && (
+                                                <div className="mt-3">
+                                                    <img src={`data:image/png;base64,${msg.imageData}`} alt="Illustration" className="rounded-lg border border-gray-100 shadow-sm max-w-full h-auto cursor-zoom-in" />
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {msg.diagramData && (
+                                            <div id={`diagram-chat-${index}`} className="h-64 w-full rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden group relative">
+                                                <InteractiveDiagram data={msg.diagramData} />
+                                                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <span className="bg-gray-800/60 text-white text-[10px] px-2 py-1 rounded backdrop-blur-sm">Interactive Diagram</span>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
+                            );
+                        })}
+                        {isLoading && (
+                            <div className="flex items-start gap-3 flex-row">
+                                <div className="w-8 h-8 bg-brand-blue text-white rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold shadow-sm">AI</div>
+                                <div className="px-5 py-4 bg-white border border-gray-200 rounded-2xl rounded-tl-none shadow-sm"><LoadingSpinner /></div>
                             </div>
-                        ))}
-                        {isLoading && <div className="flex items-end gap-2 justify-start"><div className="w-6 h-6 bg-brand-blue text-white rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold">AI</div><div className="px-4 py-3 bg-gray-200 rounded-2xl rounded-bl-none"><LoadingSpinner /></div></div>}
+                        )}
                         <div ref={messagesEndRef} />
                     </div>
                 </main>
@@ -353,19 +419,29 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
                         </form>
                     )}
                     <form onSubmit={handleSendMessage} className="flex items-center gap-2 mb-3">
-                        <button type="button" onClick={() => setIsGeneratingDiagram(prev => !prev)} disabled={isLoading} className="p-2 rounded-md border border-gray-300 bg-white hover:bg-gray-100 text-gray-600"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" /></svg></button>
+                        <button type="button" onClick={() => setIsGeneratingDiagram(prev => !prev)} disabled={isLoading} className="p-2 rounded-md border border-gray-300 bg-white hover:bg-gray-100 text-gray-600" title="Add Diagram"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" /></svg></button>
                         <button type="button" onClick={handleMicClick} disabled={isLoading} className={`p-2 rounded-md border transition ${isListening ? 'text-red-500 border-red-500 bg-red-50' : 'text-gray-600 border-gray-300'}`}><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm-1 4a4 4 0 108 0V4a4 4 0 10-8 0v4zM2 11a1 1 0 011-1h1a1 1 0 011 1v.5a.5.5 0 001 0V11a3 3 0 013-3h0a3 3 0 013 3v.5a.5.5 0 001 0V11a1 1 0 011 1h1a1 1 0 110 2h-1a1 1 0 01-1-1v-.5a2.5 2.5 0 00-5 0v.5a1 1 0 01-1 1H3a1 1 0 01-1-1v-2z" clipRule="evenodd" /></svg></button>
-                        <input type="text" value={userInput} onChange={(e) => setUserInput(e.target.value)} placeholder={T.chatPlaceholder} disabled={isLoading} className="flex-grow p-2 border border-gray-300 rounded-md bg-gray-50 text-black text-sm" />
-                        <button type="submit" disabled={isLoading || !userInput.trim()} className="bg-brand-blue hover:bg-blue-800 text-white font-bold p-2 rounded-md disabled:bg-gray-400"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.428A1 1 0 0010 16h.008a1 1 0 00.724-.316l5-5a1 1 0 00.316-.724V4a1 1 0 00-1-1h-2a1 1 0 00-1 1v.008a1 1 0 00.316.724l-3 3.428z" /></svg></button>
+                        <input type="text" value={userInput} onChange={(e) => setUserInput(e.target.value)} placeholder={T.chatPlaceholder} disabled={isLoading} className="flex-grow p-2 border border-gray-300 rounded-md bg-gray-50 text-black text-sm focus:ring-2 focus:ring-brand-blue/20" />
+                        <button type="submit" disabled={isLoading || !userInput.trim()} className="bg-brand-blue hover:bg-blue-800 text-white font-bold p-2 rounded-md disabled:bg-gray-400 transition-colors shadow-sm"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.428A1 1 0 0010 16h.008a1 1 0 00.724-.316l5-5a1 1 0 00.316-.724V4a1 1 0 00-1-1h-2a1 1 0 00-1 1v.008a1 1 0 00.316.724l-3 3.428z" /></svg></button>
                     </form>
                     <div className="flex justify-between items-center pt-3 border-t border-gray-100">
-                        <span className="text-[10px] text-gray-400 italic">{isSaved ? "Saved to case." : "Unsaved changes."}</span>
-                        <button type="button" onClick={() => { onSaveDiscussion(topicId, messages); setIsSaved(true); }} disabled={isLoading} className={`text-xs px-4 py-1.5 rounded-md transition font-medium border flex items-center gap-1 shadow-sm ${isSaved ? 'text-green-700 bg-green-50 border-green-200' : 'text-brand-blue bg-blue-50 hover:bg-blue-100 border-blue-200'}`}>
+                        <span className="text-[10px] text-gray-400 italic font-medium">{isSaved ? "Session saved to case profile" : "Unsaved changes"}</span>
+                        <button type="button" onClick={() => { onSaveDiscussion(topicId, messages); setIsSaved(true); }} disabled={isLoading} className={`text-xs px-4 py-1.5 rounded-md transition font-semibold border flex items-center gap-1 shadow-sm ${isSaved ? 'text-green-700 bg-green-50 border-green-200' : 'text-brand-blue bg-blue-50 hover:bg-blue-100 border-blue-200'}`}>
                             {isSaved ? <><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>Saved</> : <><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>Save Discussion</>}
                         </button>
                     </div>
                 </footer>
             </div>
+
+            {activeImagePrompt && (
+                <ImageGenerator 
+                    content={{ title: 'Clinical Illustration', description: activeImagePrompt.prompt, type: EducationalContentType.IMAGE, reference: 'AI Generated' }} 
+                    onClose={() => setActiveImagePrompt(null)} 
+                    language={language} 
+                    T={T} 
+                    onImageGenerated={(data) => handleImageGenerated(activeImagePrompt.index, data)} 
+                />
+            )}
         </div>
     );
 };
