@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Discipline } from '../types';
 
@@ -8,7 +9,7 @@ interface DisciplineIconProps {
 }
 
 export const DisciplineIcon: React.FC<DisciplineIconProps> = ({ discipline, className = "h-6 w-6", style }) => {
-    // Using heroicons and custom icons for a consistent, professional look
+    // FIX: Added missing icons for Anaesthesia and Pain Management disciplines to ensure full Record coverage.
     const icons: Record<Discipline, React.ReactNode> = {
         [Discipline.BIOCHEMISTRY]: <svg style={style} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.83-5.83M11.42 15.17l2.472-2.472a3.375 3.375 0 00-4.773-4.773L6.75 11.42m5.83-5.83l-2.472 2.472a3.375 3.375 0 00-4.773 4.773L6.75 11.42m-5.83 5.83l5.83-5.83" /></svg>,
         [Discipline.PHARMACOLOGY]: <svg style={style} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0h18M12 14.25h.008v.008H12v-.008z" /></svg>,
@@ -22,6 +23,8 @@ export const DisciplineIcon: React.FC<DisciplineIconProps> = ({ discipline, clas
         [Discipline.TREATMENT]: <svg style={style} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
         [Discipline.PHYSIOTHERAPY]: <svg style={style} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M12.75 3.75l-4.5 4.5m0 0l4.5 4.5m-4.5-4.5h15m-15 0L3.75 8.25m9 12l-4.5-4.5m0 0l4.5-4.5m-4.5 4.5h15m-15 0l-4.5 4.5" /></svg>,
         [Discipline.OCCUPATIONAL_THERAPY]: <svg style={style} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" /></svg>,
+        [Discipline.ANAESTHESIA]: <svg style={style} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M15.362 5.214A8.252 8.252 0 0112 21 8.25 8.25 0 016.038 7.048 8.287 8.287 0 009 9.6a8.983 8.983 0 013.361-6.867 8.21 8.21 0 003 2.48z" /></svg>,
+        [Discipline.PAIN_MANAGEMENT]: <svg style={style} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 000-7.5h-.75A4.5 4.5 0 007.125 7.5a.375.375 0 01-.375-.375v-.75a.375.375 0 01.375-.375h1.5a.75.75 0 01.75.75v.75a4.5 4.5 0 009 0v-.75a.75.75 0 01.75-.75h1.5a.375.375 0 01.375.375v.75a.375.375 0 01-.375.375h-.75a4.5 4.5 0 00-8.87 1.5H18a3.75 3.75 0 000 7.5h-11.25A4.5 4.5 0 002.25 15z" /></svg>,
     };
     
     return icons[discipline] || null;

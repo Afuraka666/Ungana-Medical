@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
+import { AudioVisualizer } from './AudioVisualizer';
 
 interface ControlPanelProps {
   onGenerate: (condition: string, discipline: string, difficulty: string) => void;
@@ -25,8 +26,9 @@ const MicButton: React.FC<{ onClick: () => void, isListening: boolean, disabled:
             onClick={onClick} 
             disabled={disabled} 
             title={title}
-            className="absolute right-0 top-0 h-full px-2.5 flex items-center text-gray-400 hover:text-brand-blue-light disabled:text-gray-300 disabled:cursor-not-allowed transition-colors"
+            className="absolute right-0 top-0 h-full px-2.5 flex items-center text-gray-400 hover:text-brand-blue-light disabled:text-gray-300 disabled:cursor-not-allowed transition-colors gap-2"
         >
+            <AudioVisualizer isListening={isListening} />
             {isListening ? (
                  <svg className="h-5 w-5 text-red-500 animate-pulse" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                     <path d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 8a2 2 0 00-2 2v.001a2 2 0 002 2h4a2 2 0 002-2V10a2 2 0 00-2-2H8z" />
@@ -98,11 +100,12 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       setMicError(null);
       setActiveInput(targetInput);
 
-      // Create a FRESH instance per click for better "not-allowed" error handling & cross-browser compatibility
       const recognition = new SpeechRecognition();
+      // Improved Sensitivity Config
       recognition.continuous = false;
-      recognition.interimResults = false;
-      // ChiBemba fallback to English
+      recognition.interimResults = true; // Enable for more responsive feedback
+      recognition.maxAlternatives = 1;
+      
       recognition.lang = language === 'bem' ? 'en-US' : language;
 
       recognition.onstart = () => {

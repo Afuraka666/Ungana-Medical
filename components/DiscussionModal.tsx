@@ -8,6 +8,8 @@ import { InteractiveDiagram } from './InteractiveDiagram';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { ImageGenerator } from './ImageGenerator';
 import { SourceRenderer } from './SourceRenderer';
+import { ScientificGraph } from './ScientificGraph';
+import { AudioVisualizer } from './AudioVisualizer';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle, ImageRun, Table, TableRow, TableCell, WidthType } from 'docx';
 
 const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -28,6 +30,7 @@ const cleanTextForDownload = (text: string): string => {
         // Clean special UI tags
         .replace(/\[ILLUSTRATE:.*?\]/g, '')
         .replace(/\[DIAGRAM:.*?\]/g, '')
+        .replace(/\[GRAPH:.*?\]/g, '')
         // Convert common medical LaTeX to Unicode
         .replace(/\$t_{1\/2}\$/g, 'T½')
         .replace(/\$t_\{1\/2\}\$/g, 'T½')
@@ -209,7 +212,10 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
             - Always cite sources for factual medical claims. Provide accurate PMIDs and DOIs whenever possible.
             - Use Unicode for formulas (CO₂, T½, Na⁺) instead of LaTeX where possible.
             - Format text in Markdown. Use TABLES when comparing medications, diagnostic criteria, or physiological parameters.
-            - If you suggest a visual aid might be helpful, include a tag like [ILLUSTRATE: description of medical image] or [DIAGRAM: description of concept map] at the end of your message.
+            - If you suggest a visual aid might be helpful, include a tag:
+              * [ILLUSTRATE: description] for complex medical scenes.
+              * [DIAGRAM: description] for concept maps.
+              * [GRAPH: oxygen_dissociation] if specifically discussing the Oxygen-Haemoglobin curve.
             - If requested to conclude, provide a clear summary and a "References & Bibliography" section listing all sources used in the discussion with their verified PMIDs/DOIs.
             - Respond in ${language}.`;
             
@@ -242,10 +248,15 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
         setMicError(null);
         const recognition = new SpeechRecognition();
         recognition.lang = getBCP47Language(language);
+        recognition.continuous = false;
+        recognition.interimResults = true;
         recognition.onstart = () => setIsListening(true);
         recognition.onend = () => setIsListening(false);
         recognition.onerror = () => { setMicError(T.micGenericError); setIsListening(false); };
-        recognition.onresult = (e: any) => setUserInput(prev => `${prev} ${e.results[0][0].transcript}`.trim());
+        recognition.onresult = (e: any) => {
+            const transcript = e.results[0][0].transcript;
+            setUserInput(transcript);
+        };
         recognitionRef.current = recognition;
         recognition.start();
     };
@@ -463,7 +474,14 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
                     <div className="space-y-6">
                         {messages.map((msg, index) => {
                             const illustrationMatch = msg.text.match(/\[ILLUSTRATE: (.*?)\]/);
-                            const textWithoutTags = msg.text.replace(/\[ILLUSTRATE:.*?\]/g, '').replace(/\[DIAGRAM:.*?\]/g, '').trim();
+                            const diagramMatch = msg.text.match(/\[DIAGRAM: (.*?)\]/);
+                            const graphMatch = msg.text.match(/\[GRAPH: (.*?)\]/);
+                            
+                            const textWithoutTags = msg.text
+                                .replace(/\[ILLUSTRATE:.*?\]/g, '')
+                                .replace(/\[DIAGRAM:.*?\]/g, '')
+                                .replace(/\[GRAPH:.*?\]/g, '')
+                                .trim();
 
                             return (
                                 <div key={index} className={`flex items-start gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
@@ -488,6 +506,12 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
                                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h14a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                                                         Generate Illustration
                                                     </button>
+                                                </div>
+                                            )}
+
+                                            {graphMatch && (
+                                                <div className="mt-3">
+                                                    <ScientificGraph type={graphMatch[1] as any} title="Physiological Relationship" />
                                                 </div>
                                             )}
 
@@ -535,9 +559,14 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
                             <button type="button" onClick={() => setIsGeneratingDiagram(false)} className="text-gray-500 text-sm">{T.cancelButton}</button>
                         </form>
                     )}
-                    <form onSubmit={handleSendMessage} className="flex items-center gap-2 mb-3">
+                    <form onSubmit={(e) => handleSendMessage(e)} className="flex items-center gap-2 mb-3">
                         <button type="button" onClick={() => setIsGeneratingDiagram(prev => !prev)} disabled={isLoading} className="p-2 rounded-md border border-gray-300 bg-white hover:bg-gray-100 text-gray-600" title="Add Diagram"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" /></svg></button>
-                        <button type="button" onClick={handleMicClick} disabled={isLoading} className={`p-2 rounded-md border transition ${isListening ? 'text-red-500 border-red-500 bg-red-50' : 'text-gray-600 border-gray-300'}`}><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm-1 4a4 4 0 108 0V4a4 4 0 10-8 0v4zM2 11a1 1 0 011-1h1a1 1 0 011 1v.5a.5.5 0 001 0V11a3 3 0 013-3h0a3 3 0 013 3v.5a.5.5 0 001 0V11a1 1 0 011 1h1a1 1 0 110 2h-1a1 1 0 01-1-1v-.5a2.5 2.5 0 00-5 0v.5a1 1 0 01-1 1H3a1 1 0 01-1-1v-2z" clipRule="evenodd" /></svg></button>
+                        <div className="relative flex items-center">
+                            <button type="button" onClick={handleMicClick} disabled={isLoading} className={`p-2 rounded-md border transition flex items-center gap-1 ${isListening ? 'text-red-500 border-red-500 bg-red-50' : 'text-gray-600 border-gray-300'}`}>
+                                <AudioVisualizer isListening={isListening} />
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm-1 4a4 4 0 108 0V4a4 4 0 10-8 0v4zM2 11a1 1 0 011-1h1a1 1 0 011 1v.5a.5.5 0 001 0V11a3 3 0 013-3h0a3 3 0 013 3v.5a.5.5 0 001 0V11a1 1 0 011 1h1a1 1 0 110 2h-1a1 1 0 01-1-1v-.5a2.5 2.5 0 00-5 0v.5a1 1 0 01-1 1H3a1 1 0 01-1-1v-2z" clipRule="evenodd" /></svg>
+                            </button>
+                        </div>
                         <input type="text" value={userInput} onChange={(e) => setUserInput(e.target.value)} placeholder={T.chatPlaceholder} disabled={isLoading} className="flex-grow p-2 border border-gray-300 rounded-md bg-gray-50 text-black text-sm focus:ring-2 focus:ring-brand-blue/20" />
                         <button type="submit" disabled={isLoading || !userInput.trim()} className="bg-brand-blue hover:bg-blue-800 text-white font-bold p-2 rounded-md disabled:bg-gray-400 transition-colors shadow-sm"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.428A1 1 0 0010 16h.008a1 1 0 00.724-.316l5-5a1 1 0 00.316-.724V4a1 1 0 00-1-1h-2a1 1 0 00-1 1v.008a1 1 0 00.316.724l-3 3.428z" /></svg></button>
                     </form>

@@ -11,6 +11,8 @@ export enum Discipline {
   TREATMENT = "Treatment",
   PHYSIOTHERAPY = "Physiotherapy",
   OCCUPATIONAL_THERAPY = "Occupational Therapy",
+  ANAESTHESIA = "Anaesthesia",
+  PAIN_MANAGEMENT = "Pain Management",
 }
 
 export enum EducationalContentType {
@@ -88,6 +90,7 @@ export interface ChatMessage {
     role: 'user' | 'model' | 'system';
     text: string;
     diagramData?: DiagramData;
+    imageData?: string;
     timestamp?: number;
 }
 

@@ -216,7 +216,7 @@ const ConnectionExplanationModal: React.FC<ConnectionExplanationModalProps> = ({
     );
 };
 
-// Fix: Add export for DisciplineColors
+// FIX: Added missing discipline colors for Anaesthesia and Pain Management.
 export const DisciplineColors: Record<Discipline, string> = {
     [Discipline.BIOCHEMISTRY]: '#4A90E2', // A bright blue
     [Discipline.PHARMACOLOGY]: '#50E3C2', // A teal/cyan
@@ -230,6 +230,8 @@ export const DisciplineColors: Record<Discipline, string> = {
     [Discipline.TREATMENT]: '#7ED321', // A bright green
     [Discipline.PHYSIOTHERAPY]: '#E0A410', // A gold
     [Discipline.OCCUPATIONAL_THERAPY]: '#03A9F4', // A light blue
+    [Discipline.ANAESTHESIA]: '#607D8B', // Blue Grey
+    [Discipline.PAIN_MANAGEMENT]: '#FF5722', // Deep Orange
 };
 
 interface KnowledgeMapProps {
