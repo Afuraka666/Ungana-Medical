@@ -171,3 +171,14 @@ export interface AnalyticsContextType {
   logEvent: (eventName: string, params?: Record<string, any>) => void;
   eventLog: LoggedEvent[];
 }
+
+// FIX: Added EcgFindings interface to fix the "Cannot find name 'EcgFindings'" error in services/geminiService.ts.
+export interface EcgFindings {
+  rate: string;
+  rhythm: string;
+  pr: string;
+  qrs: string;
+  qtc: string;
+  stSegment: string;
+  other: string;
+}

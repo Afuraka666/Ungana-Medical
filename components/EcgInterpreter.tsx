@@ -1,7 +1,8 @@
 
 import React, { useState, useCallback } from 'react';
 import { interpretEcg } from '../services/geminiService';
-import type { EcgFindings } from '../services/geminiService';
+// FIX: Imported EcgFindings from types to fix the Module not found error on line 4.
+import type { EcgFindings } from '../types';
 
 interface EcgInterpreterProps {
     T: Record<string, any>;

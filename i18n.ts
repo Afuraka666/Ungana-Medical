@@ -358,7 +358,6 @@ export const translations: Record<string, Record<string, any>> = {
     aiSummaryTitle: 'AI Summary',
     webSourcesTitle: 'Web Sources',
     noSourcesFound: 'No sources found.',
-    shareDiscussion: 'Share',
   },
   bem: {
     welcomeTitle: 'Mwapoleni ku Ungana Medical',
