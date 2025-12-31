@@ -41,14 +41,12 @@ import { useAnalytics } from './contexts/analytics';
 // Helper: Decompresses a URL-safe Base64 string back into a JSON object
 async function decodeAndDecompress(encodedString: string): Promise<any | null> {
     try {
-        // Make it standard Base64 again
         const base64 = encodedString.replace(/-/g, '+').replace(/_/g, '/');
         const binaryString = atob(base64);
         const bytes = new Uint8Array(binaryString.length);
         for (let i = 0; i < binaryString.length; i++) {
             bytes[i] = binaryString.charCodeAt(i);
         }
-
         const stream = new Blob([bytes]).stream();
         const decompressedStream = stream.pipeThrough(new DecompressionStream('gzip'));
         const reader = decompressedStream.getReader();
@@ -67,9 +65,7 @@ async function decodeAndDecompress(encodedString: string): Promise<any | null> {
     }
 }
 
-// FIX: Exported the App component to make it available for import.
 export const App: React.FC = () => {
-    // Analytics
     const { logEvent } = useAnalytics();
 
     // Core App State
@@ -79,6 +75,9 @@ export const App: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [patientCase, setPatientCase] = useState<PatientCase | null>(null);
     const [mapData, setMapData] = useState<KnowledgeMapData | null>(null);
+
+    // Theme State
+    const [theme, setTheme] = useState(localStorage.getItem('ungana_theme') || 'light');
 
     // Knowledge Map State
     const [selectedNodeInfo, setSelectedNodeInfo] = useState<{ node: KnowledgeNode; abstract: string; loading: boolean } | null>(null);
@@ -101,7 +100,6 @@ export const App: React.FC = () => {
 
     // User Interaction Tracking for Tips
     const [interactionState, setInteractionState] = useState<InteractionState>({
-        // FIX: Changed 'boolean' type keywords to 'false' boolean values and fixed semicolon usage in object literal.
         caseGenerated: false,
         caseEdited: false,
         caseSaved: false,
@@ -109,104 +107,60 @@ export const App: React.FC = () => {
         nodeClicks: 0,
     });
     
-    // Legacy state for tracking generations
     const [generationCount, setGenerationCount] = useState(0);
-
-    // Evaluation State
     const [showEvaluationScreen, setShowEvaluationScreen] = useState(false);
     const [evaluationDaysRemaining, setEvaluationDaysRemaining] = useState<number | null>(null);
-
-    // Mobile view state
     const [mobileView, setMobileView] = useState<'case' | 'map'>('case');
-    
-    // UI Visibility State for mobile scroll behavior
     const [isUiVisible, setIsUiVisible] = useState(true);
     const lastScrollTop = useRef(0);
     const caseScrollRef = useRef<HTMLDivElement>(null);
 
-    // Merge selected language with English fallback to ensure all keys exist
     const T = useMemo(() => {
         const selectedTranslation = translations[language];
-        // If the language doesn't exist at all, default to English
         if (!selectedTranslation) return translations.en;
-        // If it exists, merge it over English so missing keys fall back to English
         return { ...translations.en, ...selectedTranslation };
     }, [language]);
     
     // -- EFFECTS --
 
-    // MIGRATION: Move 'synapsis_' data to 'ungana_' data automatically
+    // Apply theme class
+    useEffect(() => {
+        if (theme === 'dark') {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+        localStorage.setItem('ungana_theme', theme);
+    }, [theme]);
+
+    // MIGRATION Logic
     useEffect(() => {
         try {
-            // 1. Language
             if (!localStorage.getItem('ungana_language') && localStorage.getItem('synapsis_language')) {
                 localStorage.setItem('ungana_language', localStorage.getItem('synapsis_language')!);
                 setLanguage(localStorage.getItem('synapsis_language')!);
             }
-
-            // 2. Saved Cases
             if (!localStorage.getItem('ungana_saved_cases') && localStorage.getItem('synapsis_saved_cases')) {
                 localStorage.setItem('ungana_saved_cases', localStorage.getItem('synapsis_saved_cases')!);
-                // Trigger reload of state below
             }
-
-            // 3. Saved Snippets
             if (!localStorage.getItem('ungana_saved_snippets') && localStorage.getItem('synapsis_saved_snippets')) {
                 localStorage.setItem('ungana_saved_snippets', localStorage.getItem('synapsis_saved_snippets')!);
             }
-
-            // 4. Generation Count
             if (!localStorage.getItem('ungana_generation_count') && localStorage.getItem('synapsis_generation_count')) {
                 localStorage.setItem('ungana_generation_count', localStorage.getItem('synapsis_generation_count')!);
             }
-
-            // 5. Evaluation Data
-            if (!localStorage.getItem('ungana_trial_start_date') && localStorage.getItem('synapsis_trial_start_date')) {
-                localStorage.setItem('ungana_trial_start_date', localStorage.getItem('synapsis_trial_start_date')!);
-            }
-            if (!localStorage.getItem('ungana_feedback_submitted') && localStorage.getItem('synapsis_feedback_submitted')) {
-                localStorage.setItem('ungana_feedback_submitted', localStorage.getItem('synapsis_feedback_submitted')!);
-            }
-            
-            // Force update document title and meta tags for branding immediately
             document.title = "Ungana Medical";
-            
-            const updateMeta = (property: string, content: string) => {
-                let tag = document.querySelector(`meta[property="${property}"]`) || document.querySelector(`meta[name="${property}"]`);
-                if (!tag) {
-                    tag = document.createElement('meta');
-                    if (property.startsWith('og:')) {
-                        tag.setAttribute('property', property);
-                    } else {
-                        tag.setAttribute('name', property);
-                    }
-                    document.head.appendChild(tag);
-                }
-                tag.setAttribute('content', content);
-            };
-            
-            updateMeta('og:title', 'Ungana Medical');
-            updateMeta('og:site_name', 'Ungana Medical');
-            updateMeta('application-name', 'Ungana Medical');
-            updateMeta('apple-mobile-web-app-title', 'Ungana Medical');
-
         } catch (e) {
             console.error("Migration error:", e);
         }
     }, []);
 
-    // Check evaluation status on load
     useEffect(() => {
         const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.has('case')) {
-            // When loading a shared case, bypass evaluation check
-            return;
-        }
-
+        if (urlParams.has('case')) return;
         try {
             const trialStartDateStr = localStorage.getItem('ungana_trial_start_date');
             const hasSubmitted = localStorage.getItem('ungana_feedback_submitted') === 'true';
-
             let trialStartDate: Date;
             if (trialStartDateStr) {
                 trialStartDate = new Date(trialStartDateStr);
@@ -214,31 +168,18 @@ export const App: React.FC = () => {
                 trialStartDate = new Date();
                 localStorage.setItem('ungana_trial_start_date', trialStartDate.toISOString());
             }
-
             const now = new Date();
             const timeDiff = now.getTime() - trialStartDate.getTime();
             const daysElapsed = Math.floor(timeDiff / (1000 * 3600 * 24));
-            
             const daysRemaining = 30 - daysElapsed;
             setEvaluationDaysRemaining(daysRemaining);
-
-            if (daysRemaining <= 0 && !hasSubmitted) {
-                setShowEvaluationScreen(true);
-            }
-
-        } catch (e) {
-            console.error("Failed to process evaluation status", e);
-        }
+            if (daysRemaining <= 0 && !hasSubmitted) setShowEvaluationScreen(true);
+        } catch (e) { console.error("Failed to process evaluation status", e); }
     }, []);
     
-    // Load saved data from localStorage
     useEffect(() => {
         const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.has('case')) {
-            // When loading a shared case, skip other initial loads.
-            return;
-        }
-
+        if (urlParams.has('case')) return;
         try {
             const cases = JSON.parse(localStorage.getItem('ungana_saved_cases') || '[]');
             const snippets = JSON.parse(localStorage.getItem('ungana_saved_snippets') || '[]');
@@ -246,12 +187,9 @@ export const App: React.FC = () => {
             setSavedCases(cases);
             setSavedSnippets(snippets);
             setGenerationCount(count);
-        } catch (e) {
-            console.error("Failed to load data from localStorage", e);
-        }
+        } catch (e) { console.error("Failed to load data from localStorage", e); }
     }, []);
     
-    // Decompress case data from URL on load
     useEffect(() => {
         const urlParams = new URLSearchParams(window.location.search);
         const caseDataParam = urlParams.get('case');
@@ -261,15 +199,11 @@ export const App: React.FC = () => {
             decodeAndDecompress(caseDataParam).then(decodedCase => {
                 if (decodedCase) {
                     setPatientCase(decodedCase as PatientCase);
-                    // A shared case doesn't include map data, it would need to be regenerated.
-                    // Or the share function could be updated to include it.
-                    // For now, we'll just load the case.
                     setMapData(null); 
                 } else {
                     setError('Failed to load the shared case. The link might be invalid.');
                 }
                 setIsLoading(false);
-                // Clean URL
                 window.history.replaceState({}, document.title, window.location.pathname);
             });
         }
@@ -280,24 +214,22 @@ export const App: React.FC = () => {
     const handleCaseScroll = useCallback(() => {
         if (!caseScrollRef.current) return;
         const { scrollTop } = caseScrollRef.current;
-    
-        // A small threshold to prevent flickering on minor scrolls or at the top
-        if (Math.abs(scrollTop - lastScrollTop.current) < 20) {
-            return;
-        }
-    
-        if (scrollTop > lastScrollTop.current && scrollTop > 150) { // Scrolling down, past a certain point
+        if (Math.abs(scrollTop - lastScrollTop.current) < 20) return;
+        if (scrollTop > lastScrollTop.current && scrollTop > 150) {
             setIsUiVisible(false);
-        } else if (scrollTop < lastScrollTop.current || scrollTop < 50) { // Scrolling up or near the top
+        } else if (scrollTop < lastScrollTop.current || scrollTop < 50) {
             setIsUiVisible(true);
         }
-    
         lastScrollTop.current = scrollTop <= 0 ? 0 : scrollTop;
     }, []);
     
     const handleLanguageChange = (langCode: string) => {
         setLanguage(langCode);
         localStorage.setItem('ungana_language', langCode);
+    };
+
+    const toggleTheme = () => {
+        setTheme(prev => prev === 'light' ? 'dark' : 'light');
     };
 
     const handleFeedbackSubmitted = () => {
@@ -316,45 +248,32 @@ export const App: React.FC = () => {
         setMobileView('case');
 
         try {
-            // Stage 1: Generate core case for immediate display
             const coreCase = await generateCorePatientCase(condition, discipline, difficulty, language);
             setPatientCase(coreCase);
             setIsLoading(false);
-            setIsGeneratingDetails(true); // Switch to background loading state
-
-            const newCount = generationCount + 1;
-            setGenerationCount(newCount);
-            localStorage.setItem('ungana_generation_count', String(newCount));
+            setIsGeneratingDetails(true);
+            setGenerationCount(prev => {
+                const count = prev + 1;
+                localStorage.setItem('ungana_generation_count', String(count));
+                return count;
+            });
             
-            // Stage 2: Generate remaining details and map in PARALLEL to significantly reduce wait time.
-            try {
-                // Fire all requests concurrently, and update the UI progressively as each part finishes.
-                const promises = [
-                    generateMainDetails(coreCase, discipline, difficulty, language).then(res => {
-                        setPatientCase(prev => prev ? { ...prev, ...res } : null);
-                    }),
-                    generateManagementAndContent(coreCase, discipline, difficulty, language).then(res => {
-                        setPatientCase(prev => prev ? { ...prev, ...res } : null);
-                    }),
-                    generateEvidenceAndQuiz(coreCase, discipline, difficulty, language).then(res => {
-                        setPatientCase(prev => prev ? { ...prev, ...res } : null);
-                    }),
-                    generateKnowledgeMap(coreCase, discipline, difficulty, language).then(res => {
-                        setMapData(res);
-                    })
-                ];
-                
-                // Wait for all promises to settle before hiding the final loading indicators.
-                await Promise.allSettled(promises);
-
-            } catch (backgroundError) {
-                console.error("Failed to complete some background generation parts:", backgroundError);
-                // We don't set a global error here because the core case is already visible.
-                // The user might see a partially loaded case, which is acceptable.
-            }
-            
+            const promises = [
+                generateMainDetails(coreCase, discipline, difficulty, language).then(res => {
+                    setPatientCase(prev => prev ? { ...prev, ...res } : null);
+                }),
+                generateManagementAndContent(coreCase, discipline, difficulty, language).then(res => {
+                    setPatientCase(prev => prev ? { ...prev, ...res } : null);
+                }),
+                generateEvidenceAndQuiz(coreCase, discipline, difficulty, language).then(res => {
+                    setPatientCase(prev => prev ? { ...prev, ...res } : null);
+                }),
+                generateKnowledgeMap(coreCase, discipline, difficulty, language).then(res => {
+                    setMapData(res);
+                })
+            ];
+            await Promise.allSettled(promises);
             setInteractionState(prev => ({ ...prev, caseGenerated: true, caseEdited: false, caseSaved: false, nodeClicks: 0, snippetSaved: false }));
-
         } catch (err: any) {
             console.error("Error generating core case:", err);
             setError(T.errorService);
@@ -378,16 +297,11 @@ export const App: React.FC = () => {
             setSelectedNodeInfo(null);
             return;
         }
-
-        // Use the pre-fetched summary from the node data
         setSelectedNodeInfo({ node, abstract: node.summary, loading: false });
         setInteractionState(prev => ({...prev, nodeClicks: prev.nodeClicks + 1}));
-
     }, [selectedNodeInfo, logEvent]);
     
-    const handleClearNodeSelection = useCallback(() => {
-        setSelectedNodeInfo(null);
-    }, []);
+    const handleClearNodeSelection = useCallback(() => setSelectedNodeInfo(null), []);
     
     const handleSaveCase = () => {
         if (!patientCase || !mapData) return;
@@ -459,19 +373,16 @@ export const App: React.FC = () => {
         return await knowledgeMapRef.current?.captureAsImage();
     };
 
-    // -- RENDER LOGIC --
-
-    if (showEvaluationScreen) {
-        return <EvaluationScreen T={T} onFeedbackSubmitted={handleFeedbackSubmitted} />;
-    }
+    if (showEvaluationScreen) return <EvaluationScreen T={T} onFeedbackSubmitted={handleFeedbackSubmitted} />;
     
-    // FIX: Using h-[100dvh] ensures full height on mobile browsers including address bars
     return (
-        <div className="flex flex-col h-[100dvh] bg-gray-100 font-sans">
+        <div className="flex flex-col h-[100dvh] bg-gray-100 dark:bg-dark-bg font-sans transition-colors duration-300">
             <Header
                 supportedLanguages={supportedLanguages}
                 currentLanguage={language}
                 onLanguageChange={handleLanguageChange}
+                currentTheme={theme}
+                onThemeToggle={toggleTheme}
                 T={T}
                 className={`sticky top-0 z-30 transition-transform duration-300 ${!isUiVisible && patientCase ? '-translate-y-full' : 'translate-y-0'}`}
             />
@@ -498,14 +409,12 @@ export const App: React.FC = () => {
                     
                     {patientCase ? (
                         <div className="flex-grow overflow-hidden h-full relative">
-                            {/* Sliding container for mobile view */}
                             <div 
                                 className="flex h-full w-full transition-transform duration-300 ease-in-out lg:transform-none lg:flex-row lg:gap-4 absolute inset-0"
                                 style={{ transform: `translateX(${mobileView === 'map' ? '-100%' : '0%'})` }}
                             >
-                                {/* Case View Wrapper */}
                                 <div className="w-full flex-shrink-0 h-full lg:w-3/5 lg:flex-shrink">
-                                    <div ref={caseScrollRef} onScroll={handleCaseScroll} className="h-full overflow-y-auto bg-white rounded-lg shadow-lg border border-gray-200">
+                                    <div ref={caseScrollRef} onScroll={handleCaseScroll} className="h-full overflow-y-auto bg-white dark:bg-dark-surface rounded-lg shadow-lg border border-gray-200 dark:border-dark-border">
                                         <PatientCaseView
                                             patientCase={patientCase}
                                             isGeneratingDetails={isGeneratingDetails}
@@ -520,8 +429,6 @@ export const App: React.FC = () => {
                                         />
                                     </div>
                                 </div>
-
-                                {/* Map View Wrapper */}
                                 <div className="w-full flex-shrink-0 h-full flex flex-col lg:w-2/5 lg:flex-shrink">
                                     {mapData ? (
                                         <KnowledgeMap
@@ -538,7 +445,7 @@ export const App: React.FC = () => {
                                             onDiscussNode={handleDiscussNode}
                                         />
                                     ) : isGeneratingDetails ? (
-                                        <div className="w-full h-full flex items-center justify-center bg-white rounded-lg shadow-lg border border-gray-200 p-8 text-center">
+                                        <div className="w-full h-full flex items-center justify-center bg-white dark:bg-dark-surface rounded-lg shadow-lg border border-gray-200 dark:border-dark-border p-8 text-center text-dark-text">
                                             <LoadingOverlay message={T.buildingMapMessage} subMessages={[]} />
                                         </div>
                                     ) : null}

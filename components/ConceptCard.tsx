@@ -34,6 +34,7 @@ export const ConceptCard: React.FC<ConceptCardProps> = ({ nodeInfo, onClose, onD
           <span
             className="text-xs font-semibold px-2.5 py-0.5 rounded-full mb-2 inline-block"
             style={{ backgroundColor: `${color}20`, color: color }}
+            title={`Medical Domain: ${node.discipline}`}
           >
             {node.discipline}
           </span>
@@ -43,22 +44,20 @@ export const ConceptCard: React.FC<ConceptCardProps> = ({ nodeInfo, onClose, onD
           onClick={onClose}
           className="text-gray-400 hover:text-gray-600 transition"
           aria-label="Close"
+          title="Dismiss concept detail"
         >
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
         </button>
       </div>
       <div className="mt-4 text-sm text-gray-600 min-h-[60px]">
-        {loading ? (
-          <LoadingSpinner />
-        ) : (
-          <p className="whitespace-pre-wrap">{abstract}</p>
-        )}
+        {loading ? <LoadingSpinner /> : <p className="whitespace-pre-wrap leading-relaxed">{abstract}</p>}
       </div>
       <div className="mt-4 pt-3 border-t border-gray-200">
           <button
               onClick={() => onDiscuss(nodeInfo)}
               disabled={loading}
-              className="w-full bg-blue-100 hover:bg-blue-200 text-brand-blue font-semibold py-2 px-4 rounded-md transition text-sm disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed"
+              title="Initiate deep-dive medical discussion on this concept"
+              className="w-full bg-blue-100 hover:bg-blue-200 text-brand-blue font-semibold py-2 px-4 rounded-md transition text-sm disabled:bg-gray-200 disabled:text-gray-400"
           >
               {T.discussButton}
           </button>

@@ -1,33 +1,57 @@
 
 import React, { useEffect, useRef, useCallback, useState, useMemo, forwardRef, useImperativeHandle } from 'react';
 import { Discipline } from '../types';
-import type { KnowledgeMapData, KnowledgeNode } from '../types';
+import type { KnowledgeMapData, KnowledgeNode, KnowledgeLink } from '../types';
 import { ConceptCard } from './ConceptCard';
 import { getConceptConnectionExplanation } from '../services/geminiService';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 declare const d3: any;
+
+export const DisciplineColors: Record<string, string> = {
+    [Discipline.BIOCHEMISTRY]: '#2563EB',
+    [Discipline.PHARMACOLOGY]: '#059669',
+    [Discipline.PHYSIOLOGY]: '#7C3AED',
+    [Discipline.PSYCHOLOGY]: '#D97706',
+    [Discipline.SOCIOLOGY]: '#DB2777',
+    [Discipline.PATHOLOGY]: '#DC2626',
+    [Discipline.IMMUNOLOGY]: '#0891B2',
+    [Discipline.GENETICS]: '#EA580C',
+    [Discipline.DIAGNOSTICS]: '#475569',
+    [Discipline.TREATMENT]: '#16A34A',
+    [Discipline.PHYSIOTHERAPY]: '#06B6D4',
+    [Discipline.OCCUPATIONAL_THERAPY]: '#9333EA',
+    [Discipline.ANAESTHESIA]: '#334155',
+    [Discipline.PAIN_MANAGEMENT]: '#9A3412',
+    [Discipline.NURSING]: '#BE185D',
+    [Discipline.NUTRITION]: '#B45309',
+    [Discipline.SOCIAL_WORK]: '#374151',
+    [Discipline.SPEECH_LANGUAGE_THERAPY]: '#4338CA',
+};
+
+const getContrastColor = (hex: string) => {
+    if (!hex || hex === 'transparent') return '#111827';
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return luminance > 0.65 ? '#111827' : '#FFFFFF';
+};
 
 const svgToDataURL = async (svgEl: SVGSVGElement): Promise<string> => {
     const g = svgEl.querySelector('g');
     if (!g) return '';
-
     const bbox = g.getBBox();
     if (bbox.width === 0 || bbox.height === 0) return '';
-
     const padding = 40;
     const width = bbox.width + padding * 2;
     const height = bbox.height + padding * 2;
-
     const svgClone = svgEl.cloneNode(true) as SVGSVGElement;
     svgClone.setAttribute('width', width.toString());
     svgClone.setAttribute('height', height.toString());
     svgClone.setAttribute('viewBox', `${bbox.x - padding} ${bbox.y - padding} ${width} ${height}`);
-
     const gClone = svgClone.querySelector('g');
-    if (gClone) {
-        gClone.removeAttribute('transform');
-    }
-    
+    if (gClone) gClone.removeAttribute('transform');
     const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
     bgRect.setAttribute('width', width.toString());
     bgRect.setAttribute('height', height.toString());
@@ -35,11 +59,9 @@ const svgToDataURL = async (svgEl: SVGSVGElement): Promise<string> => {
     bgRect.setAttribute('x', `${bbox.x - padding}`);
     bgRect.setAttribute('y', `${bbox.y - padding}`);
     svgClone.prepend(bgRect);
-
     const xml = new XMLSerializer().serializeToString(svgClone);
     const svg64 = btoa(unescape(encodeURIComponent(xml)));
     const image64 = `data:image/svg+xml;base64,${svg64}`;
-
     return new Promise((resolve) => {
         const img = new Image();
         img.onload = () => {
@@ -52,23 +74,16 @@ const svgToDataURL = async (svgEl: SVGSVGElement): Promise<string> => {
                 ctx.scale(scale, scale);
                 ctx.drawImage(img, 0, 0, width, height);
                 resolve(canvas.toDataURL('image/png', 1.0));
-            } else {
-                resolve('');
-            }
+            } else resolve('');
         };
-        img.onerror = (e) => {
-            console.error("Failed to load SVG image for canvas conversion", e);
-            resolve('');
-        };
+        img.onerror = () => resolve('');
         img.src = image64;
     });
 };
 
-
-// --- Helper Components ---
 const LoadingSpinner: React.FC = () => (
-    <div className="flex justify-center items-center h-full p-4">
-        <svg className="animate-spin h-8 w-8 text-brand-blue" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+    <div className="flex justify-center items-center h-full p-4 text-brand-blue dark:text-brand-blue-light">
+        <svg className="animate-spin h-8 w-8" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>
@@ -84,153 +99,40 @@ interface MapControlsProps {
 }
 
 const MapControls: React.FC<MapControlsProps> = ({ onZoomIn, onZoomOut, onReset, onToggleFullscreen, isFullscreen }) => {
-    const buttonClasses = "bg-white/80 backdrop-blur-sm hover:bg-white text-gray-700 shadow-md border border-gray-200 rounded-lg w-10 h-10 flex items-center justify-center transition";
+    const buttonClasses = "bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm hover:bg-white dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200 shadow-xl border border-gray-200 dark:border-dark-border rounded-lg w-10 h-10 flex items-center justify-center transition-all hover:scale-110 active:scale-90";
     return (
         <div className="absolute top-3 left-3 flex flex-col gap-2 z-10">
-            <button onClick={() => onZoomIn()} title="Zoom In" className={buttonClasses}>
-                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
+            <button onClick={onZoomIn} title="Zoom In" className={buttonClasses}>
+                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
             </button>
-            <button onClick={() => onZoomOut()} title="Zoom Out" className={buttonClasses}>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" /></svg>
+            <button onClick={onZoomOut} title="Zoom Out" className={buttonClasses}>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" /></svg>
             </button>
-            <button onClick={() => onReset()} title="Reset View" className={buttonClasses}>
-                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5 10a5 5 0 1110 0 5 5 0 01-10 0zM2.455 6.09A8.023 8.023 0 014.28 4.282a8.023 8.023 0 013.801-1.825 1 1 0 01.91 1.838A6.023 6.023 0 005.16 8.55a1 1 0 11-1.84 1.01A8.003 8.003 0 012.455 6.09zM15.72 15.718a8.023 8.023 0 01-3.801 1.825 1 1 0 01-.91-1.838 6.023 6.023 0 003.11-2.47 1 1 0 111.84-1.01 8.003 8.003 0 01-2.695 3.504z" clipRule="evenodd" /></svg>
+            <button onClick={onReset} title="Reset View" className={buttonClasses}>
+                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.707-10.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L9.414 11H13a1 1 0 100-2H9.414l1.293-1.293z" clipRule="evenodd" /></svg>
             </button>
-             <button onClick={() => onToggleFullscreen()} title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"} className={buttonClasses}>
-                {isFullscreen ? (
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
-                ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.25 5.5a.75.75 0 00-.75.75v3.5a.75.75 0 001.5 0v-2.25L9.25 11.5h-2.25a.75.75 0 000 1.5h3.5a.75.75 0 00.75-.75v-3.5a.75.75 0 00-1.5 0v2.25L5.5 6.25h2.25a.75.75 0 000-1.5h-3.5a.75.75 0 00-.75.75zm10 5a.75.75 0 00.75-.75v-3.5a.75.75 0 00-1.5 0v2.25L10.75 8.5h2.25a.75.75 0 000-1.5h-3.5a.75.75 0 00-.75.75v3.5a.75.75 0 001.5 0v-2.25L14.5 13.75h-2.25a.75.75 0 000 1.5h3.5a.75.75 0 00.75-.75z" clipRule="evenodd" /></svg>
-                )}
+             <button onClick={onToggleFullscreen} title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"} className={buttonClasses}>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 4a1 1 0 011-1h4a1 1 0 010 2H6.414l2.293 2.293a1 1 0 11-1.414 1.414L5 5.414V8a1 1 0 01-2 0V4zm9 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 11-2 0V5.414l-2.293 2.293a1 1 0 11-1.414-1.414L14.586 5H13a1 1 0 01-1-1zm1 12a1 1 0 010-2h1.586l-2.293-2.293a1 1 0 111.414-1.414L15 14.586V12a1 1 0 112 0v4a1 1 0 01-1 1h-4zm-7 0a1 1 0 01-1 1H4a1 1 0 01-1-1v-4a1 1 0 112 0v2.586l2.293-2.293a1 1 0 111.414 1.414L5.414 15H8a1 1 0 011 1z" clipRule="evenodd" /></svg>
             </button>
         </div>
     );
 };
 
-interface ContextMenuProps {
-    position: { x: number, y: number } | null;
-    onClose: () => void;
-    onExplainConnection: (targetNode: KnowledgeNode) => void;
-    sourceNode: KnowledgeNode | null;
-    allNodes: KnowledgeNode[];
-}
-
-const ContextMenu: React.FC<ContextMenuProps> = ({ position, onClose, onExplainConnection, sourceNode, allNodes }) => {
-    const menuRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-                onClose();
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [onClose]);
-
-    if (!position || !sourceNode) return null;
-
+const NodeTooltip: React.FC<{ node: KnowledgeNode | null; position: { x: number; y: number } | null }> = ({ node, position }) => {
+    if (!node || !position) return null;
     return (
-        <div ref={menuRef} style={{ top: position.y, left: position.x }} className="absolute bg-white rounded-lg shadow-2xl border border-gray-200 w-56 z-20 animate-fade-in text-sm">
-            <div className="p-2 border-b">
-                <p className="font-semibold text-gray-800 truncate">{sourceNode.label}</p>
+        <div 
+            className="fixed z-[100] bg-white dark:bg-slate-800 border-2 border-brand-blue/30 dark:border-brand-blue-light/20 p-3 rounded-lg shadow-2xl pointer-events-none max-w-[240px] animate-fade-in"
+            style={{ top: position.y + 15, left: position.x + 15 }}
+        >
+            <div className="flex items-center gap-2 mb-1.5">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: DisciplineColors[node.discipline] }}></div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">{node.discipline}</span>
             </div>
-            <div className="max-h-60 overflow-y-auto">
-                <p className="text-xs font-semibold uppercase text-gray-400 px-3 pt-2 pb-1">Explain connection to...</p>
-                <ul>
-                    {allNodes.filter(n => n.id !== sourceNode.id).map(targetNode => (
-                         <li key={targetNode.id}>
-                             <button onClick={() => { onExplainConnection(targetNode); onClose(); }} className="w-full text-left px-3 py-1.5 text-gray-700 hover:bg-gray-100 transition truncate">
-                                 {targetNode.label}
-                             </button>
-                         </li>
-                    ))}
-                </ul>
-            </div>
+            <h4 className="font-bold text-sm text-gray-800 dark:text-white mb-1.5">{node.label}</h4>
+            <p className="text-xs text-gray-600 dark:text-slate-300 leading-relaxed italic line-clamp-4">{node.summary}</p>
         </div>
     );
-};
-
-interface ConnectionExplanationModalProps {
-    isOpen: boolean;
-    onClose: () => void;
-    sourceNode: KnowledgeNode | null;
-    targetNode: KnowledgeNode | null;
-    caseTitle: string;
-    language: string;
-    T: Record<string, any>;
-}
-
-const ConnectionExplanationModal: React.FC<ConnectionExplanationModalProps> = ({ isOpen, onClose, sourceNode, targetNode, caseTitle, language, T }) => {
-    const [explanation, setExplanation] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
-    
-    useEffect(() => {
-        if (isOpen && sourceNode && targetNode) {
-            const fetchExplanation = async () => {
-                setIsLoading(true);
-                setExplanation('');
-                try {
-                    const result = await getConceptConnectionExplanation(sourceNode.label, targetNode.label, caseTitle, language);
-                    setExplanation(result);
-                } catch (error) {
-                    console.error("Failed to get connection explanation", error);
-                    setExplanation(T.errorAbstract);
-                } finally {
-                    setIsLoading(false);
-                }
-            };
-            fetchExplanation();
-        }
-    }, [isOpen, sourceNode, targetNode, caseTitle, language, T]);
-
-    if (!isOpen) return null;
-
-    return (
-         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-40 p-4 animate-fade-in" onClick={onClose}>
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
-                 <header className="p-4 border-b border-gray-200">
-                    <h2 className="text-lg font-bold text-gray-800">{T.connectionExplanationTitle}</h2>
-                    <p className="text-sm text-gray-500 mt-1">{sourceNode?.label} &rarr; {targetNode?.label}</p>
-                 </header>
-                 <main className="p-6 min-h-[120px]">
-                    {isLoading ? (
-                        <div className="flex flex-col items-center justify-center text-gray-500">
-                           <svg className="animate-spin h-6 w-6 text-brand-blue mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                           </svg>
-                           <p className="mt-2 text-sm">{T.explainingConnection}</p>
-                        </div>
-                    ) : (
-                        <p className="text-gray-700 whitespace-pre-wrap">{explanation}</p>
-                    )}
-                 </main>
-                 <footer className="p-3 border-t border-gray-200 text-right bg-gray-50">
-                    <button onClick={onClose} className="bg-brand-blue hover:bg-blue-800 text-white font-bold py-2 px-6 rounded-md transition duration-300">
-                        {T.closeButton}
-                    </button>
-                </footer>
-            </div>
-        </div>
-    );
-};
-
-export const DisciplineColors: Record<Discipline, string> = {
-    [Discipline.BIOCHEMISTRY]: '#4A90E2',
-    [Discipline.PHARMACOLOGY]: '#50E3C2',
-    [Discipline.PHYSIOLOGY]: '#B8E986',
-    [Discipline.PSYCHOLOGY]: '#F5A623',
-    [Discipline.SOCIOLOGY]: '#F8E71C',
-    [Discipline.PATHOLOGY]: '#D0021B',
-    [Discipline.IMMUNOLOGY]: '#BD10E0',
-    [Discipline.GENETICS]: '#9013FE',
-    [Discipline.DIAGNOSTICS]: '#417505',
-    [Discipline.TREATMENT]: '#7ED321',
-    [Discipline.PHYSIOTHERAPY]: '#E0A410',
-    [Discipline.OCCUPATIONAL_THERAPY]: '#03A9F4',
-    [Discipline.ANAESTHESIA]: '#607D8B',
-    [Discipline.PAIN_MANAGEMENT]: '#FF5722',
 };
 
 interface KnowledgeMapProps {
@@ -246,406 +148,122 @@ interface KnowledgeMapProps {
     onDiscussNode: (nodeInfo: { node: KnowledgeNode; abstract: string; loading: boolean }) => void;
 }
 
-export const KnowledgeMap = forwardRef<any, KnowledgeMapProps>(({
-    data,
-    onNodeClick,
-    selectedNodeInfo,
-    onClearSelection,
-    isMapFullscreen,
-    setIsMapFullscreen,
-    caseTitle,
-    language,
-    T,
-    onDiscussNode
-}, ref) => {
+export const KnowledgeMap = forwardRef<any, KnowledgeMapProps>(({ data, onNodeClick, selectedNodeInfo, onClearSelection, isMapFullscreen, setIsMapFullscreen, caseTitle, language, T, onDiscussNode }, ref) => {
     const svgRef = useRef<SVGSVGElement | null>(null);
     const containerRef = useRef<HTMLDivElement | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const simulationRef = useRef<any>(null);
     const zoomRef = useRef<any>(null);
     const gRef = useRef<any>(null);
-
-    const [contextMenu, setContextMenu] = useState<{ position: { x: number; y: number }; node: KnowledgeNode } | null>(null);
+    const [hoveredNode, setHoveredNode] = useState<{ node: KnowledgeNode; position: { x: number; y: number } } | null>(null);
     const [explanationModal, setExplanationModal] = useState<{ source: KnowledgeNode; target: KnowledgeNode } | null>(null);
-
+    
     const nodes = useMemo(() => data.nodes.map(n => ({ ...n })), [data.nodes]);
     const links = useMemo(() => data.links.map(l => ({ ...l })), [data.links]);
 
-    useImperativeHandle(ref, () => ({
-        async captureAsImage(): Promise<string> {
-            if (svgRef.current) {
-                return await svgToDataURL(svgRef.current);
-            }
-            return '';
-        }
-    }));
-
-    const handleNodeRightClick = (event: MouseEvent, node: KnowledgeNode) => {
-        event.preventDefault();
-        setContextMenu({ position: { x: event.clientX, y: event.clientY }, node });
-    };
-
-    const handleExplainConnection = (targetNode: KnowledgeNode) => {
-        if (contextMenu) {
-            setExplanationModal({ source: contextMenu.node, target: targetNode });
-        }
-    };
+    useImperativeHandle(ref, () => ({ async captureAsImage() { if (svgRef.current) return await svgToDataURL(svgRef.current); return ''; } }));
     
     const resetZoom = useCallback(() => {
         if (!svgRef.current || !gRef.current || !containerRef.current || !zoomRef.current) return;
         const svg = d3.select(svgRef.current);
         const g = gRef.current;
-
         const bounds = g.node().getBBox();
-        const parent = svg.node().parentElement;
-        if (!parent) return;
-
-        const fullWidth = parent.clientWidth;
-        const fullHeight = parent.clientHeight;
-        const { width, height, x, y } = bounds;
-        
-        if (width === 0 || height === 0) return;
-
-        const midX = x + width / 2;
-        const midY = y + height / 2;
-        const scale = 0.85 / Math.max(width / fullWidth, height / fullHeight);
-        const translate = [fullWidth / 2 - scale * midX, fullHeight / 2 - scale * midY];
-
-        const transform = d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale);
-
+        const { width, height } = containerRef.current.getBoundingClientRect();
+        if (bounds.width === 0 || bounds.height === 0) return;
+        const scale = Math.min(1.2, 0.85 / Math.max(bounds.width / width, bounds.height / height));
+        const transform = d3.zoomIdentity.translate(width / 2 - scale * (bounds.x + bounds.width / 2), height / 2 - scale * (bounds.y + bounds.height / 2)).scale(scale);
         svg.transition().duration(750).call(zoomRef.current.transform, transform);
     }, []);
-    
-    const handleZoomIn = useCallback(() => {
-        if (zoomRef.current && svgRef.current) {
-            d3.select(svgRef.current).transition().duration(250).call(zoomRef.current.scaleBy, 1.2);
-        }
-    }, []);
-
-    const handleZoomOut = useCallback(() => {
-        if (zoomRef.current && svgRef.current) {
-            d3.select(svgRef.current).transition().duration(250).call(zoomRef.current.scaleBy, 0.8);
-        }
-    }, []);
-
-    useEffect(() => {
-        const observer = new ResizeObserver(() => {
-            resetZoom();
-        });
-        if (containerRef.current) {
-            observer.observe(containerRef.current);
-        }
-        return () => {
-            observer.disconnect();
-        };
-    }, [resetZoom]);
 
     useEffect(() => {
         if (!svgRef.current || !containerRef.current) return;
-        
         setIsLoading(true);
-
         const svg = d3.select(svgRef.current);
         svg.selectAll('*').remove();
         
-        const defs = svg.append("defs");
-
-        // High-Fidelity Arrow Marker
-        defs.append("marker")
-            .attr("id", "arrow-head-map")
-            .attr("viewBox", "0 -5 10 10")
-            .attr("refX", 8) // RefX adjusted for intersection logic
-            .attr("refY", 0)
-            .attr("markerWidth", 6)
-            .attr("markerHeight", 6)
-            .attr("orient", "auto")
-            .attr("markerUnits", "userSpaceOnUse")
-            .append("path")
-            .attr("d", "M0,-5L10,0L0,5")
-            .attr("fill", "#6b7280");
-
-        // Filter for node depth
-        const filter = defs.append("filter")
-            .attr("id", "node-shadow")
-            .attr("height", "140%");
-        
-        filter.append("feGaussianBlur")
-            .attr("in", "SourceAlpha")
-            .attr("stdDeviation", 3)
-            .attr("result", "blur");
-        
-        filter.append("feOffset")
-            .attr("in", "blur")
-            .attr("dx", 2)
-            .attr("dy", 2)
-            .attr("result", "offsetBlur");
-            
-        const feMerge = filter.append("feMerge");
-        feMerge.append("feMergeNode").attr("in", "offsetBlur");
-        feMerge.append("feMergeNode").attr("in", "SourceGraphic");
-
-
         const { width, height } = containerRef.current.getBoundingClientRect();
-
-        const g = svg.append('g');
-        gRef.current = g;
+        const g = svg.append('g'); gRef.current = g;
+        const zoom = d3.zoom().scaleExtent([0.1, 4]).on('zoom', (event: any) => g.attr('transform', event.transform));
+        zoomRef.current = zoom; svg.call(zoom);
         
-        const zoom = d3.zoom().scaleExtent([0.1, 4]).on('zoom', (event: any) => {
-            g.attr('transform', event.transform);
-        });
-        zoomRef.current = zoom;
-        svg.call(zoom);
-        svg.on("click", onClearSelection);
-
+        // Speed up simulation for better responsiveness
         simulationRef.current = d3.forceSimulation(nodes)
-            .force('link', d3.forceLink(links).id((d: any) => d.id).distance(250).strength(0.4))
-            .force('charge', d3.forceManyBody().strength(-3000))
+            .force('link', d3.forceLink(links).id((d: any) => d.id).distance(180).strength(0.5))
+            .force('charge', d3.forceManyBody().strength(-2000))
             .force('center', d3.forceCenter(width / 2, height / 2))
-            .force('collide', d3.forceCollide().radius(120).iterations(3))
-            .on('end', () => {
-                setIsLoading(false);
-                resetZoom();
-            });
+            .force('collide', d3.forceCollide().radius(110).iterations(2))
+            .velocityDecay(0.4) // Makes it settle faster
+            .on('end', () => { setIsLoading(false); resetZoom(); });
 
-        // --- Links ---
-        const linkLines = g.append("g")
-            .attr("class", "links")
-            .selectAll("path")
-            .data(links)
-            .join("path")
-            .attr("fill", "none")
-            .attr("stroke", "#9ca3af")
-            .attr("stroke-opacity", 0.6)
-            .attr("stroke-width", 2)
-            .attr("marker-end", "url(#arrow-head-map)");
+        const linkLines = g.append("g").selectAll("line").data(links).join("line").attr("stroke", "#cbd5e1").attr("stroke-opacity", 0.4).attr("stroke-width", 2);
 
-        const linkLabels = g.append("g")
-            .attr("class", "link-labels")
-            .selectAll("g")
-            .data(links)
-            .join("g");
-
-        linkLabels.append("rect")
-            .attr("rx", 10)
-            .attr("ry", 10)
-            .attr("fill", "white")
-            .attr("fill-opacity", 0.95)
-            .attr("stroke", "#e5e7eb")
-            .attr("stroke-width", 1);
-
-        linkLabels.append("text")
-            .text((d: any) => d.description)
-            .attr("font-size", "14px")
-            .attr("fill", "#4b5563")
-            .attr("text-anchor", "middle")
-            .attr("dy", "0.35em")
-            .attr("font-family", "sans-serif")
-            .attr("pointer-events", "none")
-            .each(function(d: any) {
-                const bbox = (this as any).getBBox();
-                d.labelWidth = bbox.width + 12;
-                d.labelHeight = bbox.height + 6;
-            });
-        
-        linkLabels.select("rect")
-            .attr("width", (d: any) => d.labelWidth)
-            .attr("height", (d: any) => d.labelHeight)
-            .attr("x", (d: any) => -d.labelWidth / 2)
-            .attr("y", (d: any) => -d.labelHeight / 2);
-
-
-        // --- Nodes (Pills) ---
-        const node = g.append('g')
-            .attr("class", "nodes")
-            .selectAll('g')
-            .data(nodes)
-            .join('g')
-            .attr('class', 'node-group cursor-pointer')
-            .call(d3.drag()
-                .on('start', (event: any, d: any) => {
-                    if (!event.active) simulationRef.current.alphaTarget(0.3).restart();
-                    d.fx = d.x;
-                    d.fy = d.y;
-                })
-                .on('drag', (event: any, d: any) => {
-                    d.fx = event.x;
-                    d.fy = event.y;
-                })
-                .on('end', (event: any, d: any) => {
-                    if (!event.active) simulationRef.current.alphaTarget(0);
-                    d.fx = null;
-                    d.fy = null;
-                }))
-            .on('click', (event: MouseEvent, d: any) => {
-                event.stopPropagation(); 
-                onNodeClick(d);
+        const node = g.append('g').selectAll('g').data(nodes).join('g').attr('class', 'node-group cursor-pointer')
+            .call(d3.drag().on('start', (event: any, d: any) => { if (!event.active) simulationRef.current.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; }).on('drag', (event: any, d: any) => { d.fx = event.x; d.fy = event.y; }).on('end', (event: any, d: any) => { if (!event.active) simulationRef.current.alphaTarget(0); d.fx = null; d.fy = null; }))
+            .on('click', (event: MouseEvent, d: any) => { event.stopPropagation(); onNodeClick(d); })
+            .on('mouseenter', (event: MouseEvent, d: any) => {
+                setHoveredNode({ node: d, position: { x: event.clientX, y: event.clientY } });
+                d3.select(event.currentTarget as any).select('rect').transition().duration(200).attr('stroke-width', 4).attr('stroke', '#3b82f6');
             })
-            .on('contextmenu', (event: MouseEvent, d: any) => handleNodeRightClick(event, d));
+            .on('mousemove', (event: MouseEvent) => {
+                setHoveredNode(prev => prev ? { ...prev, position: { x: event.clientX, y: event.clientY } } : null);
+            })
+            .on('mouseleave', (event: MouseEvent) => {
+                setHoveredNode(null);
+                d3.select(event.currentTarget as any).select('rect').transition().duration(200).attr('stroke-width', 2.5).attr('stroke', '#ffffff');
+            });
 
-        // Node Pill Background
         node.append('rect')
-            .attr('rx', 20)
-            .attr('ry', 20)
-            .attr('fill', (d: any) => DisciplineColors[d.discipline] || '#ccc')
-            .attr('stroke', '#fff')
-            .attr('stroke-width', 2)
-            .style("filter", "url(#node-shadow)");
+            .attr('rx', 25).attr('ry', 25)
+            .attr('fill', (d: any) => DisciplineColors[d.discipline] || '#6b7280')
+            .attr('stroke', '#ffffff')
+            .attr('stroke-width', 2.5)
+            .attr('filter', 'drop-shadow(0px 4px 6px rgba(0,0,0,0.1))');
 
-        // Node Text
         node.append('text')
             .text((d: any) => d.label)
-            .attr("font-family", "sans-serif")
-            .attr('font-size', '16px')
-            .attr('font-weight', 'bold')
-            .attr('fill', '#ffffff')
+            .attr("font-family", "Inter, sans-serif")
+            .attr('font-size', '13px')
+            .attr('font-weight', '800')
+            .attr('fill', (d: any) => getContrastColor(DisciplineColors[d.discipline] || '#6b7280'))
             .attr('text-anchor', 'middle')
-            .attr('dy', '0.35em')
-            .each(function(d: any) {
-                const bbox = (this as any).getBBox();
-                d.pillWidth = bbox.width + 40;
-                d.pillHeight = 40;
+            .attr('dy', '0.15em')
+            .each(function(d: any) { 
+                const bbox = (this as any).getBBox(); 
+                d.pillWidth = Math.max(120, bbox.width + 40); 
+                d.pillHeight = 46; 
             });
-            
+
         node.select('rect')
             .attr('width', (d: any) => d.pillWidth)
             .attr('height', (d: any) => d.pillHeight)
             .attr('x', (d: any) => -d.pillWidth / 2)
             .attr('y', (d: any) => -d.pillHeight / 2);
 
-        // Rect-Intersection helper for precise connections
-        function intersectRect(rect: any, point: any) {
-            const cx = rect.x;
-            const cy = rect.y;
-            const dx = point.x - cx;
-            const dy = point.y - cy;
-            const w = (rect.pillWidth || 0) / 2;
-            const h = (rect.pillHeight || 0) / 2;
-            if (w === 0 || h === 0) return { x: cx, y: cy }; 
-            
-            if (Math.abs(dy * w) < Math.abs(dx * h)) {
-                if (dx > 0) return { x: cx + w, y: cy + dy * w / dx };
-                else return { x: cx - w, y: cy - dy * w / dx };
-            } else {
-                if (dy > 0) return { x: cx + dx * h / dy, y: cy + h };
-                else return { x: cx - dx * h / dy, y: cy - h };
-            }
-        }
+        node.append('text')
+            .text((d: any) => (d.discipline || '').toUpperCase())
+            .attr('font-size', '8px')
+            .attr('font-weight', '900')
+            .attr('fill', (d: any) => getContrastColor(DisciplineColors[d.discipline] || '#6b7280'))
+            .attr('opacity', 0.8)
+            .attr('letter-spacing', '0.08em')
+            .attr('text-anchor', 'middle')
+            .attr('dy', '1.6em');
 
-        simulationRef.current.on('tick', () => {
-            // Update Path (Precise edge termination)
-            linkLines.attr('d', (d: any) => {
-                if (!d.source.x || !d.target.x) return null;
-                const sourcePoint = intersectRect(d.source, d.target);
-                const targetPoint = intersectRect(d.target, d.source);
-                return `M ${sourcePoint.x} ${sourcePoint.y} L ${targetPoint.x} ${targetPoint.y}`;
-            });
-            
-            // Update Label Position
-            linkLabels.attr('transform', (d: any) => {
-                if (!d.source.x || !d.target.x) return null;
-                const midX = (d.source.x + d.target.x) / 2;
-                const midY = (d.source.y + d.target.y) / 2;
-                const dx = d.target.x - d.source.x;
-                const dy = d.target.y - d.source.y;
-                let angle = Math.atan2(dy, dx) * 180 / Math.PI;
-                if (angle > 90 || angle < -90) angle += 180;
-                return `translate(${midX}, ${midY}) rotate(${angle})`;
-            });
-
-            // Update Node Position
-            node.attr('transform', (d: any) => `translate(${d.x}, ${d.y})`);
+        simulationRef.current.on('tick', () => { 
+            linkLines.attr('x1', (d: any) => d.source.x).attr('y1', (d: any) => d.source.y).attr('x2', (d: any) => d.target.x).attr('y2', (d: any) => d.target.y); 
+            node.attr('transform', (d: any) => `translate(${d.x}, ${d.y})`); 
         });
 
-        return () => {
-            simulationRef.current.stop();
-        };
-    }, [data, nodes, links, onNodeClick, resetZoom, onClearSelection]);
-    
-    useEffect(() => {
-        if(isMapFullscreen) {
-            setTimeout(resetZoom, 100);
-        }
-    }, [isMapFullscreen, resetZoom]);
-    
-    useEffect(() => {
-        const nodeElements = d3.selectAll('.node-group');
-        const linkElements = d3.selectAll('.links path');
-        const labelElements = d3.selectAll('.link-labels g');
-    
-        if (selectedNodeInfo) {
-            const selectedId = selectedNodeInfo.node.id;
-            const linkedNodeIds = new Set([selectedId]);
-            const linkedEdgeIds = new Set();
-
-            links.forEach((link: any) => {
-                const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
-                const targetId = typeof link.target === 'object' ? link.target.id : link.target;
-
-                if (sourceId === selectedId) {
-                    linkedNodeIds.add(targetId);
-                    linkedEdgeIds.add(link.index);
-                } else if (targetId === selectedId) {
-                    linkedNodeIds.add(sourceId);
-                    linkedEdgeIds.add(link.index);
-                }
-            });
-    
-            nodeElements
-                .transition().duration(300)
-                .style('opacity', (d: any) => linkedNodeIds.has(d.id) ? 1 : 0.15);
-    
-            linkElements
-                .transition().duration(300)
-                .style('opacity', (d: any) => linkedEdgeIds.has(d.index) ? 1 : 0.1);
-            
-            labelElements
-                .transition().duration(300)
-                .style('opacity', (d: any) => linkedEdgeIds.has(d.index) ? 1 : 0.1);
-                
-        } else {
-            nodeElements.transition().duration(300).style('opacity', 1);
-            linkElements.transition().duration(300).style('opacity', 1);
-            labelElements.transition().duration(300).style('opacity', 1);
-        }
-    }, [selectedNodeInfo, links]);
+        return () => simulationRef.current.stop();
+    }, [data, nodes, links, onNodeClick, resetZoom]);
 
     return (
-        <div
-            ref={containerRef}
-            className={`w-full h-full bg-slate-50 shadow-inner border border-gray-200 overflow-hidden ${
-                isMapFullscreen
-                    ? 'fixed inset-0 z-30'
-                    : 'relative rounded-lg'
-            }`}
-        >
-            {isLoading && <LoadingSpinner />}
-            <svg ref={svgRef} className="w-full h-full"></svg>
-            <MapControls
-                onZoomIn={handleZoomIn}
-                onZoomOut={handleZoomOut}
-                onReset={resetZoom}
-                onToggleFullscreen={() => setIsMapFullscreen(!isMapFullscreen)}
-                isFullscreen={isMapFullscreen}
-            />
+        <div ref={containerRef} className={`w-full h-full bg-slate-50 dark:bg-slate-900 shadow-inner border border-gray-200 dark:border-dark-border overflow-hidden transition-colors duration-300 ${isMapFullscreen ? 'fixed inset-0 z-40' : 'relative rounded-xl'}`}>
+            {isLoading && <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-50/50 dark:bg-dark-bg/50 backdrop-blur-sm"><LoadingSpinner /></div>}
+            <svg ref={svgRef} className="w-full h-full touch-none" onClick={onClearSelection}></svg>
+            <MapControls onZoomIn={() => zoomRef.current && d3.select(svgRef.current).transition().call(zoomRef.current.scaleBy, 1.3)} onZoomOut={() => zoomRef.current && d3.select(svgRef.current).transition().call(zoomRef.current.scaleBy, 0.7)} onReset={resetZoom} onToggleFullscreen={() => setIsMapFullscreen(!isMapFullscreen)} isFullscreen={isMapFullscreen} />
+            <NodeTooltip node={hoveredNode?.node || null} position={hoveredNode?.position || null} />
             {selectedNodeInfo && <ConceptCard nodeInfo={selectedNodeInfo} onClose={onClearSelection} onDiscuss={onDiscussNode} T={T} />}
-
-            <ContextMenu 
-                position={contextMenu?.position || null} 
-                onClose={() => setContextMenu(null)} 
-                onExplainConnection={handleExplainConnection}
-                sourceNode={contextMenu?.node || null}
-                allNodes={nodes}
-            />
-
-            <ConnectionExplanationModal
-                isOpen={!!explanationModal}
-                onClose={() => setExplanationModal(null)}
-                sourceNode={explanationModal?.source || null}
-                targetNode={explanationModal?.target || null}
-                caseTitle={caseTitle}
-                language={language}
-                T={T}
-            />
         </div>
     );
 });

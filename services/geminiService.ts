@@ -28,23 +28,29 @@ export async function retryWithBackoff<T>(
     throw lastError;
 }
 
-const THINKING_MODEL = "gemini-3-pro-preview"; // Reserved for complex tutoring/reasoning
-const THINKING_CONFIG = {};
-const FAST_MODEL = "gemini-3-flash-preview"; // Used for core generation to ensure sub-20s speed
+const THINKING_MODEL = "gemini-3-pro-preview"; 
+const FAST_MODEL = "gemini-3-flash-preview"; 
 
 const SYNTHESIS_GUIDELINE = `
-**Guideline:** Provide exhaustive technical detail. Use Unicode subscripts (₀₁₂₃₄₅₆₇₈₉) and superscripts (⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻). 
-
-**Regional Anaesthesia:**
-For any block, you MUST provide:
-1. **Name:** e.g., Adductor Canal Block.
-2. **Pharmacology:** Exact dose in mg/kg.
-3. **Volume:** Total volume in mL/kg.
-4. **Coverage:** Somatosensory, Visceral, or Both.
-
-**High Fidelity Visuals:**
-- Use Markdown Tables for physiological values (e.g., Vitals, Lab results).
-- Ensure 'Multidisciplinary Connections' and 'Management' are distinct with no overlap.
+**CRITICAL CLINICAL FIDELITY & FORMATTING RULES:**
+1. **Narrative Integrity (STRICT):** You MUST NOT include citations, PMIDs, or external links in 'patientProfile', 'presentingComplaint', or 'history'. These are strictly narrative.
+2. **High-Fidelity Markdown Tables (STRICT MANDATE):** You MUST render ALL Vital Signs, Lab Results, and Medications as properly formatted Markdown Tables. NEVER use lists or plain text for this structured data.
+   - **Vital Signs Table Requirement:**
+     | Parameter | Value |
+     | :--- | :--- |
+     | BP | 148/96 mmHg |
+     | HR | 92 bpm |
+   - **Lab Panel Requirement:**
+     | Analyte | Result | Reference |
+     | :--- | :--- | :--- |
+     | Troponin T | 0.85 ng/mL | <0.01 |
+   - **Medications Requirement:**
+     | Medication | Dose | Frequency |
+     | :--- | :--- | :--- |
+     | Aspirin | 300mg | Stat |
+3. **Rigorous Technical Evidence:** Every clinical claim in 'multidisciplinaryConnections', 'traceableEvidence', and 'furtherReadings' MUST be supported by technical research with accurate PMIDs. Use only clinical/medical sources.
+4. **Visual Triggers:** Strategically embed: \`[GRAPH: oxygen_dissociation]\`, \`[DIAGRAM: description]\`, or \`[ILLUSTRATE: description]\`.
+5. **Map Disciplines:** Only use these exact labels: Biochemistry, Pharmacology, Physiology, Psychology, Sociology, Pathology, Immunology, Genetics, Diagnostics, Treatment, Physiotherapy, Occupational Therapy, Anaesthesia, Pain Management, Nursing, Nutrition & Dietetics, Social Work, Speech & Language Therapy.
 `;
 
 const diagramNodeSchema = {
@@ -220,22 +226,11 @@ const knowledgeMapSchema = {
     required: ["nodes", "links"]
 };
 
-export const getConceptAbstract = async (concept: string, caseContext: string, language: string): Promise<string> => {
-    const ai = getAiClient();
-    const prompt = `Context: "${caseContext}". Significance of: "${concept}". 50 words. Use Unicode. Language: ${language}.`;
-    const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
-        model: THINKING_MODEL,
-        contents: prompt,
-        config: { ...THINKING_CONFIG },
-    }));
-    return response.text || "";
-};
-
 export const generateCorePatientCase = async (condition: string, discipline: string, difficulty: string, language: string): Promise<PatientCase> => {
     const ai = getAiClient();
-    const prompt = `Generate a patient case for "${condition}". Discipline: ${discipline}. Difficulty: ${difficulty}. Language: ${language}. ${SYNTHESIS_GUIDELINE} Return JSON.`;
+    const prompt = `Act as a senior medical consultant. Create a high-fidelity multidisciplinary patient case for "${condition}". Student Discipline: ${discipline}. Difficulty: ${difficulty}. Language: ${language}. ${SYNTHESIS_GUIDELINE} Return JSON.`;
     const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
-        model: FAST_MODEL, // FAST_MODEL for speed
+        model: FAST_MODEL,
         contents: prompt,
         config: { responseMimeType: "application/json", responseSchema: corePatientCaseSchema },
     }));
@@ -244,9 +239,9 @@ export const generateCorePatientCase = async (condition: string, discipline: str
 
 const generateCasePart = async (coreCase: PatientCase, discipline: string, difficulty: string, language: string, taskDescription: string, responseSchema: any) => {
     const ai = getAiClient();
-    const prompt = `For patient case "${coreCase.title}", generate ${taskDescription}. Discipline: ${discipline}. Difficulty: ${difficulty}. Language: ${language}. ${SYNTHESIS_GUIDELINE} Return JSON.`;
+    const prompt = `For the case "${coreCase.title}", generate ${taskDescription}. Student Discipline: ${discipline}. Difficulty: ${difficulty}. Language: ${language}. ${SYNTHESIS_GUIDELINE} Return JSON.`;
     const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
-        model: FAST_MODEL, // FAST_MODEL for speed
+        model: FAST_MODEL,
         contents: prompt,
         config: { responseMimeType: "application/json", responseSchema: responseSchema },
     }));
@@ -254,16 +249,16 @@ const generateCasePart = async (coreCase: PatientCase, discipline: string, diffi
 };
 
 export const generateMainDetails = (coreCase: PatientCase, discipline: string, difficulty: string, language: string) => 
-    generateCasePart(coreCase, discipline, difficulty, language, "biochemicalPathway and 5 multidisciplinaryConnections", mainDetailsSchema);
+    generateCasePart(coreCase, discipline, difficulty, language, "biochemicalPathway and exhaustive multidisciplinaryConnections with academic citations", mainDetailsSchema);
 
 export const generateManagementAndContent = (coreCase: PatientCase, discipline: string, difficulty: string, language: string) => 
-    generateCasePart(coreCase, discipline, difficulty, language, "management considerations and educational content", managementAndContentSchema);
+    generateCasePart(coreCase, discipline, difficulty, language, "evidence-based management considerations and high-fidelity visuals", managementAndContentSchema);
 
 export const generateEvidenceAndQuiz = (coreCase: PatientCase, discipline: string, difficulty: string, language: string) => 
-    generateCasePart(coreCase, discipline, difficulty, language, "traceableEvidence, furtherReadings, and quiz questions", evidenceAndQuizSchema);
+    generateCasePart(coreCase, discipline, difficulty, language, "traceableEvidence citing recent robust trials/meta-analyses, furtherReadings (PMIDs), and exactly 5 quiz questions", evidenceAndQuizSchema);
 
 export const generateKnowledgeMap = async (coreCase: PatientCase, discipline: string, difficulty: string, language: string): Promise<KnowledgeMapData> => {
-    const rawMapData = await generateCasePart(coreCase, discipline, difficulty, language, "a knowledge map with 8 nodes", knowledgeMapSchema);
+    const rawMapData = await generateCasePart(coreCase, discipline, difficulty, language, "a knowledge map with 8 nodes and high-fidelity connections", knowledgeMapSchema);
     const validNodeIds = new Set(rawMapData.nodes.map((n: KnowledgeNode) => n.id));
     const validLinks = rawMapData.links.filter((l: KnowledgeLink) => validNodeIds.has(l.source) && validNodeIds.has(l.target));
     return { nodes: rawMapData.nodes, links: validLinks };
@@ -271,7 +266,7 @@ export const generateKnowledgeMap = async (coreCase: PatientCase, discipline: st
 
 export const searchForSource = async (sourceQuery: string, language: string): Promise<{ summary: string; sources: any[] }> => {
     const ai = getAiClient();
-    const prompt = `Research assistant: Find info about "${sourceQuery}". Language: ${language}.`;
+    const prompt = `Verified Medical Research for "${sourceQuery}". Find the latest robust RCTs, meta-analyses and systematic reviews. Language: ${language}.`;
     const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
         model: FAST_MODEL,
         contents: prompt,
@@ -282,7 +277,7 @@ export const searchForSource = async (sourceQuery: string, language: string): Pr
 
 export const interpretEcg = async (findings: EcgFindings, imageBase64: string | null, imageMimeType: string | null, language: string): Promise<string> => {
     const ai = getAiClient();
-    const prompt = `Interpret ECG. Findings: ${JSON.stringify(findings)}. Language: ${language}. Use Markdown tables for intervals.`;
+    const prompt = `ECG Interpretation Report. Findings: ${JSON.stringify(findings)}. Language: ${language}. Use high-fidelity Markdown tables for all intervals and interpret based on current clinical guidelines.`;
     const contentParts: any[] = [{ text: prompt }];
     if (imageBase64 && imageMimeType) contentParts.push({ inlineData: { data: imageBase64, mimeType: imageMimeType } });
     const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
@@ -300,13 +295,13 @@ export const generateVisualAid = async (prompt: string): Promise<string> => {
         config: { imageConfig: { aspectRatio: '4:3' } },
     }));
     const data = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
-    if (!data) throw new Error("No image generated.");
+    if (!data) throw new Error("Visual aid generation failed.");
     return data;
 };
 
 export const checkDrugInteractions = async (drugNames: string[], language: string): Promise<string> => {
     const ai = getAiClient();
-    const prompt = `Analyze interactions: ${drugNames.join(', ')}. Language: ${language}. Use Markdown Tables.`;
+    const prompt = `Analyze technical drug interactions for: ${drugNames.join(', ')}. Language: ${language}. Return a professional Markdown Table comparing mechanism, severity, and recommendation.`;
     const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
         model: FAST_MODEL,
         contents: prompt
@@ -325,13 +320,23 @@ export const generateSpeech = async (text: string, voiceName: string): Promise<s
         },
     }));
     const data = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    if (!data) throw new Error("No audio data.");
+    if (!data) throw new Error("Speech synthesis failed.");
     return data;
+};
+
+export const getConceptAbstract = async (concept: string, caseContext: string, language: string): Promise<string> => {
+    const ai = getAiClient();
+    const prompt = `Medical Significance: Explain "${concept}" relevance to "${caseContext}". 50 words max. Technical tone. Language: ${language}.`;
+    const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
+        model: FAST_MODEL,
+        contents: prompt,
+    }));
+    return response.text || "";
 };
 
 export const getConceptConnectionExplanation = async (conceptA: string, conceptB: string, caseContext: string, language: string): Promise<string> => {
     const ai = getAiClient();
-    const prompt = `Connection: "${conceptA}" and "${conceptB}" in "${caseContext}". 3 sentences. Language: ${language}.`;
+    const prompt = `Technical pathophysiology connection between "${conceptA}" and "${conceptB}" in "${caseContext}". 3 technical sentences. Language: ${language}.`;
     const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
         model: FAST_MODEL,
         contents: prompt
@@ -343,14 +348,15 @@ export const generateDiagramForDiscussion = async (prompt: string, chatContext: 
     const ai = getAiClient();
     const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
         model: FAST_MODEL,
-        contents: `Diagram data for: "${prompt}". Context: ${chatContext}. Language: ${language}. JSON.`,
+        contents: `Generate Diagram JSON for: "${prompt}". Context: ${chatContext}. Language: ${language}. Ensure strictly valid JSON.`,
         config: { responseMimeType: "application/json", responseSchema: diagramDataSchema },
     }));
     return JSON.parse(response.text || "{}") as DiagramData;
 };
+
 export const enrichCaseWithWebSources = async (patientCase: PatientCase, language: string): Promise<{ newEvidence: TraceableEvidence[]; newReadings: FurtherReading[]; groundingSources: any[] }> => {
     const ai = getAiClient();
-    const prompt = `Regarding "${patientCase.title}", find recent medical updates. Provide 2 Traceable Evidence and 2 Further Reading suggestions (PMIDs/DOIs). Language: ${language}. Format: JSON in markdown code block.`;
+    const prompt = `Find 2 recent robust technical clinical claims with PMIDs and 2 meta-analyses for "${patientCase.title}". Language: ${language}. Format as JSON.`;
     const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
         model: FAST_MODEL,
         contents: prompt,

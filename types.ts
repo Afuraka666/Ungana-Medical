@@ -1,3 +1,4 @@
+
 export enum Discipline {
   BIOCHEMISTRY = "Biochemistry",
   PHARMACOLOGY = "Pharmacology",
@@ -13,6 +14,10 @@ export enum Discipline {
   OCCUPATIONAL_THERAPY = "Occupational Therapy",
   ANAESTHESIA = "Anaesthesia",
   PAIN_MANAGEMENT = "Pain Management",
+  NURSING = "Nursing",
+  NUTRITION = "Nutrition & Dietetics",
+  SOCIAL_WORK = "Social Work",
+  SPEECH_LANGUAGE_THERAPY = "Speech & Language Therapy",
 }
 
 export enum EducationalContentType {

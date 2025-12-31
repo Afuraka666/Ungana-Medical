@@ -29,6 +29,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
+        darkMode: 'class',
         theme: {
           extend: {
             colors: {
@@ -36,6 +37,10 @@
               'brand-blue-light': '#3b82f6',
               'brand-gray': '#f3f4f6',
               'brand-text': '#111827',
+              'dark-bg': '#0f172a',
+              'dark-surface': '#1e293b',
+              'dark-border': '#334155',
+              'dark-text': '#e2e8f0',
             },
             animation: {
               'fade-in': 'fadeIn 0.5s ease-in-out',
@@ -70,13 +75,12 @@
 }
 </script>
 </head>
-  <body class="bg-brand-gray">
+  <body class="bg-brand-gray dark:bg-dark-bg transition-colors duration-300">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          // Changed from '/sw.js' to './sw.js' to prevent origin mismatch errors
           navigator.serviceWorker.register('./sw.js').then(registration => {
             console.log('ServiceWorker registration successful with scope: ', registration.scope);
           }, err => {
