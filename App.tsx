@@ -101,6 +101,7 @@ export const App: React.FC = () => {
 
     // User Interaction Tracking for Tips
     const [interactionState, setInteractionState] = useState<InteractionState>({
+        // FIX: Changed 'boolean' type keywords to 'false' boolean values and fixed semicolon usage in object literal.
         caseGenerated: false,
         caseEdited: false,
         caseSaved: false,
@@ -545,7 +546,11 @@ export const App: React.FC = () => {
                             </div>
                         </div>
                     ) : (
-                        !isLoading && <WelcomeScreen T={T} />
+                        !isLoading && <WelcomeScreen 
+                                        T={T} 
+                                        onOpenSavedWork={() => setIsSavedWorkOpen(true)}
+                                        onOpenClinicalTools={() => setIsClinicalToolsOpen(true)}
+                                      />
                     )}
 
                     {isLoading && <LoadingOverlay message={loadingMessage} subMessages={T.loadingSubMessages} />}
