@@ -49,7 +49,7 @@ If a regional block is suggested, you MUST provide:
 5. **Coverage:** Explicitly define as Somatosensory, Visceral, or Both.
 
 **Content Integrity:**
-Ensure 'Multidisciplinary Connections' focuses on the *interplay* between fields, while 'Management Considerations' focus on *specific actions* for the user's discipline. Avoid duplicating information between these two sections.
+'Multidisciplinary Connections' should focus on complex interplay. 'Management Considerations' should focus on practical steps for the specific user discipline. DO NOT duplicate information between these sections.
 `;
 
 const diagramNodeSchema = {
@@ -141,7 +141,7 @@ const mainDetailsSchema = {
         biochemicalPathway: { ...educationalContentSchema },
         multidisciplinaryConnections: {
           type: Type.ARRAY,
-          description: "5-7 distinct medical discipline connections with deep technical detail.",
+          description: "5-7 distinct technical medical connections.",
           items: {
             type: Type.OBJECT,
             properties: {
@@ -149,7 +149,7 @@ const mainDetailsSchema = {
                 type: Type.STRING,
                 enum: ["Biochemistry", "Pharmacology", "Physiology", "Psychology", "Sociology", "Pathology", "ImmunoLogy", "Genetics", "Diagnostics", "Treatment", "Physiotherapy", "Occupational Therapy", "Anaesthesia", "Pain Management"]
               },
-              connection: { type: Type.STRING, description: "Detailed clinical connection. MUST include regional block specifics if relevant (Name, mg/kg, mL/kg, 0.5% Bupivacaine alternative, coverage type)." },
+              connection: { type: Type.STRING, description: "Detailed link. For Anaesthesia/Pain/Treatment, specify regional block name, mg/kg, mL/kg, 0.5% Bupivacaine alternative, and Coverage type." },
             },
             required: ["discipline", "connection"],
           },
@@ -163,7 +163,7 @@ const managementAndContentSchema = {
     properties: {
         disciplineSpecificConsiderations: {
             type: Type.ARRAY,
-            description: "Discipline-specific actions. Must be UNIQUE and not duplicate 'Multidisciplinary Connections'.",
+            description: "Actions specific to the user's discipline. Ensure NO duplication with Multidisciplinary Connections.",
             items: {
               type: Type.OBJECT,
               properties: {
@@ -289,7 +289,7 @@ export const generateMainDetails = (coreCase: PatientCase, discipline: string, d
     generateCasePart(coreCase, discipline, difficulty, language, "biochemicalPathway, multidisciplinaryConnections (5-7 unique, high-detail links)", mainDetailsSchema);
 
 export const generateManagementAndContent = (coreCase: PatientCase, discipline: string, difficulty: string, language: string) => 
-    generateCasePart(coreCase, discipline, difficulty, language, "disciplineSpecificConsiderations, educationalContent", managementAndContentSchema);
+    generateCasePart(coreCase, discipline, difficulty, language, "disciplineSpecificConsiderations (ACTIONS ONLY, NO DUPLICATION), educationalContent", managementAndContentSchema);
 
 export const generateEvidenceAndQuiz = (coreCase: PatientCase, discipline: string, difficulty: string, language: string) => 
     generateCasePart(coreCase, discipline, difficulty, language, "traceableEvidence, furtherReadings, quiz", evidenceAndQuizSchema);

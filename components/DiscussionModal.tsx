@@ -15,7 +15,6 @@ import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, Bord
 const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 const isSpeechRecognitionSupported = !!SpeechRecognition;
 
-// Helper to map app language to BCP-47 for speech recognition
 const getBCP47Language = (lang: string): string => {
     const map: Record<string, string> = {
         'en': 'en-US', 'es': 'es-ES', 'fr': 'fr-FR', 'zh': 'zh-CN', 'hi': 'hi-IN',
@@ -24,14 +23,11 @@ const getBCP47Language = (lang: string): string => {
     return map[lang] || 'en-US';
 };
 
-// Helper: Cleans LaTeX and Markdown symbols for text-based downloads
 const cleanTextForDownload = (text: string): string => {
     return text
-        // Clean special UI tags
         .replace(/\[ILLUSTRATE:.*?\]/g, '')
         .replace(/\[DIAGRAM:.*?\]/g, '')
         .replace(/\[GRAPH:.*?\]/g, '')
-        // Convert common medical LaTeX to Unicode
         .replace(/\$t_{1\/2}\$/g, 'T½')
         .replace(/\$t_\{1\/2\}\$/g, 'T½')
         .replace(/\$CO_2\$/g, 'CO₂')
@@ -42,40 +38,30 @@ const cleanTextForDownload = (text: string): string => {
         .replace(/\$K\^+\$/g, 'K⁺')
         .replace(/\$Cl^-\$/g, 'Cl⁻')
         .replace(/\$HCO_3^-\$/g, 'HCO₃⁻')
-        // Strip other LaTeX markers
         .replace(/\$/g, '')
-        // Strip Markdown bold/italic
         .replace(/\*\*\*/g, '')
         .replace(/\*\*/g, '')
         .replace(/\*/g, '')
         .replace(/__/g, '')
         .replace(/_/g, '')
-        // Strip Markdown headers
         .replace(/#+\s/g, '')
-        // Strip Markdown links but keep title
         .replace(/\[(.*?)\]\(.*?\)/g, '$1')
         .trim();
 };
 
-// Helper: Simple Markdown Table Parser for Downloaders
 function parseMarkdownTable(text: string) {
     const lines = text.trim().split('\n');
     if (lines.length < 3) return null;
-    
     const rows = lines
         .filter(line => line.trim().startsWith('|'))
         .map(line => line.split('|').filter(cell => cell.trim() !== '').map(cell => cell.trim()));
-    
     if (rows.length < 2) return null;
-    
     const header = rows[0];
-    const data = rows.slice(2); // Skip header and separator row
-    
+    const data = rows.slice(2);
     if (header.length === 0) return null;
     return { header, data };
 }
 
-// Helper: Splits message content into text and table blocks for smarter rendering/export
 function splitMessageContent(text: string) {
     const parts: {type: 'text' | 'table', content?: string, table?: {header: string[], data: string[][]}}[] = [];
     const lines = text.split('\n');
@@ -116,22 +102,18 @@ function splitMessageContent(text: string) {
     return parts;
 }
 
-// Helper: Converts SVG element to DataURL PNG
 const svgToDataURL = async (svgEl: SVGSVGElement): Promise<string> => {
     const g = svgEl.querySelector('g');
     if (!g) return '';
     const bbox = g.getBBox();
     if (bbox.width === 0 || bbox.height === 0) return '';
-
     const padding = 40;
     const width = bbox.width + padding * 2;
     const height = bbox.height + padding * 2;
-
     const svgClone = svgEl.cloneNode(true) as SVGSVGElement;
     svgClone.setAttribute('width', width.toString());
     svgClone.setAttribute('height', height.toString());
     svgClone.setAttribute('viewBox', `${bbox.x - padding} ${bbox.y - padding} ${width} ${height}`);
-    
     const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
     bgRect.setAttribute('width', width.toString());
     bgRect.setAttribute('height', height.toString());
@@ -139,11 +121,9 @@ const svgToDataURL = async (svgEl: SVGSVGElement): Promise<string> => {
     bgRect.setAttribute('x', `${bbox.x - padding}`);
     bgRect.setAttribute('y', `${bbox.y - padding}`);
     svgClone.prepend(bgRect);
-
     const xml = new XMLSerializer().serializeToString(svgClone);
     const svg64 = btoa(unescape(encodeURIComponent(xml)));
     const image64 = `data:image/svg+xml;base64,${svg64}`;
-
     return new Promise((resolve) => {
         const img = new Image();
         img.onload = () => {
@@ -194,29 +174,25 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
     const [isSaved, setIsSaved] = useState(false);
     const [showShareMenu, setShowShareMenu] = useState(false);
     const [activeImagePrompt, setActiveImagePrompt] = useState<{prompt: string, index: number} | null>(null);
-    
     const chatRef = useRef<Chat | null>(null);
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const shareMenuRef = useRef<HTMLDivElement | null>(null);
-
-    // Voice Input State
     const [isListening, setIsListening] = useState(false);
     const [micError, setMicError] = useState<string | null>(null);
     const recognitionRef = useRef<any>(null);
 
     useEffect(() => {
         if (isOpen) {
-            const systemInstruction = `You are an expert medical tutor. Facilitate a Socratic discussion about "${topic.aspect}" in the context of "${caseTitle}". 
+            const systemInstruction = `You are an expert medical tutor. Facilitate a deep Socratic discussion about "${topic.aspect}" for "${caseTitle}". 
             
-            **Guidelines:**
-            - Always cite sources for factual medical claims. Provide accurate PMIDs and DOIs whenever possible.
-            - Use Unicode for formulas (CO₂, T½, Na⁺) instead of LaTeX where possible.
-            - Format text in Markdown. Use TABLES when comparing medications, diagnostic criteria, or physiological parameters.
-            - If you suggest a visual aid might be helpful, include a tag:
-              * [ILLUSTRATE: description] for complex medical scenes.
-              * [DIAGRAM: description] for concept maps.
-              * [GRAPH: oxygen_dissociation] if specifically discussing the Oxygen-Haemoglobin curve.
-            - If requested to conclude, provide a clear summary and a "References & Bibliography" section listing all sources used in the discussion with their verified PMIDs/DOIs.
+            **CRITICAL RULES:**
+            - DO NOT repeat the provided aspect or consideration text in your introductory response. Jump straight into the dialogue.
+            - Detect user intonation/sentiment: If the student sounds confused, use simpler analogies. If they sound confident, push for deeper technical links.
+            - Always cite sources (PMIDs/DOIs) for medical claims.
+            - Use tags for visuals:
+              * [GRAPH: oxygen_dissociation] for Bohr effect/curve discussions.
+              * [DIAGRAM: description] for complex concept maps.
+              * [ILLUSTRATE: description] for medical anatomy/scenes.
             - Respond in ${language}.`;
             
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -328,25 +304,18 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
         const margin = 20;
         const pageWidth = doc.internal.pageSize.getWidth();
         const brandColor = '#1e3a8a';
-        
         doc.setFont('helvetica', 'bold').setFontSize(22).setTextColor(brandColor).text('Ungana Medical', margin, 20);
         doc.setDrawColor(brandColor).setLineWidth(0.5).line(margin, 23, pageWidth - margin, 23);
         doc.setFontSize(12).text(`TUTORIAL REPORT: ${topic.aspect.toUpperCase()}`, margin, 33);
         doc.setFont('helvetica', 'italic').setFontSize(10).setTextColor('#4b5563');
         const ctxLines = doc.splitTextToSize(`Context: ${topic.consideration}`, pageWidth - 2 * margin);
         doc.text(ctxLines, margin, 40);
-        
         let y = 40 + (ctxLines.length * 5) + 12;
-
         for (const [idx, m] of messages.filter(msg => msg.role !== 'system').entries()) {
             const isUser = m.role === 'user';
-            
-            // User Label
             if (y > 270) { doc.addPage(); y = 20; }
             doc.setFont('helvetica', 'bold').setFontSize(10).setTextColor(isUser ? brandColor : '#374151').text(`[${isUser ? 'STUDENT' : 'AI TUTOR'}]`, margin, y);
             y += 6;
-
-            // Content Blocks
             const blocks = splitMessageContent(m.text);
             for (const block of blocks) {
                 if (block.type === 'text') {
@@ -370,9 +339,7 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
                     y = (doc as any).lastAutoTable.finalY + 8;
                 }
             }
-            
-            y += 4; // Spacing after message
-
+            y += 4;
             if (m.diagramData) {
                 const svgId = `diagram-chat-${idx}`;
                 const svgEl = document.querySelector(`#${svgId} svg`) as SVGSVGElement;
@@ -386,62 +353,8 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
                     }
                 }
             }
-            if (m.imageData) {
-                const imgW = 120; const imgH = 90;
-                if (y + imgH > 270) { doc.addPage(); y = 20; }
-                doc.addImage(`data:image/png;base64,${m.imageData}`, 'PNG', (pageWidth - imgW) / 2, y, imgW, imgH);
-                y += imgH + 10;
-            }
         }
         doc.save(`Ungana_Discussion_${topic.aspect.replace(/\s+/g, '_')}.pdf`);
-        setShowShareMenu(false);
-    };
-
-    const handleDownloadWord = async () => {
-        const brandColor = '1e3a8a';
-        const sections: any[] = [
-            new Paragraph({ children: [new TextRun({ text: 'Ungana Medical', bold: true, color: brandColor, size: 36 })], alignment: AlignmentType.CENTER, spacing: { after: 200 } }),
-            new Paragraph({ children: [new TextRun({ text: `Tutorial: ${topic.aspect}`, bold: true, size: 28 })], heading: HeadingLevel.HEADING_1, border: { bottom: { color: brandColor, space: 1, style: BorderStyle.SINGLE, size: 6 } }, spacing: { after: 200 } }),
-            new Paragraph({ children: [new TextRun({ text: `Context: ${topic.consideration}`, italic: true, size: 20, color: '4b5563' })], spacing: { after: 400 } })
-        ];
-
-        for (const [idx, m] of messages.filter(msg => msg.role !== 'system').entries()) {
-            const isUser = m.role === 'user';
-            sections.push(new Paragraph({ children: [new TextRun({ text: `[${isUser ? 'STUDENT' : 'AI TUTOR'}]`, bold: true, color: isUser ? brandColor : '374151', size: 20 })], spacing: { before: 200 } }));
-            
-            const blocks = splitMessageContent(m.text);
-            for (const block of blocks) {
-                if (block.type === 'text') {
-                    sections.push(new Paragraph({ children: [new TextRun({ text: cleanTextForDownload(block.content || ''), size: 22 })], spacing: { after: 100 } }));
-                } else if (block.type === 'table' && block.table) {
-                    sections.push(new Table({
-                        width: { size: 100, type: WidthType.PERCENTAGE },
-                        rows: [
-                            new TableRow({ children: block.table.header.map(h => new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: h, bold: true })] })], shading: { fill: 'f3f4f6' } })) }),
-                            ...block.table.data.map(row => new TableRow({ children: row.map(cell => new TableCell({ children: [new Paragraph({ text: cell })] })) }))
-                        ]
-                    }));
-                }
-            }
-
-            if (m.diagramData) {
-                const svgId = `diagram-chat-${idx}`;
-                const svgEl = document.querySelector(`#${svgId} svg`) as SVGSVGElement;
-                if (svgEl) {
-                    const dataUrl = await svgToDataURL(svgEl);
-                    if (dataUrl) {
-                        const base64 = dataUrl.split(',')[1];
-                        sections.push(new Paragraph({ children: [new ImageRun({ data: Uint8Array.from(atob(base64), c => c.charCodeAt(0)), transformation: { width: 450, height: 330 } })], alignment: AlignmentType.CENTER, spacing: { before: 200, after: 200 } }));
-                    }
-                }
-            }
-            if (m.imageData) {
-                sections.push(new Paragraph({ children: [new ImageRun({ data: Uint8Array.from(atob(m.imageData), c => c.charCodeAt(0)), transformation: { width: 450, height: 330 } })], alignment: AlignmentType.CENTER, spacing: { before: 200, after: 200 } }));
-            }
-        }
-        const doc = new Document({ sections: [{ children: sections }] });
-        const blob = await Packer.toBlob(doc);
-        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `Ungana_Discussion_${topic.aspect.replace(/\s+/g, '_')}.docx`; a.click();
         setShowShareMenu(false);
     };
 
@@ -462,7 +375,6 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
                                     <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg border border-gray-200 z-20 animate-fade-in py-1">
                                         <button onClick={() => { navigator.clipboard.writeText(messages.map(m => `[${m.role.toUpperCase()}]: ${m.text}`).join('\n\n')); setShowShareMenu(false); }} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>{T.copyTranscript}</button>
                                         <button onClick={handleDownloadPdf} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"><svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"></path></svg>{T.downloadPdfButton}</button>
-                                        <button onClick={handleDownloadWord} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"><svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2c5.514 0 10 4.486 10 10s-4.486 10-10 10-10-4.486-10-10 4.486-10 10-10zm0-2c-6.627 0-12 5.373-12 12s5.373 12 12 12 12-5.373 12-12-5.373-12-12-12zm-3 8h6v1h-6v-1zm0 2h6v1h-6v-1zm0 2h6v1h-6v-1zm0 2h6v1h-6v-1zm0 2h6v1h-6v-1z" /></svg>{T.downloadWordButton}</button>
                                     </div>
                                 )}
                             </div>
@@ -474,9 +386,7 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
                     <div className="space-y-6">
                         {messages.map((msg, index) => {
                             const illustrationMatch = msg.text.match(/\[ILLUSTRATE: (.*?)\]/);
-                            const diagramMatch = msg.text.match(/\[DIAGRAM: (.*?)\]/);
                             const graphMatch = msg.text.match(/\[GRAPH: (.*?)\]/);
-                            
                             const textWithoutTags = msg.text
                                 .replace(/\[ILLUSTRATE:.*?\]/g, '')
                                 .replace(/\[DIAGRAM:.*?\]/g, '')
@@ -491,7 +401,7 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
                                             {msg.role === 'model' ? (
                                                 <div className="space-y-2">
                                                     <MarkdownRenderer content={textWithoutTags} />
-                                                    <div className="pt-2 mt-2 border-t border-gray-50 text-[11px] text-gray-500 italic">
+                                                    <div className="pt-2 mt-2 border-t border-gray-50">
                                                         <SourceRenderer text={msg.text} />
                                                     </div>
                                                 </div>
@@ -499,10 +409,7 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
                                             
                                             {illustrationMatch && !msg.imageData && (
                                                 <div className="mt-3 pt-3 border-t border-gray-100 flex justify-center">
-                                                    <button 
-                                                        onClick={() => setActiveImagePrompt({ prompt: illustrationMatch[1], index })}
-                                                        className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition text-xs font-semibold"
-                                                    >
+                                                    <button onClick={() => setActiveImagePrompt({ prompt: illustrationMatch[1], index })} className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition text-xs font-semibold">
                                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h14a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                                                         Generate Illustration
                                                     </button>
@@ -510,23 +417,16 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
                                             )}
 
                                             {graphMatch && (
-                                                <div className="mt-3">
-                                                    <ScientificGraph type={graphMatch[1] as any} title="Physiological Relationship" />
+                                                <div className="mt-4 pt-4 border-t border-gray-100">
+                                                    <ScientificGraph type={graphMatch[1] as any} title="Hemoglobin Dissociation Curve" className="scale-105" />
                                                 </div>
                                             )}
 
                                             {msg.imageData && (
-                                                <div className="mt-3">
-                                                    <img src={`data:image/png;base64,${msg.imageData}`} alt="Illustration" className="rounded-lg border border-gray-100 shadow-sm max-w-full h-auto cursor-zoom-in" />
-                                                </div>
+                                                <div className="mt-3"><img src={`data:image/png;base64,${msg.imageData}`} alt="Illustration" className="rounded-lg border border-gray-100 shadow-sm max-w-full h-auto" /></div>
                                             )}
                                         </div>
-
-                                        {msg.diagramData && (
-                                            <div id={`diagram-chat-${index}`} className="h-64 w-full rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden group relative">
-                                                <InteractiveDiagram data={msg.diagramData} />
-                                            </div>
-                                        )}
+                                        {msg.diagramData && <div id={`diagram-chat-${index}`} className="h-64 w-full rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden"><InteractiveDiagram data={msg.diagramData} /></div>}
                                     </div>
                                 </div>
                             );
@@ -542,23 +442,11 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
                 </main>
                 <footer className="p-4 border-t border-gray-200 bg-white rounded-b-xl z-10">
                     <div className="flex justify-center mb-3">
-                        <button 
-                            onClick={handleConclude}
-                            disabled={isLoading}
-                            className="text-xs px-4 py-1.5 bg-brand-gray text-gray-700 hover:bg-gray-200 rounded-full border border-gray-300 transition-colors font-medium flex items-center gap-1.5"
-                        >
+                        <button onClick={handleConclude} disabled={isLoading} className="text-xs px-4 py-1.5 bg-brand-gray text-gray-700 hover:bg-gray-200 rounded-full border border-gray-300 transition-colors font-medium flex items-center gap-1.5">
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
                             {T.concludeDiscussion}
                         </button>
                     </div>
-                    {micError && <div className="mb-2 text-xs text-red-600 bg-red-50 p-2 rounded border border-red-100">{micError}</div>}
-                    {isGeneratingDiagram && (
-                        <form onSubmit={handleGenerateDiagram} className="p-2 border border-gray-200 rounded-lg mb-2 bg-gray-50 flex items-center gap-2">
-                            <input type="text" value={diagramPrompt} onChange={(e) => setDiagramPrompt(e.target.value)} placeholder={T.diagramPlaceholder} className="flex-grow p-1.5 border border-gray-300 rounded-md text-sm text-black" autoFocus />
-                            <button type="submit" disabled={isLoading || !diagramPrompt.trim()} className="bg-green-600 hover:bg-green-700 text-white font-bold py-1.5 px-3 rounded-md transition text-sm">Generate</button>
-                            <button type="button" onClick={() => setIsGeneratingDiagram(false)} className="text-gray-500 text-sm">{T.cancelButton}</button>
-                        </form>
-                    )}
                     <form onSubmit={(e) => handleSendMessage(e)} className="flex items-center gap-2 mb-3">
                         <button type="button" onClick={() => setIsGeneratingDiagram(prev => !prev)} disabled={isLoading} className="p-2 rounded-md border border-gray-300 bg-white hover:bg-gray-100 text-gray-600" title="Add Diagram"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" /></svg></button>
                         <div className="relative flex items-center">
@@ -578,16 +466,7 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
                     </div>
                 </footer>
             </div>
-
-            {activeImagePrompt && (
-                <ImageGenerator 
-                    content={{ title: 'Clinical Illustration', description: activeImagePrompt.prompt, type: EducationalContentType.IMAGE, reference: 'AI Generated' }} 
-                    onClose={() => setActiveImagePrompt(null)} 
-                    language={language} 
-                    T={T} 
-                    onImageGenerated={(data) => handleImageGenerated(activeImagePrompt.index, data)} 
-                />
-            )}
+            {activeImagePrompt && <ImageGenerator content={{ title: 'Clinical Illustration', description: activeImagePrompt.prompt, type: EducationalContentType.IMAGE, reference: 'AI Generated' }} onClose={() => setActiveImagePrompt(null)} language={language} T={T} onImageGenerated={(data) => handleImageGenerated(activeImagePrompt.index, data)} />}
         </div>
     );
 };
