@@ -216,22 +216,21 @@ const ConnectionExplanationModal: React.FC<ConnectionExplanationModalProps> = ({
     );
 };
 
-// FIX: Added missing discipline colors for Anaesthesia and Pain Management.
 export const DisciplineColors: Record<Discipline, string> = {
-    [Discipline.BIOCHEMISTRY]: '#4A90E2', // A bright blue
-    [Discipline.PHARMACOLOGY]: '#50E3C2', // A teal/cyan
-    [Discipline.PHYSIOLOGY]: '#B8E986', // A light green
-    [Discipline.PSYCHOLOGY]: '#F5A623', // An orange
-    [Discipline.SOCIOLOGY]: '#F8E71C', // A yellow
-    [Discipline.PATHOLOGY]: '#D0021B', // A strong red
-    [Discipline.IMMUNOLOGY]: '#BD10E0', // A purple
-    [Discipline.GENETICS]: '#9013FE', // A deep purple
-    [Discipline.DIAGNOSTICS]: '#417505', // A darker green
-    [Discipline.TREATMENT]: '#7ED321', // A bright green
-    [Discipline.PHYSIOTHERAPY]: '#E0A410', // A gold
-    [Discipline.OCCUPATIONAL_THERAPY]: '#03A9F4', // A light blue
-    [Discipline.ANAESTHESIA]: '#607D8B', // Blue Grey
-    [Discipline.PAIN_MANAGEMENT]: '#FF5722', // Deep Orange
+    [Discipline.BIOCHEMISTRY]: '#4A90E2',
+    [Discipline.PHARMACOLOGY]: '#50E3C2',
+    [Discipline.PHYSIOLOGY]: '#B8E986',
+    [Discipline.PSYCHOLOGY]: '#F5A623',
+    [Discipline.SOCIOLOGY]: '#F8E71C',
+    [Discipline.PATHOLOGY]: '#D0021B',
+    [Discipline.IMMUNOLOGY]: '#BD10E0',
+    [Discipline.GENETICS]: '#9013FE',
+    [Discipline.DIAGNOSTICS]: '#417505',
+    [Discipline.TREATMENT]: '#7ED321',
+    [Discipline.PHYSIOTHERAPY]: '#E0A410',
+    [Discipline.OCCUPATIONAL_THERAPY]: '#03A9F4',
+    [Discipline.ANAESTHESIA]: '#607D8B',
+    [Discipline.PAIN_MANAGEMENT]: '#FF5722',
 };
 
 interface KnowledgeMapProps {
@@ -309,7 +308,7 @@ export const KnowledgeMap = forwardRef<any, KnowledgeMapProps>(({
 
         const midX = x + width / 2;
         const midY = y + height / 2;
-        const scale = 0.85 / Math.max(width / fullWidth, height / fullHeight); // Slightly zoomed out initial view
+        const scale = 0.85 / Math.max(width / fullWidth, height / fullHeight);
         const translate = [fullWidth / 2 - scale * midX, fullHeight / 2 - scale * midY];
 
         const transform = d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale);
@@ -347,28 +346,27 @@ export const KnowledgeMap = forwardRef<any, KnowledgeMapProps>(({
         setIsLoading(true);
 
         const svg = d3.select(svgRef.current);
-        svg.selectAll('*').remove(); // Clear previous render
+        svg.selectAll('*').remove();
         
         const defs = svg.append("defs");
 
-        // Define Arrow Marker
+        // High-Fidelity Arrow Marker
         defs.append("marker")
             .attr("id", "arrow-head-map")
             .attr("viewBox", "0 -5 10 10")
-            .attr("refX", 30) // Node radius 18 + gap + stroke safety
+            .attr("refX", 8) // RefX adjusted for intersection logic
             .attr("refY", 0)
-            .attr("markerWidth", 8)
-            .attr("markerHeight", 8)
+            .attr("markerWidth", 6)
+            .attr("markerHeight", 6)
             .attr("orient", "auto")
             .attr("markerUnits", "userSpaceOnUse")
             .append("path")
             .attr("d", "M0,-5L10,0L0,5")
-            .attr("fill", "#9ca3af")
-            .attr("fill-opacity", 0.8);
+            .attr("fill", "#6b7280");
 
-        // Define Drop Shadow Filter for pseudo-3D effect
+        // Filter for node depth
         const filter = defs.append("filter")
-            .attr("id", "drop-shadow")
+            .attr("id", "node-shadow")
             .attr("height", "140%");
         
         filter.append("feGaussianBlur")
@@ -399,70 +397,64 @@ export const KnowledgeMap = forwardRef<any, KnowledgeMapProps>(({
         svg.call(zoom);
         svg.on("click", onClearSelection);
 
-        // Optimized physics for reduced clutter
         simulationRef.current = d3.forceSimulation(nodes)
-            .force('link', d3.forceLink(links).id((d: any) => d.id).distance(220).strength(0.3)) // Longer, slightly looser links
-            .force('charge', d3.forceManyBody().strength(-2500)) // Very strong repulsion to push nodes apart
+            .force('link', d3.forceLink(links).id((d: any) => d.id).distance(250).strength(0.4))
+            .force('charge', d3.forceManyBody().strength(-3000))
             .force('center', d3.forceCenter(width / 2, height / 2))
-            .force('collide', d3.forceCollide().radius(80).iterations(3)) // High collision radius to avoid text overlap
+            .force('collide', d3.forceCollide().radius(120).iterations(3))
             .on('end', () => {
                 setIsLoading(false);
                 resetZoom();
             });
 
-        // --- Links (Lines) ---
+        // --- Links ---
         const linkLines = g.append("g")
             .attr("class", "links")
-            .selectAll("line")
+            .selectAll("path")
             .data(links)
-            .join("line")
+            .join("path")
+            .attr("fill", "none")
             .attr("stroke", "#9ca3af")
             .attr("stroke-opacity", 0.6)
-            .attr("stroke-width", 1.5)
-            .attr("marker-end", "url(#arrow-head-map)"); // Add arrows
+            .attr("stroke-width", 2)
+            .attr("marker-end", "url(#arrow-head-map)");
 
-        // --- Link Labels (Parallel text with background) ---
         const linkLabels = g.append("g")
             .attr("class", "link-labels")
             .selectAll("g")
             .data(links)
             .join("g");
 
-        // Background pill for text readability
         linkLabels.append("rect")
-            .attr("rx", 10) // Rounded corners like a pill
+            .attr("rx", 10)
             .attr("ry", 10)
             .attr("fill", "white")
             .attr("fill-opacity", 0.95)
             .attr("stroke", "#e5e7eb")
             .attr("stroke-width", 1);
 
-        // The text itself
         linkLabels.append("text")
             .text((d: any) => d.description)
-            .attr("font-size", "16px") // Increased font size
+            .attr("font-size", "14px")
             .attr("fill", "#4b5563")
             .attr("text-anchor", "middle")
             .attr("dy", "0.35em")
             .attr("font-family", "sans-serif")
-            .attr("pointer-events", "none") // Click through to select links if needed
+            .attr("pointer-events", "none")
             .each(function(d: any) {
-                // Calculate width for the background rect
-                // @ts-ignore
-                const bbox = this.getBBox();
-                d.width = bbox.width + 14;
-                d.height = bbox.height + 8;
+                const bbox = (this as any).getBBox();
+                d.labelWidth = bbox.width + 12;
+                d.labelHeight = bbox.height + 6;
             });
         
-        // Apply dimensions to rects after text rendering
         linkLabels.select("rect")
-            .attr("width", (d: any) => d.width)
-            .attr("height", (d: any) => d.height)
-            .attr("x", (d: any) => -d.width / 2)
-            .attr("y", (d: any) => -d.height / 2);
+            .attr("width", (d: any) => d.labelWidth)
+            .attr("height", (d: any) => d.labelHeight)
+            .attr("x", (d: any) => -d.labelWidth / 2)
+            .attr("y", (d: any) => -d.labelHeight / 2);
 
 
-        // --- Nodes ---
+        // --- Nodes (Pills) ---
         const node = g.append('g')
             .attr("class", "nodes")
             .selectAll('g')
@@ -490,55 +482,77 @@ export const KnowledgeMap = forwardRef<any, KnowledgeMapProps>(({
             })
             .on('contextmenu', (event: MouseEvent, d: any) => handleNodeRightClick(event, d));
 
-        // Main circle with shadow (Pseudo-3D)
-        node.append('circle')
-            .attr('r', 18) 
+        // Node Pill Background
+        node.append('rect')
+            .attr('rx', 20)
+            .attr('ry', 20)
             .attr('fill', (d: any) => DisciplineColors[d.discipline] || '#ccc')
             .attr('stroke', '#fff')
-            .attr('stroke-width', 3)
-            .style("filter", "url(#drop-shadow)"); 
-            
-        
-        // Label
+            .attr('stroke-width', 2)
+            .style("filter", "url(#node-shadow)");
+
+        // Node Text
         node.append('text')
             .text((d: any) => d.label)
-            .attr('x', 24)
-            .attr('y', 5)
             .attr("font-family", "sans-serif")
-            .attr('font-size', '18px') // Increased font size
+            .attr('font-size', '16px')
             .attr('font-weight', 'bold')
-            .attr('fill', '#1f2937')
-            .style("text-shadow", "2px 2px 0px #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff");
+            .attr('fill', '#ffffff')
+            .attr('text-anchor', 'middle')
+            .attr('dy', '0.35em')
+            .each(function(d: any) {
+                const bbox = (this as any).getBBox();
+                d.pillWidth = bbox.width + 40;
+                d.pillHeight = 40;
+            });
+            
+        node.select('rect')
+            .attr('width', (d: any) => d.pillWidth)
+            .attr('height', (d: any) => d.pillHeight)
+            .attr('x', (d: any) => -d.pillWidth / 2)
+            .attr('y', (d: any) => -d.pillHeight / 2);
+
+        // Rect-Intersection helper for precise connections
+        function intersectRect(rect: any, point: any) {
+            const cx = rect.x;
+            const cy = rect.y;
+            const dx = point.x - cx;
+            const dy = point.y - cy;
+            const w = (rect.pillWidth || 0) / 2;
+            const h = (rect.pillHeight || 0) / 2;
+            if (w === 0 || h === 0) return { x: cx, y: cy }; 
+            
+            if (Math.abs(dy * w) < Math.abs(dx * h)) {
+                if (dx > 0) return { x: cx + w, y: cy + dy * w / dx };
+                else return { x: cx - w, y: cy - dy * w / dx };
+            } else {
+                if (dy > 0) return { x: cx + dx * h / dy, y: cy + h };
+                else return { x: cx - dx * h / dy, y: cy - h };
+            }
+        }
 
         simulationRef.current.on('tick', () => {
-            // Update Lines
-            linkLines
-                .attr('x1', (d: any) => d.source.x)
-                .attr('y1', (d: any) => d.source.y)
-                .attr('x2', (d: any) => d.target.x)
-                .attr('y2', (d: any) => d.target.y);
+            // Update Path (Precise edge termination)
+            linkLines.attr('d', (d: any) => {
+                if (!d.source.x || !d.target.x) return null;
+                const sourcePoint = intersectRect(d.source, d.target);
+                const targetPoint = intersectRect(d.target, d.source);
+                return `M ${sourcePoint.x} ${sourcePoint.y} L ${targetPoint.x} ${targetPoint.y}`;
+            });
             
-            // Update Labels (Rotation parallel to line)
+            // Update Label Position
             linkLabels.attr('transform', (d: any) => {
                 if (!d.source.x || !d.target.x) return null;
-
+                const midX = (d.source.x + d.target.x) / 2;
+                const midY = (d.source.y + d.target.y) / 2;
                 const dx = d.target.x - d.source.x;
                 const dy = d.target.y - d.source.y;
-                const x = (d.source.x + d.target.x) / 2;
-                const y = (d.source.y + d.target.y) / 2;
-
-                // Calculate angle in degrees
                 let angle = Math.atan2(dy, dx) * 180 / Math.PI;
-
-                // Flip text to be readable (left-to-right)
-                if (angle > 90 || angle < -90) {
-                    angle += 180;
-                }
-
-                return `translate(${x}, ${y}) rotate(${angle})`;
+                if (angle > 90 || angle < -90) angle += 180;
+                return `translate(${midX}, ${midY}) rotate(${angle})`;
             });
 
-            // Update Nodes
+            // Update Node Position
             node.attr('transform', (d: any) => `translate(${d.x}, ${d.y})`);
         });
 
@@ -553,26 +567,23 @@ export const KnowledgeMap = forwardRef<any, KnowledgeMapProps>(({
         }
     }, [isMapFullscreen, resetZoom]);
     
-    // Effect for highlighting based on selection
     useEffect(() => {
         const nodeElements = d3.selectAll('.node-group');
-        const linkElements = d3.selectAll('.links line');
+        const linkElements = d3.selectAll('.links path');
         const labelElements = d3.selectAll('.link-labels g');
     
         if (selectedNodeInfo) {
             const selectedId = selectedNodeInfo.node.id;
-    
             const linkedNodeIds = new Set([selectedId]);
             const linkedEdgeIds = new Set();
 
             links.forEach((link: any) => {
-                // D3 converts source/target strings to objects, so check .id if available, else check raw
                 const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
                 const targetId = typeof link.target === 'object' ? link.target.id : link.target;
 
                 if (sourceId === selectedId) {
                     linkedNodeIds.add(targetId);
-                    linkedEdgeIds.add(link.index); // Use D3's index or a unique link ID
+                    linkedEdgeIds.add(link.index);
                 } else if (targetId === selectedId) {
                     linkedNodeIds.add(sourceId);
                     linkedEdgeIds.add(link.index);

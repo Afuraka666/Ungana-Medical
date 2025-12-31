@@ -1,6 +1,5 @@
 
 import { GoogleGenAI, Type, GenerateContentResponse, Modality } from "@google/genai";
-// FIX: Imported EcgFindings from types to fix the reference error on line 331.
 import type { PatientCase, KnowledgeMapData, KnowledgeNode, KnowledgeLink, TraceableEvidence, FurtherReading, DiagramData, EcgFindings } from '../types';
 
 const getAiClient = () => {
@@ -29,35 +28,31 @@ export async function retryWithBackoff<T>(
     throw lastError;
 }
 
-const THINKING_MODEL = "gemini-3-pro-preview";
+const THINKING_MODEL = "gemini-3-pro-preview"; // Reserved for complex tutoring/reasoning
 const THINKING_CONFIG = {};
-const FAST_MODEL = "gemini-3-flash-preview";
+const FAST_MODEL = "gemini-3-flash-preview"; // Used for core generation to ensure sub-20s speed
 
 const SYNTHESIS_GUIDELINE = `
-**Guideline:** Use traceable references to enhance clinical reasoning. If synthesizing concepts, provide the evidence base and label it "[Synthesis]".
+**Guideline:** Provide exhaustive technical detail. Use Unicode subscripts (₀₁₂₃₄₅₆₇₈₉) and superscripts (⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻). 
 
-**Molecular Formulas & Clinical Notations:** 
-Always use Unicode subscripts (₀₁₂₃₄₅₆₇₈₉) and superscripts (⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻). 
-- Examples: CO₂, SpO₂, SaO₂, Na⁺, Cl⁻, HCO₃⁻.
+**Regional Anaesthesia:**
+For any block, you MUST provide:
+1. **Name:** e.g., Adductor Canal Block.
+2. **Pharmacology:** Exact dose in mg/kg.
+3. **Volume:** Total volume in mL/kg.
+4. **Coverage:** Somatosensory, Visceral, or Both.
 
-**Regional Anaesthesia & Clinical Procedures:**
-If a regional block is suggested, you MUST provide:
-1. **Specific Block Name:** (e.g., Interscalene Brachial Plexus Block).
-2. **Pharmacology:** Dose in mg/kg (e.g., 2mg/kg).
-3. **Volume:** Dose in mL/kg (e.g., 0.4mL/kg).
-4. **Alternative:** Always list 0.5% Bupivacaine as a standard alternative.
-5. **Coverage:** Explicitly define as Somatosensory, Visceral, or Both.
-
-**Content Integrity:**
-'Multidisciplinary Connections' should focus on complex interplay. 'Management Considerations' should focus on practical steps for the specific user discipline. DO NOT duplicate information between these sections.
+**High Fidelity Visuals:**
+- Use Markdown Tables for physiological values (e.g., Vitals, Lab results).
+- Ensure 'Multidisciplinary Connections' and 'Management' are distinct with no overlap.
 `;
 
 const diagramNodeSchema = {
     type: Type.OBJECT,
     properties: {
-        id: { type: Type.STRING, description: "Concise identifier." },
-        label: { type: Type.STRING, description: "Human-readable label." },
-        description: { type: Type.STRING, description: "Role explanation." },
+        id: { type: Type.STRING },
+        label: { type: Type.STRING },
+        description: { type: Type.STRING },
     },
     required: ["id", "label"]
 };
@@ -65,9 +60,9 @@ const diagramNodeSchema = {
 const diagramLinkSchema = {
     type: Type.OBJECT,
     properties: {
-        source: { type: Type.STRING, description: "Source node id." },
-        target: { type: Type.STRING, description: "Target node id." },
-        label: { type: Type.STRING, description: "Relationship label." }
+        source: { type: Type.STRING },
+        target: { type: Type.STRING },
+        label: { type: Type.STRING }
     },
     required: ["source", "target", "label"]
 };
@@ -120,16 +115,6 @@ const corePatientCaseSchema = {
             },
             required: ["procedureName", "asaScore"],
             nullable: true
-        },
-        outcomes: {
-            type: Type.OBJECT,
-            properties: {
-                icuAdmission: { type: Type.BOOLEAN },
-                lengthOfStayDays: { type: Type.INTEGER },
-                outcomeSummary: { type: Type.STRING }
-            },
-            required: ["icuAdmission", "lengthOfStayDays", "outcomeSummary"],
-            nullable: true
         }
     },
     required: ["title", "patientProfile", "presentingComplaint", "history"]
@@ -141,15 +126,11 @@ const mainDetailsSchema = {
         biochemicalPathway: { ...educationalContentSchema },
         multidisciplinaryConnections: {
           type: Type.ARRAY,
-          description: "5-7 distinct technical medical connections.",
           items: {
             type: Type.OBJECT,
             properties: {
-              discipline: {
-                type: Type.STRING,
-                enum: ["Biochemistry", "Pharmacology", "Physiology", "Psychology", "Sociology", "Pathology", "ImmunoLogy", "Genetics", "Diagnostics", "Treatment", "Physiotherapy", "Occupational Therapy", "Anaesthesia", "Pain Management"]
-              },
-              connection: { type: Type.STRING, description: "Detailed link. For Anaesthesia/Pain/Treatment, specify regional block name, mg/kg, mL/kg, 0.5% Bupivacaine alternative, and Coverage type." },
+              discipline: { type: Type.STRING },
+              connection: { type: Type.STRING },
             },
             required: ["discipline", "connection"],
           },
@@ -163,7 +144,6 @@ const managementAndContentSchema = {
     properties: {
         disciplineSpecificConsiderations: {
             type: Type.ARRAY,
-            description: "Actions specific to the user's discipline. Ensure NO duplication with Multidisciplinary Connections.",
             items: {
               type: Type.OBJECT,
               properties: {
@@ -218,10 +198,7 @@ const knowledgeMapSchema = {
                 properties: {
                     id: { type: Type.STRING },
                     label: { type: Type.STRING },
-                    discipline: { 
-                        type: Type.STRING,
-                        enum: ["Biochemistry", "Pharmacology", "Physiology", "Psychology", "Sociology", "Pathology", "ImmunoLogy", "Genetics", "Diagnostics", "Treatment", "Physiotherapy", "Occupational Therapy", "Anaesthesia", "Pain Management"]
-                    },
+                    discipline: { type: Type.STRING },
                     summary: { type: Type.STRING }
                 },
                 required: ["id", "label", "discipline", "summary"]
@@ -245,7 +222,7 @@ const knowledgeMapSchema = {
 
 export const getConceptAbstract = async (concept: string, caseContext: string, language: string): Promise<string> => {
     const ai = getAiClient();
-    const prompt = `In the context of a patient with "${caseContext}", provide a concise, one-paragraph abstract (around 50-70 words) explaining the significance of "${concept}". ${SYNTHESIS_GUIDELINE} Language: ${language}.`;
+    const prompt = `Context: "${caseContext}". Significance of: "${concept}". 50 words. Use Unicode. Language: ${language}.`;
     const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
         model: THINKING_MODEL,
         contents: prompt,
@@ -254,68 +231,42 @@ export const getConceptAbstract = async (concept: string, caseContext: string, l
     return response.text || "";
 };
 
-const getDifficultyInstructions = (difficulty: string) => {
-    switch (difficulty.toLowerCase()) {
-        case 'beginner': return `Difficulty: Beginner. Focus on 2-3 core high-yield connections.`;
-        case 'advanced': return `Difficulty: Advanced. Include 3-4 differential diagnoses, 5-7 deep connections including ethics.`;
-        case 'intermediate':
-        default: return `Difficulty: Intermediate. 3-5 relevant multidisciplinary connections.`;
-    }
-};
-
 export const generateCorePatientCase = async (condition: string, discipline: string, difficulty: string, language: string): Promise<PatientCase> => {
     const ai = getAiClient();
-    const prompt = `Create a multidisciplinary medical case about "${condition}". Language: ${language}. Discipline: ${discipline}. ${getDifficultyInstructions(difficulty)} ${SYNTHESIS_GUIDELINE} Generate ONLY: title, patientProfile, presentingComplaint, history, procedureDetails, outcomes.`;
+    const prompt = `Generate a patient case for "${condition}". Discipline: ${discipline}. Difficulty: ${difficulty}. Language: ${language}. ${SYNTHESIS_GUIDELINE} Return JSON.`;
     const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
-        model: THINKING_MODEL,
+        model: FAST_MODEL, // FAST_MODEL for speed
         contents: prompt,
-        config: { ...THINKING_CONFIG, responseMimeType: "application/json", responseSchema: corePatientCaseSchema },
+        config: { responseMimeType: "application/json", responseSchema: corePatientCaseSchema },
     }));
     return JSON.parse(response.text || "{}") as PatientCase;
 };
 
 const generateCasePart = async (coreCase: PatientCase, discipline: string, difficulty: string, language: string, taskDescription: string, responseSchema: any) => {
     const ai = getAiClient();
-    const prompt = `Generate requested sections for case: ${coreCase.title}. Language: ${language}. Discipline: ${discipline}. ${getDifficultyInstructions(difficulty)} ${SYNTHESIS_GUIDELINE} Task: ${taskDescription}`;
+    const prompt = `For patient case "${coreCase.title}", generate ${taskDescription}. Discipline: ${discipline}. Difficulty: ${difficulty}. Language: ${language}. ${SYNTHESIS_GUIDELINE} Return JSON.`;
     const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
-        model: THINKING_MODEL,
+        model: FAST_MODEL, // FAST_MODEL for speed
         contents: prompt,
-        config: { ...THINKING_CONFIG, responseMimeType: "application/json", responseSchema: responseSchema },
+        config: { responseMimeType: "application/json", responseSchema: responseSchema },
     }));
     return JSON.parse(response.text || "{}");
 };
 
 export const generateMainDetails = (coreCase: PatientCase, discipline: string, difficulty: string, language: string) => 
-    generateCasePart(coreCase, discipline, difficulty, language, "biochemicalPathway, multidisciplinaryConnections (5-7 unique, high-detail links)", mainDetailsSchema);
+    generateCasePart(coreCase, discipline, difficulty, language, "biochemicalPathway and 5 multidisciplinaryConnections", mainDetailsSchema);
 
 export const generateManagementAndContent = (coreCase: PatientCase, discipline: string, difficulty: string, language: string) => 
-    generateCasePart(coreCase, discipline, difficulty, language, "disciplineSpecificConsiderations (ACTIONS ONLY, NO DUPLICATION), educationalContent", managementAndContentSchema);
+    generateCasePart(coreCase, discipline, difficulty, language, "management considerations and educational content", managementAndContentSchema);
 
 export const generateEvidenceAndQuiz = (coreCase: PatientCase, discipline: string, difficulty: string, language: string) => 
-    generateCasePart(coreCase, discipline, difficulty, language, "traceableEvidence, furtherReadings, quiz", evidenceAndQuizSchema);
+    generateCasePart(coreCase, discipline, difficulty, language, "traceableEvidence, furtherReadings, and quiz questions", evidenceAndQuizSchema);
 
 export const generateKnowledgeMap = async (coreCase: PatientCase, discipline: string, difficulty: string, language: string): Promise<KnowledgeMapData> => {
-    const rawMapData = await generateCasePart(coreCase, discipline, difficulty, language, "Knowledge map with 8-12 nodes.", knowledgeMapSchema);
+    const rawMapData = await generateCasePart(coreCase, discipline, difficulty, language, "a knowledge map with 8 nodes", knowledgeMapSchema);
     const validNodeIds = new Set(rawMapData.nodes.map((n: KnowledgeNode) => n.id));
     const validLinks = rawMapData.links.filter((l: KnowledgeLink) => validNodeIds.has(l.source) && validNodeIds.has(l.target));
     return { nodes: rawMapData.nodes, links: validLinks };
-};
-
-export const enrichCaseWithWebSources = async (patientCase: PatientCase, language: string): Promise<{ newEvidence: TraceableEvidence[]; newReadings: FurtherReading[]; groundingSources: any[] }> => {
-    const ai = getAiClient();
-    const prompt = `Regarding "${patientCase.title}", find recent medical updates. Provide 2 Traceable Evidence and 2 Further Reading suggestions (PMIDs/DOIs). Language: ${language}. Format: JSON in markdown code block.`;
-    const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
-        model: FAST_MODEL,
-        contents: prompt,
-        config: { tools: [{ googleSearch: {} }], temperature: 0.2 },
-    }));
-    const jsonMatch = (response.text || "").match(/```json\n([\s\S]*?)\n```/);
-    const parsedData = jsonMatch ? JSON.parse(jsonMatch[1]) : {};
-    return { 
-        newEvidence: parsedData.traceableEvidence || [], 
-        newReadings: parsedData.furtherReadings || [], 
-        groundingSources: response.candidates?.[0]?.groundingMetadata?.groundingChunks || [] 
-    };
 };
 
 export const searchForSource = async (sourceQuery: string, language: string): Promise<{ summary: string; sources: any[] }> => {
@@ -331,13 +282,12 @@ export const searchForSource = async (sourceQuery: string, language: string): Pr
 
 export const interpretEcg = async (findings: EcgFindings, imageBase64: string | null, imageMimeType: string | null, language: string): Promise<string> => {
     const ai = getAiClient();
-    const prompt = `Cardiology report. Findings: Rate ${findings.rate}, Rhythm ${findings.rhythm}, PR ${findings.pr}, QRS ${findings.qrs}, QTc ${findings.qtc}, ST ${findings.stSegment}. Other: ${findings.other}. Language: ${language}.`;
+    const prompt = `Interpret ECG. Findings: ${JSON.stringify(findings)}. Language: ${language}. Use Markdown tables for intervals.`;
     const contentParts: any[] = [{ text: prompt }];
     if (imageBase64 && imageMimeType) contentParts.push({ inlineData: { data: imageBase64, mimeType: imageMimeType } });
     const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
-        model: THINKING_MODEL,
-        contents: { parts: contentParts },
-        config: { ...THINKING_CONFIG }
+        model: FAST_MODEL,
+        contents: { parts: contentParts }
     }));
     return response.text || "";
 };
@@ -356,11 +306,10 @@ export const generateVisualAid = async (prompt: string): Promise<string> => {
 
 export const checkDrugInteractions = async (drugNames: string[], language: string): Promise<string> => {
     const ai = getAiClient();
-    const prompt = `Analyze interactions: ${drugNames.join(', ')}. Language: ${language}. Use Markdown.`;
+    const prompt = `Analyze interactions: ${drugNames.join(', ')}. Language: ${language}. Use Markdown Tables.`;
     const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
         model: FAST_MODEL,
-        contents: prompt,
-        config: { temperature: 0.2 },
+        contents: prompt
     }));
     return response.text || "";
 };
@@ -382,11 +331,10 @@ export const generateSpeech = async (text: string, voiceName: string): Promise<s
 
 export const getConceptConnectionExplanation = async (conceptA: string, conceptB: string, caseContext: string, language: string): Promise<string> => {
     const ai = getAiClient();
-    const prompt = `Pathophysiological link between "${conceptA}" and "${conceptB}" for context: "${caseContext}". 2-3 sentences. Language: ${language}. ${SYNTHESIS_GUIDELINE}`;
+    const prompt = `Connection: "${conceptA}" and "${conceptB}" in "${caseContext}". 3 sentences. Language: ${language}.`;
     const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
-        model: THINKING_MODEL,
-        contents: prompt,
-        config: { ...THINKING_CONFIG },
+        model: FAST_MODEL,
+        contents: prompt
     }));
     return response.text || "";
 };
@@ -394,9 +342,25 @@ export const getConceptConnectionExplanation = async (conceptA: string, conceptB
 export const generateDiagramForDiscussion = async (prompt: string, chatContext: string, language: string): Promise<DiagramData> => {
     const ai = getAiClient();
     const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
-        model: THINKING_MODEL,
-        contents: `Diagram data for: "${prompt}". Context: ${chatContext}. Language: ${language}. JSON format only.`,
-        config: { ...THINKING_CONFIG, responseMimeType: "application/json", responseSchema: diagramDataSchema },
+        model: FAST_MODEL,
+        contents: `Diagram data for: "${prompt}". Context: ${chatContext}. Language: ${language}. JSON.`,
+        config: { responseMimeType: "application/json", responseSchema: diagramDataSchema },
     }));
     return JSON.parse(response.text || "{}") as DiagramData;
+};
+export const enrichCaseWithWebSources = async (patientCase: PatientCase, language: string): Promise<{ newEvidence: TraceableEvidence[]; newReadings: FurtherReading[]; groundingSources: any[] }> => {
+    const ai = getAiClient();
+    const prompt = `Regarding "${patientCase.title}", find recent medical updates. Provide 2 Traceable Evidence and 2 Further Reading suggestions (PMIDs/DOIs). Language: ${language}. Format: JSON in markdown code block.`;
+    const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
+        model: FAST_MODEL,
+        contents: prompt,
+        config: { tools: [{ googleSearch: {} }], temperature: 0.2 },
+    }));
+    const jsonMatch = (response.text || "").match(/```json\n([\s\S]*?)\n```/);
+    const parsedData = jsonMatch ? JSON.parse(jsonMatch[1]) : {};
+    return { 
+        newEvidence: parsedData.traceableEvidence || [], 
+        newReadings: parsedData.furtherReadings || [], 
+        groundingSources: response.candidates?.[0]?.groundingMetadata?.groundingChunks || [] 
+    };
 };

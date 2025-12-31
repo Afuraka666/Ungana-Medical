@@ -185,15 +185,13 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
         if (isOpen) {
             const systemInstruction = `You are an expert medical tutor. Facilitate a deep Socratic discussion about "${topic.aspect}" for "${caseTitle}". 
             
-            **CRITICAL RULES:**
-            - DO NOT repeat the provided aspect or consideration text in your introductory response. Jump straight into the dialogue.
-            - Detect user intonation/sentiment: If the student sounds confused, use simpler analogies. If they sound confident, push for deeper technical links.
-            - Always cite sources (PMIDs/DOIs) for medical claims.
-            - Use tags for visuals:
-              * [GRAPH: oxygen_dissociation] for Bohr effect/curve discussions.
-              * [DIAGRAM: description] for complex concept maps.
-              * [ILLUSTRATE: description] for medical anatomy/scenes.
-            - Respond in ${language}.`;
+            **STRICT RULES:**
+            - **DO NOT** repeat the user's input context or topic aspect in your response (especially in italics).
+            - Jump immediately into the dialogue.
+            - Provide technical details using Markdown Tables for comparisons.
+            - Cite PMIDs/DOIs for claims.
+            - Visual tags: [GRAPH: oxygen_dissociation], [DIAGRAM: description], [ILLUSTRATE: description].
+            - Language: ${language}.`;
             
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             let chatHistory: Content[] | undefined = undefined;
