@@ -67,10 +67,10 @@ const formatCaseForClipboard = (patientCase: PatientCase, T: Record<string, any>
 };
 
 const SkeletonLoader: React.FC = () => (
-    <div className="space-y-3 animate-pulse">
-        <div className="h-4 bg-gray-200 dark:bg-slate-700 rounded w-3/4"></div>
-        <div className="h-4 bg-gray-200 dark:bg-slate-700 rounded w-full"></div>
-        <div className="h-4 bg-gray-200 dark:bg-slate-700 rounded w-5/6"></div>
+    <div className="space-y-2 animate-pulse">
+        <div className="h-3 bg-gray-200 dark:bg-slate-700 rounded w-3/4"></div>
+        <div className="h-3 bg-gray-200 dark:bg-slate-700 rounded w-full"></div>
+        <div className="h-3 bg-gray-200 dark:bg-slate-700 rounded w-5/6"></div>
     </div>
 );
 
@@ -89,29 +89,29 @@ const Section: React.FC<{
   const handleCopy = () => { onCopy(); setIsCopied(true); setTimeout(() => setIsCopied(false), 2000); };
   const handleSaveSnippet = () => { onSaveSnippet(); setIsSnippetSaved(true); setTimeout(() => setIsSnippetSaved(false), 2000); };
   return (
-    <section className="mt-6">
-      <div className="flex items-center justify-between mb-3 pb-1.5 border-b-2 border-brand-blue/30 dark:border-brand-blue-light/20">
-        <h3 className="text-xl font-bold text-brand-blue dark:text-brand-blue-light">{title}</h3>
-        <div className="flex items-center space-x-2">
+    <section className="mt-2 sm:mt-4 first:mt-0">
+      <div className="flex items-center justify-between mb-1 pb-1 border-b border-brand-blue/20 dark:border-brand-blue-light/10">
+        <h3 className="text-sm sm:text-base font-black text-brand-blue dark:text-brand-blue-light uppercase tracking-tight">{title}</h3>
+        <div className="flex items-center space-x-1">
             {onEnrich && (
-                <button onClick={onEnrich} disabled={isEnriching} title="Find current sources" className="p-1.5 rounded-full text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-brand-blue transition">
-                    {isEnriching ? <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M10 3.5a1.5 1.5 0 011.5 1.5v2.086l2.723-2.723a.75.75 0 111.06 1.06L12.564 8.15l2.724 2.724a.75.75 0 11-1.06 1.06L11.5 9.22v2.085a1.5 1.5 0 01-3 0V9.22l-2.724 2.724a.75.75 0 11-1.06-1.06L7.436 8.15 4.712 5.426a.75.75 0 111.06-1.06L8.5 7.085V5A1.5 1.5 0 0110 3.5z" /></svg>}
+                <button onClick={onEnrich} disabled={isEnriching} title="Find current sources" className="p-1 rounded-full text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-brand-blue transition">
+                    {isEnriching ? <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 3.5a1.5 1.5 0 011.5 1.5v2.086l2.723-2.723a.75.75 0 111.06 1.06L12.564 8.15l2.724 2.724a.75.75 0 11-1.06 1.06L11.5 9.22v2.085a1.5 1.5 0 01-3 0V9.22l-2.724 2.724a.75.75 0 11-1.06-1.06L7.436 8.15 4.712 5.426a.75.75 0 111.06-1.06L8.5 7.085V5A1.5 1.5 0 0110 3.5z" /></svg>}
                 </button>
             )}
-           <button onClick={handleSaveSnippet} title="Save Snippet" className="p-1.5 rounded-full text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-brand-blue transition">
-              {isSnippetSaved ? <svg className="h-4 w-4 text-green-500" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg> : <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v12a1 1 0 01-1.447.894L10 14.586l-3.553 2.308A1 1 0 015 16V4z" /></svg>}
+           <button onClick={handleSaveSnippet} title="Save Snippet" className="p-1 rounded-full text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-brand-blue transition">
+              {isSnippetSaved ? <svg className="h-3.5 w-3.5 text-green-500" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg> : <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v12a1 1 0 01-1.447.894L10 14.586l-3.553 2.308A1 1 0 015 16V4z" /></svg>}
             </button>
-          <button onClick={handleCopy} title="Copy Section" className="p-1.5 rounded-full text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-brand-blue transition">
-            {isCopied ? <svg className="h-4 w-4 text-green-500" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg> : <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M7 9a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2H9a2 2 0 01-2-2V9z" /><path d="M5 3a2 2 0 00-2 2v6a2 2 0 002 2V5h8a2 2 0 00-2-2H5z" /></svg>}
+          <button onClick={handleCopy} title="Copy Section" className="p-1 rounded-full text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-brand-blue transition">
+            {isCopied ? <svg className="h-3.5 w-3.5 text-green-500" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg> : <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path d="M7 9a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2H9a2 2 0 01-2-2V9z" /><path d="M5 3a2 2 0 00-2 2v6a2 2 0 002 2V5h8a2 2 0 00-2-2H5z" /></svg>}
           </button>
         </div>
       </div>
-      <div className="text-sm text-brand-text dark:text-dark-text leading-relaxed">{children}</div>
-      {groundingSources && groundingSources.length > 0 && (
-          <div className="mt-4 p-3 bg-slate-50 dark:bg-slate-800/30 border border-gray-100 dark:border-dark-border rounded-lg shadow-sm">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Sources for this synthesis</p>
-              <ul className="space-y-1.5">
-                  {groundingSources.map((s, i) => s.web?.uri ? <li key={i} className="text-xs flex items-start gap-2 text-blue-600 dark:text-blue-400"><svg className="w-3 h-3 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clipRule="evenodd" /></svg><a href={s.web.uri} target="_blank" rel="noopener noreferrer" className="hover:underline break-all font-medium">{s.web.title || s.web.uri}</a></li> : null)}
+      <div className="text-xs sm:text-sm text-brand-text dark:text-dark-text leading-relaxed">{children}</div>
+      {groundingSources && Array.isArray(groundingSources) && groundingSources.length > 0 && (
+          <div className="mt-1.5 p-2 bg-slate-50 dark:bg-slate-800/30 border border-gray-100 dark:border-dark-border rounded-lg shadow-xs">
+              <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-0.5">Clinical Sources Verified</p>
+              <ul className="space-y-0.5">
+                  {groundingSources.map((s, i) => s.web?.uri ? <li key={i} className="text-[10px] flex items-start gap-1.5 text-blue-600 dark:text-blue-400"><svg className="w-2.5 h-2.5 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clipRule="evenodd" /></svg><a href={s.web.uri} target="_blank" rel="noopener noreferrer" className="hover:underline break-all font-semibold">{s.web.title || s.web.uri}</a></li> : null)}
               </ul>
           </div>
       )}
@@ -120,23 +120,29 @@ const Section: React.FC<{
 };
 
 const SmartContent: React.FC<{ content: string; language: string; T: Record<string, any>; onTriggerIllustration: (desc: string) => void }> = ({ content, language, T, onTriggerIllustration }) => {
-    const graphMatch = content.match(/\[GRAPH: (.*?)\]/);
-    const illustrateMatch = content.match(/\[ILLUSTRATE: (.*?)\]/);
-    const diagramMatch = content.match(/\[DIAGRAM: (.*?)\]/);
+    const graphMatches = [...content.matchAll(/\[GRAPH:\s*(.*?)\s*\]/g)];
+    const illustrateMatches = [...content.matchAll(/\[ILLUSTRATE:\s*(.*?)\s*\]/g)];
     const cleanContent = content.replace(/\[GRAPH:.*?\]/g, '').replace(/\[ILLUSTRATE:.*?\]/g, '').replace(/\[DIAGRAM:.*?\]/g, '').trim();
+    
     return (
-        <div className="space-y-5">
+        <div className="space-y-1.5">
             <MarkdownRenderer content={cleanContent} />
-            <div className="pt-1">
+            <div className="pt-0.5">
                 <SourceRenderer text={content} />
             </div>
-            {graphMatch && <div className="mt-4"><ScientificGraph type={graphMatch[1] as any} title="Clinical Relationship Visualization" /></div>}
-            {illustrateMatch && (
-                <div className="flex justify-center mt-3">
-                    <button onClick={() => onTriggerIllustration(illustrateMatch[1])} title="Generate Clinical Illustration" className="group flex items-center gap-2.5 px-5 py-2.5 bg-blue-50 dark:bg-blue-900/30 text-brand-blue dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-all text-xs font-bold shadow-md hover:scale-[1.02] active:scale-95">
-                        <svg className="w-5 h-5 transition-transform group-hover:rotate-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h14a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                        Request Visual Verification
-                    </button>
+            {graphMatches.length > 0 && (
+                <div className="space-y-2 mt-1">
+                    {graphMatches.map((m, i) => <ScientificGraph key={i} type={m[1].trim() as any} title="Physiological Model Visualization" />)}
+                </div>
+            )}
+            {illustrateMatches.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-1">
+                    {illustrateMatches.map((m, i) => (
+                        <button key={i} onClick={() => onTriggerIllustration(m[1].trim())} title="Generate Clinical Illustration" className="group flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 text-brand-blue dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-all text-[9px] font-black shadow-xs">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h14a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                            VISUAL VERIFICATION
+                        </button>
+                    ))}
                 </div>
             )}
         </div>
@@ -146,7 +152,6 @@ const SmartContent: React.FC<{ content: string; language: string; T: Record<stri
 export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: initialCase, isGeneratingDetails, onSave, language, T, onSaveSnippet, onOpenShare, onOpenDiscussion, onGetMapImage, mapData }) => {
   const { state: patientCase, setState: setPatientCase, undo, redo, canUndo, canRedo, resetState } = useHistoryState<PatientCase>(initialCase);
   const [isEditing, setIsEditing] = useState(false);
-  const [isCopied, setIsCopied] = useState(false);
   const [activeImageGenerator, setActiveImageGenerator] = useState<{ content: EducationalContent; index: number } | null>(null);
   const [activeSourceSearch, setActiveSourceSearch] = useState<string | null>(null);
   const [isEnrichingEvidence, setIsEnrichingEvidence] = useState(false);
@@ -155,7 +160,6 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>, key: keyof PatientCase) => setPatientCase({ ...patientCase, [key]: e.target.value });
   const handleSave = () => { onSave(patientCase); setIsEditing(false); };
   const handleCancel = () => { resetState(initialCase); setIsEditing(false); };
-  const handleCopy = () => { navigator.clipboard.writeText(formatCaseForClipboard(patientCase, T)).then(() => { setIsCopied(true); setTimeout(() => setIsCopied(false), 2000); }); };
   const handleTriggerIllustration = (desc: string, sourceIndex: number) => { setActiveImageGenerator({ content: { title: 'Clinical Visualization', description: desc, type: EducationalContentType.IMAGE, reference: 'AI-Synthesized Evidence' }, index: sourceIndex }); };
   const handleImageGenerated = useCallback((idx: number, img: string) => { setPatientCase(prev => { const edu = [...(prev.educationalContent || [])]; if (idx >= 0 && edu[idx]) { edu[idx] = { ...edu[idx], imageData: img }; } return { ...prev, educationalContent: edu }; }); setActiveImageGenerator(null); }, [setPatientCase]);
   const handleEnrichSources = async () => { setIsEnrichingEvidence(true); try { const { newEvidence, newReadings, groundingSources: gs } = await enrichCaseWithWebSources(patientCase, language); setPatientCase(prev => ({ ...prev, traceableEvidence: [...(prev.traceableEvidence || []), ...newEvidence], furtherReadings: [...(prev.furtherReadings || []), ...newReadings] })); setGroundingSources(gs); } catch (e) { console.error(e); } finally { setIsEnrichingEvidence(false); } };
@@ -165,85 +169,88 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
     return isEditing ? <textarea ref={ref} value={value} onChange={onChange} className="w-full p-3 border border-blue-200 dark:border-blue-800 rounded-lg focus:ring-4 focus:ring-brand-blue/10 bg-blue-50/50 dark:bg-blue-900/20 text-black dark:text-white resize-none transition-all shadow-inner font-serif" /> : <SmartContent content={value} language={language} T={T} onTriggerIllustration={(d) => handleTriggerIllustration(d, -1)} />;
   };
   return (
-    <div className="p-4 sm:p-8 relative bg-white dark:bg-dark-surface transition-colors duration-300">
-      <header className="sticky top-0 -mx-4 sm:-mx-8 -mt-4 sm:-mt-8 p-4 sm:p-5 bg-white/95 dark:bg-dark-surface/95 backdrop-blur-md border-b border-gray-100 dark:border-dark-border z-20 shadow-sm">
+    <div className="p-3 sm:p-5 relative bg-white dark:bg-dark-surface transition-colors duration-300">
+      <header className="sticky top-0 -mx-3 sm:-mx-5 -mt-3 sm:-mt-5 p-2 sm:p-3 bg-white/95 dark:bg-dark-surface/95 backdrop-blur-md border-b border-gray-100 dark:border-dark-border z-20 shadow-sm mb-4">
         <div className="flex justify-between items-center max-w-5xl mx-auto">
-          <h2 className="text-2xl sm:text-3xl font-black text-brand-text dark:text-dark-text truncate tracking-tight pr-4">{patientCase.title}</h2>
-          <div className="flex items-center gap-1.5 sm:gap-3">
+          <h2 className="text-lg sm:text-xl font-black text-brand-text dark:text-dark-text truncate tracking-tight pr-4">{patientCase.title}</h2>
+          <div className="flex items-center gap-1">
             {isEditing ? (
-              <div className="flex items-center gap-2">
-                <button onClick={undo} disabled={!canUndo} title="Undo" className="p-2 text-gray-400 hover:text-brand-blue disabled:opacity-20 transition-colors"><svg className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 2a1 1 0 00-1 1v1.135a4.002 4.002 0 00-2.995 2.562l-1.34-1.34a1 1 0 10-1.414 1.414l1.586 1.586A4.002 4.002 0 008 10a4 4 0 104-4V3a1 1 0 00-1-1zm0 8a2 2 0 100-4 2 2 0 000 4z" /></svg></button>
-                <button onClick={handleSave} className="bg-green-600 hover:bg-green-700 text-white font-bold py-1.5 px-4 rounded-lg text-sm shadow-lg shadow-green-900/20 transition-all">{T.saveButton}</button>
-                <button onClick={handleCancel} className="bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold py-1.5 px-4 rounded-lg text-sm transition-all">{T.cancelButton}</button>
+              <div className="flex items-center gap-1">
+                <button onClick={undo} disabled={!canUndo} title="Undo" className="p-1 text-gray-400 hover:text-brand-blue disabled:opacity-20 transition-colors"><svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M7.707 3.293a1 1 0 010 1.414L5.414 7H11a7 7 0 017 7v2a1 1 0 11-2 0v-2a5 5 0 00-5-5H5.414l2.293 2.293a1 1 0 11-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" /></svg></button>
+                <button onClick={handleSave} className="bg-green-600 hover:bg-green-700 text-white font-black py-1 px-2.5 rounded-md text-[10px] shadow-sm transition-all">SAVE</button>
+                <button onClick={handleCancel} className="bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-black py-1 px-2.5 rounded-md text-[10px] transition-all">CANCEL</button>
               </div>
             ) : (
               <>
-                <button onClick={onOpenShare} title="Share Case" className="p-2.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-full transition-all"><svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" /></svg></button>
-                <button onClick={() => setIsEditing(true)} title="Edit Text" className="p-2.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-full transition-all"><svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" /></svg></button>
+                <button onClick={onOpenShare} title="Share Case" className="p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-full transition-all"><svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" /></svg></button>
+                <button onClick={() => setIsEditing(true)} title="Edit Text" className="p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-full transition-all"><svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" /></svg></button>
               </>
             )}
           </div>
         </div>
       </header>
-      <div className="space-y-8 max-w-5xl mx-auto">
-        <Section title={T.patientProfile} onCopy={() => handleTextChange} onSaveSnippet={() => onSaveSnippet(T.patientProfile, patientCase.patientProfile)} T={T}><EditableText value={patientCase.patientProfile} onChange={(e) => handleTextChange(e, 'patientProfile')} isEditing={isEditing} /></Section>
-        <Section title={T.presentingComplaint} onCopy={() => handleTextChange} onSaveSnippet={() => onSaveSnippet(T.presentingComplaint, patientCase.presentingComplaint)} T={T}><EditableText value={patientCase.presentingComplaint} onChange={(e) => handleTextChange(e, 'presentingComplaint')} isEditing={isEditing} /></Section>
-        <Section title={T.history} onCopy={() => handleTextChange} onSaveSnippet={() => onSaveSnippet(T.history, patientCase.history)} T={T}><EditableText value={patientCase.history} onChange={(e) => handleTextChange(e, 'history')} isEditing={isEditing} /></Section>
+      <div className="space-y-3 max-w-5xl mx-auto">
+        <Section title={T.patientProfile} onCopy={() => {}} onSaveSnippet={() => onSaveSnippet(T.patientProfile, patientCase.patientProfile)} T={T}><EditableText value={patientCase.patientProfile} onChange={(e) => handleTextChange(e, 'patientProfile')} isEditing={isEditing} /></Section>
+        <Section title={T.presentingComplaint} onCopy={() => {}} onSaveSnippet={() => onSaveSnippet(T.presentingComplaint, patientCase.presentingComplaint)} T={T}><EditableText value={patientCase.presentingComplaint} onChange={(e) => handleTextChange(e, 'presentingComplaint')} isEditing={isEditing} /></Section>
+        <Section title={T.history} onCopy={() => {}} onSaveSnippet={() => onSaveSnippet(T.history, patientCase.history)} T={T}><EditableText value={patientCase.history} onChange={(e) => handleTextChange(e, 'history')} isEditing={isEditing} /></Section>
         
         { patientCase.biochemicalPathway ? (
-            <Section title={T.biochemicalPathwaySection} onCopy={() => {}} onSaveSnippet={() => onSaveSnippet(patientCase.biochemicalPathway!.title, patientCase.biochemicalPathway!.description)} T={T}>
-                <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3"><h4 className="text-lg font-black text-gray-900 dark:text-slate-100">{patientCase.biochemicalPathway.title}</h4><TextToSpeechPlayer textToRead={`${patientCase.biochemicalPathway.title}. ${patientCase.biochemicalPathway.description}`} language={language} /></div>
-                    <button onClick={() => onOpenDiscussion({ aspect: patientCase.biochemicalPathway!.title, consideration: patientCase.biochemicalPathway!.description })} className="text-xs bg-brand-blue dark:bg-brand-blue-light text-white font-black py-1.5 px-4 rounded-full shadow-md transition-transform hover:scale-105">{T.discussButton}</button>
+            <Section 
+              title={T.biochemicalPathwaySection} 
+              onCopy={() => {}} 
+              onSaveSnippet={() => onSaveSnippet(patientCase.biochemicalPathway!.title, patientCase.biochemicalPathway!.description)} 
+              T={T}
+              groundingSources={patientCase.groundingSources}
+            >
+                <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2"><h4 className="text-sm font-black text-gray-900 dark:text-slate-100 uppercase tracking-tighter">{patientCase.biochemicalPathway.title}</h4><TextToSpeechPlayer textToRead={`${patientCase.biochemicalPathway.title}. ${patientCase.biochemicalPathway.description}`} language={language} /></div>
+                    <button onClick={() => onOpenDiscussion({ aspect: patientCase.biochemicalPathway!.title, consideration: patientCase.biochemicalPathway!.description })} className="text-[8px] bg-brand-blue dark:bg-brand-blue-light text-white font-black py-1 px-2.5 rounded-full shadow-xs transition-transform hover:scale-105 uppercase tracking-widest">{T.discussButton}</button>
                 </div>
-                <p className="text-[10px] text-gray-400 font-mono mb-4 uppercase tracking-tighter">{patientCase.biochemicalPathway.reference}</p>
+                <p className="text-[8px] text-gray-400 font-mono mb-1 uppercase tracking-tighter">{patientCase.biochemicalPathway.reference}</p>
                 <SmartContent content={patientCase.biochemicalPathway.description} language={language} T={T} onTriggerIllustration={(d) => handleTriggerIllustration(d, -1)} />
-                {patientCase.biochemicalPathway.diagramData && <div className="mt-6 h-[400px] rounded-2xl border border-gray-200 dark:border-dark-border shadow-xl overflow-hidden"><InteractiveDiagram id="diagram-biochem" data={patientCase.biochemicalPathway.diagramData} /></div>}
+                {patientCase.biochemicalPathway.diagramData && <div className="mt-2 h-[280px] rounded-xl border border-gray-100 dark:border-dark-border shadow-xs overflow-hidden"><InteractiveDiagram id="diagram-biochem" data={patientCase.biochemicalPathway.diagramData} /></div>}
             </Section>
         ) : isGeneratingDetails ? <Section title={T.biochemicalPathwaySection} onCopy={() => {}} onSaveSnippet={() => {}} T={T}><SkeletonLoader /></Section> : null }
 
-        { patientCase.multidisciplinaryConnections ? (
+        { Array.isArray(patientCase.multidisciplinaryConnections) && patientCase.multidisciplinaryConnections.length > 0 ? (
             <Section title={T.multidisciplinaryConnections} onCopy={() => {}} onSaveSnippet={() => onSaveSnippet(T.multidisciplinaryConnections, patientCase.multidisciplinaryConnections!.map(c => `${c.discipline}: ${c.connection}`).join('\n'))} T={T}>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-1">
                     {patientCase.multidisciplinaryConnections.map((conn, idx) => (
-                        <div key={idx} className="bg-slate-50 dark:bg-slate-800/40 border border-gray-200 dark:border-dark-border rounded-2xl p-5 transition-all hover:shadow-lg hover:-translate-y-1 flex flex-col justify-between h-full group border-l-4" style={{ borderLeftColor: DisciplineColors[conn.discipline] }}>
+                        <div key={idx} className="bg-slate-50 dark:bg-slate-800/40 border border-gray-100 dark:border-dark-border rounded-xl p-3 transition-all hover:shadow-sm flex flex-col justify-between h-full border-l-4" style={{ borderLeftColor: DisciplineColors[conn.discipline] }}>
                             <div>
-                                <div className="flex items-center gap-3 mb-3">
-                                    <div className="p-2 rounded-xl bg-white dark:bg-slate-900 shadow-sm"><DisciplineIcon discipline={conn.discipline} className="h-5 w-5" style={{ color: DisciplineColors[conn.discipline] }} /></div>
-                                    <h5 className="font-black text-gray-900 dark:text-slate-100 tracking-tight">{conn.discipline}</h5>
+                                <div className="flex items-center gap-2 mb-1.5">
+                                    <div className="p-1 rounded-lg bg-white dark:bg-slate-900 shadow-xs"><DisciplineIcon discipline={conn.discipline} className="h-3.5 w-3.5" style={{ color: DisciplineColors[conn.discipline] }} /></div>
+                                    <h5 className="text-xs font-black text-gray-900 dark:text-slate-100 tracking-tight uppercase">{conn.discipline}</h5>
                                 </div>
-                                <div className="text-sm text-gray-700 dark:text-slate-300 leading-relaxed mb-4 font-serif"><SmartContent content={conn.connection} language={language} T={T} onTriggerIllustration={(d) => handleTriggerIllustration(d, -1)} /></div>
+                                <div className="text-[11px] text-gray-700 dark:text-slate-300 leading-relaxed mb-2"><SmartContent content={conn.connection} language={language} T={T} onTriggerIllustration={(d) => handleTriggerIllustration(d, -1)} /></div>
                             </div>
-                            <button onClick={() => onOpenDiscussion({ aspect: conn.discipline, connection: conn.connection } as any)} className="self-end flex items-center gap-1.5 text-[10px] bg-white dark:bg-slate-700 border border-blue-100 dark:border-blue-900 text-brand-blue dark:text-blue-300 hover:bg-brand-blue hover:text-white font-bold py-1.5 px-4 rounded-full transition-all shadow-sm uppercase tracking-wider"><span>Consult {conn.discipline}</span><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg></button>
+                            <button onClick={() => onOpenDiscussion({ aspect: conn.discipline, connection: conn.connection } as any)} className="self-end flex items-center gap-1 text-[8px] bg-white dark:bg-slate-700 border border-blue-100 dark:border-blue-900 text-brand-blue dark:text-blue-300 hover:bg-brand-blue hover:text-white font-black py-1 px-2.5 rounded-full transition-all shadow-xs uppercase tracking-widest">Consult</button>
                         </div>
                     ))}
                 </div>
             </Section>
         ) : isGeneratingDetails ? <Section title={T.multidisciplinaryConnections} onCopy={() => {}} onSaveSnippet={() => {}} T={T}><SkeletonLoader /></Section> : null }
 
-        { patientCase.disciplineSpecificConsiderations ? (
+        { Array.isArray(patientCase.disciplineSpecificConsiderations) && patientCase.disciplineSpecificConsiderations.length > 0 ? (
             <Section title={T.managementConsiderations} onCopy={() => {}} onSaveSnippet={() => onSaveSnippet(T.managementConsiderations, patientCase.disciplineSpecificConsiderations!.map(c => `${c.aspect}: ${c.consideration}`).join('\n'))} T={T}>
-                <ul className="space-y-6">
+                <ul className="space-y-2">
                     {patientCase.disciplineSpecificConsiderations.map((item, idx) => (
-                        <li key={idx} className="bg-white dark:bg-dark-surface p-6 rounded-2xl border border-gray-100 dark:border-dark-border shadow-sm">
-                            <div className="flex justify-between items-center mb-4 border-b border-gray-50 dark:border-dark-border pb-3">
-                                <strong className="text-lg font-black text-gray-900 dark:text-slate-200 tracking-tight">{item.aspect}</strong>
-                                <button onClick={() => onOpenDiscussion(item)} className="text-[10px] bg-blue-50 dark:bg-blue-900/30 text-brand-blue dark:text-blue-300 font-black py-1.5 px-4 rounded-full border border-blue-100 dark:border-blue-900 transition-all hover:bg-brand-blue hover:text-white uppercase tracking-widest">{T.discussButton}</button>
+                        <li key={idx} className="bg-white dark:bg-dark-surface p-3 rounded-xl border border-gray-100 dark:border-dark-border shadow-xs">
+                            <div className="flex justify-between items-center mb-1 border-b border-gray-50 dark:border-dark-border pb-1">
+                                <strong className="text-xs font-black text-gray-900 dark:text-slate-200 tracking-tight uppercase">{item.aspect}</strong>
+                                <button onClick={() => onOpenDiscussion(item)} className="text-[8px] bg-blue-50 dark:bg-blue-900/30 text-brand-blue dark:text-blue-300 font-black py-1 px-2.5 rounded-full border border-blue-100 dark:border-blue-900 transition-all hover:bg-brand-blue hover:text-white uppercase tracking-widest">{T.discussButton}</button>
                             </div>
-                            <div className="mt-2"><SmartContent content={item.consideration} language={language} T={T} onTriggerIllustration={(d) => handleTriggerIllustration(d, -1)} /></div>
+                            <div className="mt-1"><SmartContent content={item.consideration} language={language} T={T} onTriggerIllustration={(d) => handleTriggerIllustration(d, -1)} /></div>
                         </li>
                     ))}
                 </ul>
             </Section>
         ) : isGeneratingDetails ? <Section title={T.managementConsiderations} onCopy={() => {}} onSaveSnippet={() => {}} T={T}><SkeletonLoader /></Section> : null }
 
-        { (patientCase.traceableEvidence || patientCase.furtherReadings) ? (
+        { (Array.isArray(patientCase.traceableEvidence) && patientCase.traceableEvidence.length > 0) || (Array.isArray(patientCase.furtherReadings) && patientCase.furtherReadings.length > 0) ? (
             <Section title={T.evidenceAndReading} onCopy={() => {}} onSaveSnippet={() => {}} T={T} onEnrich={handleEnrichSources} isEnriching={isEnrichingEvidence} groundingSources={groundingSources}>
-                {patientCase.traceableEvidence && (
-                    <div className="mb-8"><h4 className="font-black text-gray-900 dark:text-slate-100 mb-4 flex items-center gap-2"><svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M2.166 4.9L9.03 9.069a2.25 2.25 0 002.248 0l6.863-4.17A2.25 2.25 0 0015.83 2H4.477a2.25 2.25 0 00-2.311 2.9z" /><path d="M11 11.235V20l7-4.24V8.765l-7 2.47z" /><path d="M9 11.235V20L2 15.76V8.765l7 2.47z" /></svg>{T.traceableEvidence}</h4><ul className="space-y-4">{patientCase.traceableEvidence.map((e, i) => <li key={i} className="bg-slate-50 dark:bg-slate-800/20 p-4 rounded-xl border-l-4 border-green-500"><span className="font-bold block text-gray-800 dark:text-slate-100 mb-1">"{e.claim}"</span> <span className="block text-xs"><SourceRenderer text={e.source} onSearchClick={() => setActiveSourceSearch(e.source)} /></span></li>)}</ul></div>
-                )}
-                {patientCase.furtherReadings && (
-                    <div><h4 className="font-black text-gray-900 dark:text-slate-100 mb-4 flex items-center gap-2"><svg className="w-5 h-5 text-indigo-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z" /></svg>{T.furtherReading}</h4><ul className="space-y-3">{patientCase.furtherReadings.map((r, i) => <li key={i} className="flex flex-col sm:flex-row sm:items-center justify-between bg-white dark:bg-slate-800/40 p-4 rounded-xl border border-gray-100 dark:border-dark-border gap-2"><span className="font-bold text-gray-800 dark:text-slate-200">{r.topic}</span> <span className="text-xs"><SourceRenderer text={r.reference} onSearchClick={() => setActiveSourceSearch(r.reference)} /></span></li>)}</ul></div>
+                {Array.isArray(patientCase.traceableEvidence) && patientCase.traceableEvidence.length > 0 && (
+                    <div className="mb-2"><h4 className="font-black text-xs text-gray-900 dark:text-slate-100 mb-1 flex items-center gap-1.5"><svg className="w-3.5 h-3.5 text-green-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M2.166 4.9L9.03 9.069a2.25 2.25 0 002.248 0l6.863-4.17A2.25 2.25 0 0015.83 2H4.477a2.25 2.25 0 00-2.311 2.9z" /><path d="M11 11.235V20l7-4.24V8.765l-7 2.47z" /><path d="M9 11.235V20L2 15.76V8.765l7 2.47z" /></svg>{T.traceableEvidence}</h4><ul className="space-y-1">{patientCase.traceableEvidence.map((e, i) => <li key={i} className="bg-slate-50 dark:bg-slate-800/20 p-2 rounded-lg border-l-4 border-green-500"><span className="font-bold block text-[10px] text-gray-800 dark:text-slate-100 mb-0.5">"{e.claim}"</span> <span className="block text-[9px]"><SourceRenderer text={e.source} onSearchClick={() => setActiveSourceSearch(e.source)} /></span></li>)}</ul></div>
                 )}
             </Section>
         ) : isGeneratingDetails ? <Section title={T.evidenceAndReading} onCopy={() => {}} onSaveSnippet={() => {}} T={T}><SkeletonLoader /></Section> : null }

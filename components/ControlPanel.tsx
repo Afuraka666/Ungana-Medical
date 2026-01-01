@@ -85,7 +85,10 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       recognition.onstart = () => setIsListening(true);
       recognition.onend = () => { setIsListening(false); setActiveInput(null); recognitionRef.current = null; };
       recognition.onerror = (event: any) => { setIsListening(false); setActiveInput(null); setMicError(event.error === 'not-allowed' ? T.micPermissionError : T.micGenericError); };
-      recognition.onresult = (event: any) => { const transcript = event.results[0][0].transcript; if (targetInput === 'condition') setConditionInput(transcript); else setDisciplineInput(transcript); };
+      recognition.onresult = (event: any) => { 
+          const transcript = event.results[0][0].transcript; 
+          if (targetInput === 'condition') setConditionInput(transcript); else setDisciplineInput(transcript); 
+      };
       try { recognitionRef.current = recognition; recognition.start(); } catch (err: any) { setIsListening(false); setActiveInput(null); }
   };
 
@@ -141,7 +144,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                       </div>
                   )}
               </div>
-              <button type="submit" disabled={disabled || !conditionInput.trim() || !disciplineInput.trim()} title="Launch AI case synthesis (approx 15 seconds)" className="flex-grow h-[42px] bg-brand-blue hover:bg-blue-800 text-white font-bold py-2 px-4 rounded-md transition disabled:bg-gray-400 flex items-center justify-center space-x-2"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M12 6V3m0 18v-3"></path></svg><span>{T.generateButton}</span></button>
+              <button type="submit" disabled={disabled || !conditionInput.trim() || !disciplineInput.trim()} title="Launch AI case synthesis" className="flex-grow h-[42px] bg-brand-blue hover:bg-blue-800 text-white font-bold py-2 px-4 rounded-md transition disabled:bg-gray-400 flex items-center justify-center space-x-2 shadow-lg hover:scale-[1.02] active:scale-95"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M12 6V3m0 18v-3"></path></svg><span>{T.generateButton}</span></button>
           </div>
         </form>
       ) : (

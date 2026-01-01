@@ -3,8 +3,6 @@ import React, { useEffect, useRef, useCallback, useState, useMemo, forwardRef, u
 import { Discipline } from '../types';
 import type { KnowledgeMapData, KnowledgeNode, KnowledgeLink } from '../types';
 import { ConceptCard } from './ConceptCard';
-import { getConceptConnectionExplanation } from '../services/geminiService';
-import { MarkdownRenderer } from './MarkdownRenderer';
 
 declare const d3: any;
 
@@ -29,13 +27,14 @@ export const DisciplineColors: Record<string, string> = {
     [Discipline.SPEECH_LANGUAGE_THERAPY]: '#4338CA',
 };
 
-const getContrastColor = (hex: string) => {
-    if (!hex || hex === 'transparent') return '#111827';
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    return luminance > 0.65 ? '#111827' : '#FFFFFF';
+// Randomized color generator for unique node identity
+const getNodeColor = (id: string, index: number) => {
+    let hash = 0;
+    for (let i = 0; i < id.length; i++) {
+        hash = id.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const hue = (Math.abs(hash) + (index * 137)) % 360; 
+    return `hsl(${hue}, 65%, 45%)`;
 };
 
 const svgToDataURL = async (svgEl: SVGSVGElement): Promise<string> => {
@@ -90,6 +89,24 @@ const LoadingSpinner: React.FC = () => (
     </div>
 );
 
+function intersectRect(rect: any, point: any) {
+    const cx = rect.x;
+    const cy = rect.y;
+    const dx = point.x - cx;
+    const dy = point.y - cy;
+    const w = (rect.pillWidth || 0) / 2;
+    const h = (rect.pillHeight || 0) / 2;
+    if (w === 0 || h === 0) return { x: cx, y: cy }; 
+    
+    if (Math.abs(dy * w) < Math.abs(dx * h)) {
+        if (dx > 0) return { x: cx + w, y: cy + dy * w / dx };
+        else return { x: cx - w, y: cy - dy * w / dx };
+    } else {
+        if (dy > 0) return { x: cx + dx * h / dy, y: cy + h };
+        else return { x: cx - dx * h / dy, y: cy - h };
+    }
+}
+
 interface MapControlsProps {
     onZoomIn: () => void;
     onZoomOut: () => void;
@@ -109,10 +126,10 @@ const MapControls: React.FC<MapControlsProps> = ({ onZoomIn, onZoomOut, onReset,
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" /></svg>
             </button>
             <button onClick={onReset} title="Reset View" className={buttonClasses}>
-                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.707-10.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L9.414 11H13a1 1 0 100-2H9.414l1.293-1.293z" clipRule="evenodd" /></svg>
+                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-.707a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L9.414 11H13a1 1 0 100-2H9.414l1.293-1.293z" clipRule="evenodd" /></svg>
             </button>
              <button onClick={onToggleFullscreen} title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"} className={buttonClasses}>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 4a1 1 0 011-1h4a1 1 0 010 2H6.414l2.293 2.293a1 1 0 11-1.414 1.414L5 5.414V8a1 1 0 01-2 0V4zm9 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 11-2 0V5.414l-2.293 2.293a1 1 0 11-1.414-1.414L14.586 5H13a1 1 0 01-1-1zm1 12a1 1 0 010-2h1.586l-2.293-2.293a1 1 0 111.414-1.414L15 14.586V12a1 1 0 112 0v4a1 1 0 01-1 1h-4zm-7 0a1 1 0 01-1 1H4a1 1 0 01-1-1v-4a1 1 0 112 0v2.586l2.293-2.293a1 1 0 111.414 1.414L5.414 15H8a1 1 0 011 1z" clipRule="evenodd" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 4a1 1 0 011-1h4a1 1 0 010 2H6.414l2.293 2.293a1 1 0 11-1.414 1.414L5 5.414V8a1 1 0 01-2 0V4zm9 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 11-2 0V5.414l-2.293 2.293a1 1 0 11-1.414-1.414L14.586 5H13a1 1 0 01-1-1zm1 12a1 1 0 010-2h1.586l-2.293-2.293a1 1 0 111.414-1.414L15 14.586V12a1 1 0 112 0v4a1 1 0 01-1 1h-4zm-7 0a1 1 0 01-1 1H4a1 1 0 01-1-1v-4a1 1 0 112 v2.586l2.293-2.293a1 1 0 111.414 1.414L5.414 15H8a1 1 0 011 1z" clipRule="evenodd" /></svg>
             </button>
         </div>
     );
@@ -126,7 +143,6 @@ const NodeTooltip: React.FC<{ node: KnowledgeNode | null; position: { x: number;
             style={{ top: position.y + 15, left: position.x + 15 }}
         >
             <div className="flex items-center gap-2 mb-1.5">
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: DisciplineColors[node.discipline] }}></div>
                 <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">{node.discipline}</span>
             </div>
             <h4 className="font-bold text-sm text-gray-800 dark:text-white mb-1.5">{node.label}</h4>
@@ -156,7 +172,7 @@ export const KnowledgeMap = forwardRef<any, KnowledgeMapProps>(({ data, onNodeCl
     const zoomRef = useRef<any>(null);
     const gRef = useRef<any>(null);
     const [hoveredNode, setHoveredNode] = useState<{ node: KnowledgeNode; position: { x: number; y: number } } | null>(null);
-    const [explanationModal, setExplanationModal] = useState<{ source: KnowledgeNode; target: KnowledgeNode } | null>(null);
+    const [hoveredLink, setHoveredLink] = useState<KnowledgeLink | null>(null);
     
     const nodes = useMemo(() => data.nodes.map(n => ({ ...n })), [data.nodes]);
     const links = useMemo(() => data.links.map(l => ({ ...l })), [data.links]);
@@ -176,26 +192,68 @@ export const KnowledgeMap = forwardRef<any, KnowledgeMapProps>(({ data, onNodeCl
     }, []);
 
     useEffect(() => {
+        if (!containerRef.current) return;
+        const observer = new ResizeObserver(() => {
+            window.requestAnimationFrame(() => {
+                if (svgRef.current && gRef.current && !isLoading) {
+                    const { width, height } = containerRef.current!.getBoundingClientRect();
+                    if (width > 0 && height > 0 && simulationRef.current) {
+                        simulationRef.current.force('center', d3.forceCenter(width / 2, height / 2));
+                        simulationRef.current.alpha(0.1).restart();
+                    }
+                }
+            });
+        });
+        observer.observe(containerRef.current);
+        return () => observer.disconnect();
+    }, [isLoading]);
+
+    useEffect(() => {
         if (!svgRef.current || !containerRef.current) return;
         setIsLoading(true);
         const svg = d3.select(svgRef.current);
         svg.selectAll('*').remove();
         
+        svg.append('defs').append('marker')
+            .attr('id', 'map-arrowhead')
+            .attr('viewBox', '0 -5 10 10')
+            .attr('refX', 8)
+            .attr('refY', 0)
+            .attr('markerWidth', 7) // Slightly larger
+            .attr('markerHeight', 7) // Slightly larger
+            .attr('orient', 'auto')
+            .append('path')
+            .attr('d', 'M0,-5L10,0L0,5')
+            .attr('fill', '#94a3b8');
+
         const { width, height } = containerRef.current.getBoundingClientRect();
         const g = svg.append('g'); gRef.current = g;
         const zoom = d3.zoom().scaleExtent([0.1, 4]).on('zoom', (event: any) => g.attr('transform', event.transform));
         zoomRef.current = zoom; svg.call(zoom);
         
-        // Speed up simulation for better responsiveness
         simulationRef.current = d3.forceSimulation(nodes)
-            .force('link', d3.forceLink(links).id((d: any) => d.id).distance(180).strength(0.5))
-            .force('charge', d3.forceManyBody().strength(-2000))
+            .force('link', d3.forceLink(links).id((d: any) => d.id).distance(220).strength(0.6))
+            .force('charge', d3.forceManyBody().strength(-2500))
             .force('center', d3.forceCenter(width / 2, height / 2))
-            .force('collide', d3.forceCollide().radius(110).iterations(2))
-            .velocityDecay(0.4) // Makes it settle faster
+            .force('collide', d3.forceCollide().radius(120).iterations(2))
+            .velocityDecay(0.4)
             .on('end', () => { setIsLoading(false); resetZoom(); });
 
-        const linkLines = g.append("g").selectAll("line").data(links).join("line").attr("stroke", "#cbd5e1").attr("stroke-opacity", 0.4).attr("stroke-width", 2);
+        const linkPaths = g.append("g").selectAll("path").data(links).join("path")
+            .attr("fill", "none")
+            .attr("stroke", "#cbd5e1")
+            .attr("stroke-opacity", 0.6)
+            .attr("stroke-width", 3.5) // Increased thickness
+            .attr("marker-end", "url(#map-arrowhead)")
+            .attr("class", "link-path transition-all cursor-help")
+            .on('mouseenter', (event: any, d: any) => {
+                d3.select(event.currentTarget).attr("stroke", "#3b82f6").attr("stroke-opacity", 1).attr("stroke-width", 4.5);
+                setHoveredLink(d);
+            })
+            .on('mouseleave', (event: any) => {
+                d3.select(event.currentTarget).attr("stroke", "#cbd5e1").attr("stroke-opacity", 0.6).attr("stroke-width", 3.5);
+                setHoveredLink(null);
+            });
 
         const node = g.append('g').selectAll('g').data(nodes).join('g').attr('class', 'node-group cursor-pointer')
             .call(d3.drag().on('start', (event: any, d: any) => { if (!event.active) simulationRef.current.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; }).on('drag', (event: any, d: any) => { d.fx = event.x; d.fy = event.y; }).on('end', (event: any, d: any) => { if (!event.active) simulationRef.current.alphaTarget(0); d.fx = null; d.fy = null; }))
@@ -214,7 +272,7 @@ export const KnowledgeMap = forwardRef<any, KnowledgeMapProps>(({ data, onNodeCl
 
         node.append('rect')
             .attr('rx', 25).attr('ry', 25)
-            .attr('fill', (d: any) => DisciplineColors[d.discipline] || '#6b7280')
+            .attr('fill', (d: any, i: number) => getNodeColor(d.id, i)) // Randomized colors
             .attr('stroke', '#ffffff')
             .attr('stroke-width', 2.5)
             .attr('filter', 'drop-shadow(0px 4px 6px rgba(0,0,0,0.1))');
@@ -224,7 +282,7 @@ export const KnowledgeMap = forwardRef<any, KnowledgeMapProps>(({ data, onNodeCl
             .attr("font-family", "Inter, sans-serif")
             .attr('font-size', '13px')
             .attr('font-weight', '800')
-            .attr('fill', (d: any) => getContrastColor(DisciplineColors[d.discipline] || '#6b7280'))
+            .attr('fill', '#ffffff')
             .attr('text-anchor', 'middle')
             .attr('dy', '0.15em')
             .each(function(d: any) { 
@@ -243,14 +301,22 @@ export const KnowledgeMap = forwardRef<any, KnowledgeMapProps>(({ data, onNodeCl
             .text((d: any) => (d.discipline || '').toUpperCase())
             .attr('font-size', '8px')
             .attr('font-weight', '900')
-            .attr('fill', (d: any) => getContrastColor(DisciplineColors[d.discipline] || '#6b7280'))
-            .attr('opacity', 0.8)
+            .attr('fill', '#ffffff')
+            .attr('opacity', 0.9)
             .attr('letter-spacing', '0.08em')
             .attr('text-anchor', 'middle')
             .attr('dy', '1.6em');
 
         simulationRef.current.on('tick', () => { 
-            linkLines.attr('x1', (d: any) => d.source.x).attr('y1', (d: any) => d.source.y).attr('x2', (d: any) => d.target.x).attr('y2', (d: any) => d.target.y); 
+            linkPaths.attr('d', (d: any) => {
+                if (!d.source.x || !d.target.x) return null;
+                const s = intersectRect(d.source, d.target);
+                const t = intersectRect(d.target, d.source);
+                const dx = t.x - s.x;
+                const dy = t.y - s.y;
+                const dr = Math.sqrt(dx * dx + dy * dy) * 1.5; 
+                return `M${s.x},${s.y}A${dr},${dr} 0 0,1 ${t.x},${t.y}`;
+            }); 
             node.attr('transform', (d: any) => `translate(${d.x}, ${d.y})`); 
         });
 
@@ -263,6 +329,14 @@ export const KnowledgeMap = forwardRef<any, KnowledgeMapProps>(({ data, onNodeCl
             <svg ref={svgRef} className="w-full h-full touch-none" onClick={onClearSelection}></svg>
             <MapControls onZoomIn={() => zoomRef.current && d3.select(svgRef.current).transition().call(zoomRef.current.scaleBy, 1.3)} onZoomOut={() => zoomRef.current && d3.select(svgRef.current).transition().call(zoomRef.current.scaleBy, 0.7)} onReset={resetZoom} onToggleFullscreen={() => setIsMapFullscreen(!isMapFullscreen)} isFullscreen={isMapFullscreen} />
             <NodeTooltip node={hoveredNode?.node || null} position={hoveredNode?.position || null} />
+            
+            {hoveredLink && (
+                <div className="absolute bottom-4 right-4 bg-white/90 dark:bg-slate-800/90 p-2 px-3 rounded-lg shadow-lg border border-brand-blue/20 text-[10px] max-w-[200px] animate-fade-in pointer-events-none">
+                    <p className="font-black uppercase text-gray-400 mb-1">Relationship</p>
+                    <p className="text-gray-800 dark:text-slate-200 leading-tight italic font-medium">{hoveredLink.description}</p>
+                </div>
+            )}
+
             {selectedNodeInfo && <ConceptCard nodeInfo={selectedNodeInfo} onClose={onClearSelection} onDiscuss={onDiscussNode} T={T} />}
         </div>
     );

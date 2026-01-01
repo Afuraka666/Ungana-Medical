@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import remarkGfm from 'remark-gfm';
@@ -10,7 +10,25 @@ interface MarkdownRendererProps {
     className?: string;
 }
 
+/**
+ * Sanitizes AI output to remove artifacts and stray characters.
+ */
+const sanitizeContent = (text: string): string => {
+    if (!text) return '';
+    return text
+        // Remove stray $ that are not part of math blocks
+        .replace(/(^|\s)\$(?!\s*\S+\s*\$)/g, '$1')
+        .replace(/(\S)\$(\s|$)/g, '$1$2')
+        // Remove common AI formatting artifacts
+        .replace(/\*\*\:\s/g, '**: ')
+        // Ensure clean list bullets
+        .replace(/^\s*[\-\*]\s+/gm, '• ')
+        .trim();
+};
+
 export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, className }) => {
+    const cleanContent = useMemo(() => sanitizeContent(content), [content]);
+
     return (
         <ReactMarkdown
             remarkPlugins={[remarkMath, remarkGfm]}
@@ -63,7 +81,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
                 }
             }}
         >
-            {content}
+            {cleanContent}
         </ReactMarkdown>
     );
 };
