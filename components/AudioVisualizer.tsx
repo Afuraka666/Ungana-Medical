@@ -39,13 +39,18 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ isListening })
                     analyzerRef.current?.getByteFrequencyData(dataArray);
 
                     ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    
                     const barWidth = (canvas.width / bufferLength) * 2.5;
                     let x = 0;
 
                     for (let i = 0; i < bufferLength; i++) {
-                        const barHeight = (dataArray[i] / 255) * canvas.height;
-                        ctx.fillStyle = `rgb(59, 130, 246)`; // brand-blue-light
+                        // Enhance visual dynamic range
+                        const barHeight = (dataArray[i] / 255) * canvas.height * 1.2;
+                        
+                        // Vibrant medical blue color
+                        ctx.fillStyle = `rgba(59, 130, 246, ${0.5 + (dataArray[i] / 510)})`;
                         ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+                        
                         x += barWidth + 1;
                     }
                 };
@@ -70,7 +75,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ isListening })
             ref={canvasRef} 
             width="40" 
             height="20" 
-            className="rounded opacity-80"
+            className="rounded-sm opacity-90 shadow-sm"
         />
     );
 };

@@ -32,19 +32,23 @@ const FAST_MODEL = "gemini-3-flash-preview";
 
 const SYNTHESIS_GUIDELINE = `
 **STRICT PROFESSIONAL MEDICAL SYNTHESIS RULES:**
-1. **Clean Formatting (CRITICAL):** Remove all unnecessary symbols, artifacts, or raw technical markers (like stray $ outside of formulas) from visible text. Ensure the narrative is clean, legible, and professional.
-2. **Formula Handling:** Use standard scientific notation. Use LaTeX ($...$) ONLY for complex chemical or physiological formulas.
-3. **Narrative Integrity:** No citations or PMIDs in 'patientProfile', 'presentingComplaint', or 'history'. These fields must read like a real clinical record.
-4. **Real-Time Accuracy:** You MUST use the googleSearch tool to verify the latest 2024-2025 clinical guidelines.
-5. **High-Fidelity Tables:** Present all Vitals, Labs, and Medications as clean Markdown Tables.
-6. **Visual Triggers (MANDATORY):** Embed exactly one relevant tag per major section where physiological logic applies:
-   - \`[GRAPH: oxygen_dissociation]\` (Respiratory/Anemia)
-   - \`[GRAPH: frank_starling]\` (Cardiac/Shock/Sepsis)
-   - \`[GRAPH: pressure_volume_loop]\` (Hemodynamics/Valve Pathology)
-   - \`[GRAPH: cerebral_pressure_volume]\` (Neurotrauma/ICP)
-   - \`[GRAPH: cerebral_autoregulation]\` (Neuro/MAP/Stroke)
-7. **Quiz Quality:** Generate exactly 5 high-yield clinical MCQs with detailed explanations.
-8. **Academic Tone:** Use formal, precise medical terminology.
+1. **Clean Formatting:** Remove unnecessary symbols/artifacts. Ensure clean, legible, academic narrative.
+2. **Formula Handling:** Use standard scientific notation or LaTeX ($...$) ONLY for complex formulas.
+3. **Narrative Integrity:** No citations/PMIDs in 'patientProfile', 'presentingComplaint', or 'history'. Reads like a clinical record.
+4. **Physiological Relevancy (SENSITIVE):** Embed a graph tag ONLY if it is directly relevant to the condition's pathophysiology. Do NOT include a graph if it doesn't add clinical value.
+   Available Tags (Use selectively):
+   - \`[GRAPH: oxygen_dissociation]\` (For: ARDS, Anemia, Acid-Base disturbance, Sepsis, Carbon monoxide)
+   - \`[GRAPH: frank_starling]\` (For: CHF, Fluid resuscitation, Hypovolemic/Distributive Shock, Sepsis)
+   - \`[GRAPH: pressure_volume_loop]\` (For: Valvular disease, HOCM, Heart Failure, Aortic dissection)
+   - \`[GRAPH: cerebral_pressure_volume]\` (For: TBI, Intracranial hemorrhage, Space-occupying lesions)
+   - \`[GRAPH: cerebral_autoregulation]\` (For: Stroke, Carotid disease, Severe Hypertension, Neuro-anaesthesia)
+5. **Quiz Quality:** Exactly 5 high-yield MCQs.
+6. **Reference Rigor:** Verify PMIDs and DOIs using tools. Lead directly to real articles.
+7. **Surgical Phase Structuring (CRITICAL):** In 'disciplineSpecificConsiderations', you MUST categorize management into three distinct items with 'aspect' labels: "Preoperative", "Intraoperative", and "Postoperative". 
+8. **Anaesthesia Priority:** If the discipline is "Anaesthesia" or related, focus deeply on:
+   - Pre-op: Assessment, ASA score, comorbid optimization, premedication.
+   - Intra-op: Induction, maintenance (TIVA/Volatile), monitoring (ASA standards), fluid/blood management, analgesia.
+   - Post-op: Emergence, PACU criteria, PONV/Pain control, longitudinal outcomes.
 `;
 
 const diagramNodeSchema = {
@@ -111,7 +115,7 @@ const corePatientCaseSchema = {
     required: ["title", "patientProfile", "presentingComplaint", "history"]
 };
 
-const mainDetailsSchema = {
+const extendedDetailsSchema = {
     type: Type.OBJECT,
     properties: {
         biochemicalPathway: { ...educationalContentSchema },
@@ -126,13 +130,6 @@ const mainDetailsSchema = {
             required: ["discipline", "connection"],
           },
         },
-    },
-    required: ["biochemicalPathway", "multidisciplinaryConnections"]
-};
-
-const managementAndContentSchema = {
-    type: Type.OBJECT,
-    properties: {
         disciplineSpecificConsiderations: {
             type: Type.ARRAY,
             items: {
@@ -145,7 +142,7 @@ const managementAndContentSchema = {
             }
         }
     },
-    required: ["disciplineSpecificConsiderations"]
+    required: ["biochemicalPathway", "multidisciplinaryConnections", "disciplineSpecificConsiderations"]
 };
 
 const evidenceAndQuizSchema = {
@@ -218,56 +215,70 @@ const extractJson = (text: string) => {
 
 export const generateCorePatientCase = async (condition: string, discipline: string, difficulty: string, language: string): Promise<PatientCase> => {
     const ai = getAiClient();
-    const prompt = `Act as a senior medical consultant. Create a high-fidelity professional case for "${condition}". Discipline: ${discipline}. Difficulty: ${difficulty}. Language: ${language}. ${SYNTHESIS_GUIDELINE}`;
+    const prompt = `Senior medical consultant: Create core clinical record for "${condition}". Discipline: ${discipline}. Difficulty: ${difficulty}. Language: ${language}. ${SYNTHESIS_GUIDELINE}`;
     const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
         model: FAST_MODEL,
         contents: prompt,
         config: { 
             responseMimeType: "application/json", 
             responseSchema: corePatientCaseSchema,
-            thinkingConfig: { thinkingBudget: 0 },
-            tools: [{ googleSearch: {} }]
+            thinkingConfig: { thinkingBudget: 0 }
         },
     }));
     const data = JSON.parse(extractJson(response.text || "{}"));
-    return { ...data, groundingSources: response.candidates?.[0]?.groundingMetadata?.groundingChunks || [] } as PatientCase;
+    return { ...data } as PatientCase;
 };
 
-const generateCasePart = async (coreCase: PatientCase, discipline: string, difficulty: string, language: string, taskDescription: string, responseSchema: any) => {
+export const generateExtendedDetails = async (coreCase: PatientCase, discipline: string, difficulty: string, language: string) => {
     const ai = getAiClient();
-    const prompt = `For case "${coreCase.title}", generate ${taskDescription}. Discipline: ${discipline}. Difficulty: ${difficulty}. Language: ${language}. ${SYNTHESIS_GUIDELINE}`;
+    const prompt = `Extended details for "${coreCase.title}": Biochemical pathway, connections, and discipline-specific considerations for "${discipline}". 
+    IMPORTANT: 'disciplineSpecificConsiderations' MUST follow a phased approach: "Preoperative", "Intraoperative", and "Postoperative". 
+    Focus on anaesthetic technicalities where relevant (monitoring, pharmacology, PACU).
+    GRAPH SELECTION: Discern if a physiological graph is relevant to "${coreCase.title}". If so, embed the correct [GRAPH: type] tag within the content. If no relevant graph exists in the supported list, skip the tag.
+    Language: ${language}. ${SYNTHESIS_GUIDELINE}`;
     const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
         model: FAST_MODEL,
         contents: prompt,
         config: { 
             responseMimeType: "application/json", 
-            responseSchema: responseSchema,
+            responseSchema: extendedDetailsSchema,
+            thinkingConfig: { thinkingBudget: 0 }
+        },
+    }));
+    return JSON.parse(extractJson(response.text || "{}"));
+};
+
+export const generateEvidenceAndQuiz = async (coreCase: PatientCase, discipline: string, difficulty: string, language: string) => {
+    const ai = getAiClient();
+    const prompt = `References & Quiz for "${coreCase.title}". VERIFY ALL PMIDs/DOIs using tools. Language: ${language}. ${SYNTHESIS_GUIDELINE}`;
+    const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
+        model: FAST_MODEL,
+        contents: prompt,
+        config: { 
+            responseMimeType: "application/json", 
+            responseSchema: evidenceAndQuizSchema,
             thinkingConfig: { thinkingBudget: 0 },
             tools: [{ googleSearch: {} }]
         },
     }));
-    const text = extractJson(response.text || "{}");
+    const data = JSON.parse(extractJson(response.text || "{}"));
     const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-    return { data: JSON.parse(text), sources };
-};
-
-export const generateMainDetails = async (coreCase: PatientCase, discipline: string, difficulty: string, language: string) => {
-    const { data, sources } = await generateCasePart(coreCase, discipline, difficulty, language, "biochemicalPathway and multidisciplinaryConnections (MUST embed [GRAPH: tag])", mainDetailsSchema);
     return { ...data, groundingSources: sources };
 };
 
-export const generateManagementAndContent = async (coreCase: PatientCase, discipline: string, difficulty: string, language: string) => {
-    const { data } = await generateCasePart(coreCase, discipline, difficulty, language, "management considerations (embed [GRAPH: tag])", managementAndContentSchema);
-    return data;
-};
-
-export const generateEvidenceAndQuiz = async (coreCase: PatientCase, discipline: string, difficulty: string, language: string) => {
-    const { data } = await generateCasePart(coreCase, discipline, difficulty, language, "traceable evidence and exactly 5 quiz questions", evidenceAndQuizSchema);
-    return data;
-};
-
 export const generateKnowledgeMap = async (coreCase: PatientCase, discipline: string, difficulty: string, language: string): Promise<KnowledgeMapData> => {
-    const { data } = await generateCasePart(coreCase, discipline, difficulty, language, "a knowledge map with 10 nodes", knowledgeMapSchema);
+    const ai = getAiClient();
+    const prompt = `Knowledge map (10 connected nodes) for "${coreCase.title}". Language: ${language}.`;
+    const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
+        model: FAST_MODEL,
+        contents: prompt,
+        config: { 
+            responseMimeType: "application/json", 
+            responseSchema: knowledgeMapSchema,
+            thinkingConfig: { thinkingBudget: 0 }
+        },
+    }));
+    const data = JSON.parse(extractJson(response.text || "{}"));
     const validNodeIds = new Set((data as any).nodes?.map((n: KnowledgeNode) => n.id) || []);
     const validLinks = ((data as any).links || []).filter((l: KnowledgeLink) => validNodeIds.has(l.source) && validNodeIds.has(l.target));
     return { nodes: (data as any).nodes || [], links: validLinks };
@@ -374,7 +385,7 @@ export const generateDiagramForDiscussion = async (prompt: string, chatContext: 
 
 export const enrichCaseWithWebSources = async (patientCase: PatientCase, language: string): Promise<{ newEvidence: TraceableEvidence[]; newReadings: FurtherReading[]; groundingSources: any[] }> => {
     const ai = getAiClient();
-    const prompt = `Find 2 trials and 2 meta-analyses for "${patientCase.title}". Language: ${language}. JSON.`;
+    const prompt = `Find 2 trials and 2 meta-analyses for "${patientCase.title}". Language: ${language}. JSON. **RIGOROUSLY VERIFY ALL PMIDs AND DOIs USING GOOGLE SEARCH TOOL.**`;
     const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
         model: FAST_MODEL,
         contents: prompt,

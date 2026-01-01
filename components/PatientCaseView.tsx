@@ -224,7 +224,7 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
                                 </div>
                                 <div className="text-[11px] text-gray-700 dark:text-slate-300 leading-relaxed mb-2"><SmartContent content={conn.connection} language={language} T={T} onTriggerIllustration={(d) => handleTriggerIllustration(d, -1)} /></div>
                             </div>
-                            <button onClick={() => onOpenDiscussion({ aspect: conn.discipline, connection: conn.connection } as any)} className="self-end flex items-center gap-1 text-[8px] bg-white dark:bg-slate-700 border border-blue-100 dark:border-blue-900 text-brand-blue dark:text-blue-300 hover:bg-brand-blue hover:text-white font-black py-1 px-2.5 rounded-full transition-all shadow-xs uppercase tracking-widest">Consult</button>
+                            <button onClick={() => onOpenDiscussion({ aspect: conn.discipline, consideration: conn.connection })} className="self-end flex items-center gap-1 text-[8px] bg-white dark:bg-slate-700 border border-blue-100 dark:border-blue-900 text-brand-blue dark:text-blue-300 hover:bg-brand-blue hover:text-white font-black py-1 px-2.5 rounded-full transition-all shadow-xs uppercase tracking-widest">Consult</button>
                         </div>
                     ))}
                 </div>
@@ -233,17 +233,27 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
 
         { Array.isArray(patientCase.disciplineSpecificConsiderations) && patientCase.disciplineSpecificConsiderations.length > 0 ? (
             <Section title={T.managementConsiderations} onCopy={() => {}} onSaveSnippet={() => onSaveSnippet(T.managementConsiderations, patientCase.disciplineSpecificConsiderations!.map(c => `${c.aspect}: ${c.consideration}`).join('\n'))} T={T}>
-                <ul className="space-y-2">
-                    {patientCase.disciplineSpecificConsiderations.map((item, idx) => (
-                        <li key={idx} className="bg-white dark:bg-dark-surface p-3 rounded-xl border border-gray-100 dark:border-dark-border shadow-xs">
-                            <div className="flex justify-between items-center mb-1 border-b border-gray-50 dark:border-dark-border pb-1">
-                                <strong className="text-xs font-black text-gray-900 dark:text-slate-200 tracking-tight uppercase">{item.aspect}</strong>
-                                <button onClick={() => onOpenDiscussion(item)} className="text-[8px] bg-blue-50 dark:bg-blue-900/30 text-brand-blue dark:text-blue-300 font-black py-1 px-2.5 rounded-full border border-blue-100 dark:border-blue-900 transition-all hover:bg-brand-blue hover:text-white uppercase tracking-widest">{T.discussButton}</button>
+                <div className="space-y-4">
+                    {patientCase.disciplineSpecificConsiderations.map((item, idx) => {
+                        const isPhased = ["Preoperative", "Intraoperative", "Postoperative"].includes(item.aspect);
+                        return (
+                            <div key={idx} className={`bg-white dark:bg-dark-surface p-4 rounded-xl border ${isPhased ? 'border-brand-blue/30 border-l-[6px] dark:border-brand-blue-light/20' : 'border-gray-100 dark:border-dark-border'} shadow-sm transition-all`}>
+                                <div className="flex justify-between items-center mb-2 border-b border-gray-50 dark:border-dark-border pb-2">
+                                    <div className="flex items-center gap-2">
+                                        {isPhased && <div className="h-2 w-2 rounded-full bg-brand-blue dark:bg-brand-blue-light animate-pulse" />}
+                                        <strong className={`text-sm font-black tracking-tight uppercase ${isPhased ? 'text-brand-blue dark:text-brand-blue-light' : 'text-gray-900 dark:text-slate-200'}`}>
+                                            {item.aspect}
+                                        </strong>
+                                    </div>
+                                    <button onClick={() => onOpenDiscussion(item)} className="text-[8px] bg-blue-50 dark:bg-blue-900/30 text-brand-blue dark:text-blue-300 font-black py-1 px-2.5 rounded-full border border-blue-100 dark:border-blue-900 transition-all hover:bg-brand-blue hover:text-white uppercase tracking-widest shadow-xs">
+                                        {T.discussButton}
+                                    </button>
+                                </div>
+                                <div className="mt-1"><SmartContent content={item.consideration} language={language} T={T} onTriggerIllustration={(d) => handleTriggerIllustration(d, -1)} /></div>
                             </div>
-                            <div className="mt-1"><SmartContent content={item.consideration} language={language} T={T} onTriggerIllustration={(d) => handleTriggerIllustration(d, -1)} /></div>
-                        </li>
-                    ))}
-                </ul>
+                        );
+                    })}
+                </div>
             </Section>
         ) : isGeneratingDetails ? <Section title={T.managementConsiderations} onCopy={() => {}} onSaveSnippet={() => {}} T={T}><SkeletonLoader /></Section> : null }
 

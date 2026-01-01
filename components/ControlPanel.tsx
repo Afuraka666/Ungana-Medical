@@ -19,6 +19,15 @@ interface ControlPanelProps {
 const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 const isSpeechRecognitionSupported = !!SpeechRecognition;
 
+const getBCP47Language = (lang: string): string => {
+    const map: Record<string, string> = {
+        'en': 'en-US', 'es': 'es-ES', 'fr': 'fr-FR', 'zh': 'zh-CN', 'hi': 'hi-IN',
+        'sw': 'sw-KE', 'sn': 'sn-ZW', 'nd': 'nd-ZW', 'bem': 'en-ZM', 'ny': 'ny-MW',
+        'ar': 'ar-SA', 'pt': 'pt-PT', 'ru': 'ru-RU', 'tn': 'tn-ZA', 'el': 'el-GR',
+    };
+    return map[lang] || 'en-US';
+};
+
 const MicButton: React.FC<{ onClick: () => void, isListening: boolean, disabled: boolean, title: string }> = ({ onClick, isListening, disabled, title }) => {
     return (
         <button 
@@ -80,16 +89,32 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       if (isListening && activeInput === targetInput && recognitionRef.current) { recognitionRef.current.stop(); return; }
       setMicError(null); setActiveInput(targetInput);
       const recognition = new SpeechRecognition();
-      recognition.continuous = false; recognition.interimResults = true; recognition.maxAlternatives = 1;
-      recognition.lang = language === 'bem' ? 'en-US' : language;
+      recognition.continuous = false; 
+      recognition.interimResults = true; 
+      recognition.maxAlternatives = 1;
+      recognition.lang = getBCP47Language(language);
+      
       recognition.onstart = () => setIsListening(true);
       recognition.onend = () => { setIsListening(false); setActiveInput(null); recognitionRef.current = null; };
-      recognition.onerror = (event: any) => { setIsListening(false); setActiveInput(null); setMicError(event.error === 'not-allowed' ? T.micPermissionError : T.micGenericError); };
+      recognition.onerror = (event: any) => { 
+          setIsListening(false); 
+          setActiveInput(null); 
+          setMicError(event.error === 'not-allowed' ? T.micPermissionError : T.micGenericError); 
+      };
+      
       recognition.onresult = (event: any) => { 
           const transcript = event.results[0][0].transcript; 
-          if (targetInput === 'condition') setConditionInput(transcript); else setDisciplineInput(transcript); 
+          if (targetInput === 'condition') setConditionInput(transcript); 
+          else setDisciplineInput(transcript); 
       };
-      try { recognitionRef.current = recognition; recognition.start(); } catch (err: any) { setIsListening(false); setActiveInput(null); }
+
+      try { 
+          recognitionRef.current = recognition; 
+          recognition.start(); 
+      } catch (err: any) { 
+          setIsListening(false); 
+          setActiveInput(null); 
+      }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -162,7 +187,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 <button onClick={onOpenClinicalTools} disabled={disabled} title="Quick medical calculators (Dosing, Fluid, ECG)" className="bg-indigo-600 dark:bg-indigo-700 hover:bg-indigo-700 dark:hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-md transition flex items-center justify-center space-x-2 text-sm"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.532 1.532 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.532 1.532 0 01-.947-2.287c1.561-.379-1.561-2.6 0-2.978a1.532 1.532 0 01.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" /></svg><span className="hidden sm:inline">Calculators</span></button>
             </div>
             <div className="lg:hidden"><div className="flex items-center bg-gray-200 dark:bg-slate-800 p-0.5 rounded-full transition-colors"><button onClick={() => onSetMobileView('case')} title="Switch to textual case view" className={`p-1.5 rounded-full transition ${mobileView === 'case' ? 'bg-white dark:bg-slate-700 text-brand-blue dark:text-brand-blue-light shadow-sm' : 'text-gray-500'}`}><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg></button><button onClick={() => onSetMobileView('map')} title="Switch to interactive knowledge map" className={`p-1.5 rounded-full transition ${mobileView === 'map' ? 'bg-white dark:bg-slate-700 text-brand-blue dark:text-brand-blue-light shadow-sm' : 'text-gray-500'}`}><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" /></svg></button></div></div>
-            <button onClick={onGenerateNew} disabled={disabled} title="Clear current work and start a new synthesis" className="bg-brand-blue hover:bg-blue-800 text-white font-bold py-2 px-4 rounded-md transition flex items-center justify-center space-x-2 text-sm"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg><span className="hidden sm:inline">Reset</span></button>
+            <button onClick={onGenerateNew} disabled={disabled} title="Clear current work and start a new synthesis" className="bg-brand-blue hover:bg-blue-800 text-white font-bold py-2 px-4 rounded-md transition flex items-center justify-center space-x-2 shadow-lg"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg><span className="hidden sm:inline">Reset</span></button>
         </div>
       )}
     </div>

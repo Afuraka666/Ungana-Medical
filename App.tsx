@@ -22,8 +22,7 @@ import { DiscussionModal } from './components/DiscussionModal';
 // Services
 import { 
     generateCorePatientCase, 
-    generateMainDetails,
-    generateManagementAndContent,
+    generateExtendedDetails,
     generateEvidenceAndQuiz,
     generateKnowledgeMap,
     getConceptAbstract
@@ -76,8 +75,12 @@ export const App: React.FC = () => {
     const [patientCase, setPatientCase] = useState<PatientCase | null>(null);
     const [mapData, setMapData] = useState<KnowledgeMapData | null>(null);
 
-    // Theme State
-    const [theme, setTheme] = useState(localStorage.getItem('ungana_theme') || 'light');
+    // Theme State - Initialize with stored preference or system default
+    const [theme, setTheme] = useState(() => {
+        const saved = localStorage.getItem('ungana_theme');
+        if (saved) return saved;
+        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    });
 
     // Knowledge Map State
     const [selectedNodeInfo, setSelectedNodeInfo] = useState<{ node: KnowledgeNode; abstract: string; loading: boolean } | null>(null);
@@ -259,10 +262,7 @@ export const App: React.FC = () => {
             });
             
             const promises = [
-                generateMainDetails(coreCase, discipline, difficulty, language).then(res => {
-                    setPatientCase(prev => prev ? { ...prev, ...res } : null);
-                }),
-                generateManagementAndContent(coreCase, discipline, difficulty, language).then(res => {
+                generateExtendedDetails(coreCase, discipline, difficulty, language).then(res => {
                     setPatientCase(prev => prev ? { ...prev, ...res } : null);
                 }),
                 generateEvidenceAndQuiz(coreCase, discipline, difficulty, language).then(res => {
