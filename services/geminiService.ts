@@ -35,20 +35,18 @@ const SYNTHESIS_GUIDELINE = `
 1. **Clean Formatting:** Remove unnecessary symbols/artifacts. Ensure clean, legible, academic narrative.
 2. **Formula Handling:** Use standard scientific notation or LaTeX ($...$) ONLY for complex formulas.
 3. **Narrative Integrity:** No citations/PMIDs in 'patientProfile', 'presentingComplaint', or 'history'. Reads like a clinical record.
-4. **Physiological Relevancy (SENSITIVE):** Embed a graph tag ONLY if it is directly relevant to the condition's pathophysiology. Do NOT include a graph if it doesn't add clinical value.
-   Available Tags (Use selectively):
-   - \`[GRAPH: oxygen_dissociation]\` (For: ARDS, Anemia, Acid-Base disturbance, Sepsis, Carbon monoxide)
-   - \`[GRAPH: frank_starling]\` (For: CHF, Fluid resuscitation, Hypovolemic/Distributive Shock, Sepsis)
-   - \`[GRAPH: pressure_volume_loop]\` (For: Valvular disease, HOCM, Heart Failure, Aortic dissection)
-   - \`[GRAPH: cerebral_pressure_volume]\` (For: TBI, Intracranial hemorrhage, Space-occupying lesions)
-   - \`[GRAPH: cerebral_autoregulation]\` (For: Stroke, Carotid disease, Severe Hypertension, Neuro-anaesthesia)
+4. **Physiological Relevancy (SENSITIVE):** Embed a graph tag ONLY if it is directly relevant to the condition's pathophysiology.
+   Available Tags:
+   - \`[GRAPH: oxygen_dissociation]\` (ARDS, Anemia, Sepsis, CO Poisoning)
+   - \`[GRAPH: frank_starling]\` (CHF, Fluid resuscitation, Shock)
+   - \`[GRAPH: pressure_volume_loop]\` (Valvular disease, Heart Failure)
+   - \`[GRAPH: cerebral_pressure_volume]\` (TBI, ICH, ICP issues)
+   - \`[GRAPH: cerebral_autoregulation]\` (Stroke, Carotid disease, Neuro-anaesthesia)
 5. **Quiz Quality:** Exactly 5 high-yield MCQs.
-6. **Reference Rigor:** Verify PMIDs and DOIs using tools. Lead directly to real articles.
-7. **Surgical Phase Structuring (CRITICAL):** In 'disciplineSpecificConsiderations', you MUST categorize management into three distinct items with 'aspect' labels: "Preoperative", "Intraoperative", and "Postoperative". 
-8. **Anaesthesia Priority:** If the discipline is "Anaesthesia" or related, focus deeply on:
-   - Pre-op: Assessment, ASA score, comorbid optimization, premedication.
-   - Intra-op: Induction, maintenance (TIVA/Volatile), monitoring (ASA standards), fluid/blood management, analgesia.
-   - Post-op: Emergence, PACU criteria, PONV/Pain control, longitudinal outcomes.
+6. **Reference Rigor:** Verify PMIDs and DOIs using tools.
+7. **Phased Management Structuring:** Categorize 'disciplineSpecificConsiderations' into "Preoperative", "Intraoperative", and "Postoperative" (or "Acute/Initial", "Stabilization/Ongoing", and "Recovery/Long-term" for non-surgical disciplines).
+8. **Discipline Authenticity (CRITICAL):** Do NOT provide generalized medical advice. Adopt the technical language and priorities of the specific discipline.
+9. **Multidisciplinary Spectrum (NEW):** For 'multidisciplinaryConnections', provide 4-6 distinct items. You MUST cover both the Acute Phase (e.g., Emergency, ICU, Radiology) AND the Rehabilitation Phase (e.g., Physiotherapy, Speech Therapy, Social Work, Primary Care).
 `;
 
 const diagramNodeSchema = {
@@ -231,10 +229,17 @@ export const generateCorePatientCase = async (condition: string, discipline: str
 
 export const generateExtendedDetails = async (coreCase: PatientCase, discipline: string, difficulty: string, language: string) => {
     const ai = getAiClient();
-    const prompt = `Extended details for "${coreCase.title}": Biochemical pathway, connections, and discipline-specific considerations for "${discipline}". 
-    IMPORTANT: 'disciplineSpecificConsiderations' MUST follow a phased approach: "Preoperative", "Intraoperative", and "Postoperative". 
-    Focus on anaesthetic technicalities where relevant (monitoring, pharmacology, PACU).
-    GRAPH SELECTION: Discern if a physiological graph is relevant to "${coreCase.title}". If so, embed the correct [GRAPH: type] tag within the content. If no relevant graph exists in the supported list, skip the tag.
+    const prompt = `Provide extended clinical depth for "${coreCase.title}" specifically for the discipline of "${discipline}". 
+    
+    **MANAGEMENT DEPTH REQUIREMENTS:** 
+    For 'disciplineSpecificConsiderations', adopt an expert specialist persona for "${discipline}". Use technical terminology, mention specific tools/scales/protocols unique to this field. 
+    STRUCTURE: Use three items with 'aspect' labels matching the relevant clinical phases (e.g., "Preoperative/Initial", "Intraoperative/Ongoing", "Postoperative/Recovery").
+    
+    **MULTIDISCIPLINARY CONNECTION SPECTRUM:** 
+    Synthesize 4-6 distinct multidisciplinary connections. Ensure a logical progression from Acute Management (Initial diagnosis/ICU/Specialist Intervention) to Rehabilitation and Community Re-integration (Allied Health/Support Services).
+    
+    **GRAPH SELECTION:** Discern if a physiological graph is relevant to "${coreCase.title}". If so, embed the correct [GRAPH: type] tag.
+    
     Language: ${language}. ${SYNTHESIS_GUIDELINE}`;
     const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({
         model: FAST_MODEL,

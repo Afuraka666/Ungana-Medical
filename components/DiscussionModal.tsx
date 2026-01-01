@@ -15,6 +15,14 @@ import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, Bord
 const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 const isSpeechRecognitionSupported = !!SpeechRecognition;
 
+const GRAPH_TITLES: Record<string, string> = {
+    'oxygen_dissociation': 'Hemoglobin-Oxygen Dissociation Curve',
+    'frank_starling': 'Frank-Starling Relationship Model',
+    'pressure_volume_loop': 'Left Ventricular Pressure-Volume Loop',
+    'cerebral_pressure_volume': 'Monro-Kellie Intracranial Relationship',
+    'cerebral_autoregulation': 'Cerebral Blood Flow Autoregulation Curve'
+};
+
 const getBCP47Language = (lang: string): string => {
     const map: Record<string, string> = {
         'en': 'en-US', 'es': 'es-ES', 'fr': 'fr-FR', 'zh': 'zh-CN', 'hi': 'hi-IN',
@@ -103,49 +111,6 @@ function splitMessageContent(text: string) {
     return parts;
 }
 
-const svgToDataURL = async (svgEl: SVGSVGElement): Promise<string> => {
-    const g = svgEl.querySelector('g');
-    if (!g) return '';
-    const bbox = g.getBBox();
-    if (bbox.width === 0 || bbox.height === 0) return '';
-    const padding = 40;
-    const width = bbox.width + padding * 2;
-    const height = bbox.height + padding * 2;
-    const svgClone = svgEl.cloneNode(true) as SVGSVGElement;
-    svgClone.setAttribute('width', width.toString());
-    svgClone.setAttribute('height', height.toString());
-    svgClone.setAttribute('viewBox', `${bbox.x - padding} ${bbox.y - padding} ${width} ${height}`);
-    const gClone = svgClone.querySelector('g');
-    if (gClone) gClone.removeAttribute('transform');
-    const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    bgRect.setAttribute('width', width.toString());
-    bgRect.setAttribute('height', height.toString());
-    bgRect.setAttribute('fill', 'white');
-    bgRect.setAttribute('x', `${bbox.x - padding}`);
-    bgRect.setAttribute('y', `${bbox.y - padding}`);
-    svgClone.prepend(bgRect);
-    const xml = new XMLSerializer().serializeToString(svgClone);
-    const svg64 = btoa(unescape(encodeURIComponent(xml)));
-    const image64 = `data:image/svg+xml;base64,${svg64}`;
-    return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => {
-            const canvas = document.createElement('canvas');
-            const scale = 2;
-            canvas.width = width * scale;
-            canvas.height = height * scale;
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-                ctx.scale(scale, scale);
-                ctx.drawImage(img, 0, 0, width, height);
-                resolve(canvas.toDataURL('image/png', 1.0));
-            } else resolve('');
-        };
-        img.onerror = () => resolve('');
-        img.src = image64;
-    });
-};
-
 interface DiscussionModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -172,8 +137,6 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [userInput, setUserInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const [isGeneratingDiagram, setIsGeneratingDiagram] = useState(false);
-    const [diagramPrompt, setDiagramPrompt] = useState('');
     const [isSaved, setIsSaved] = useState(false);
     const [showShareMenu, setShowShareMenu] = useState(false);
     const [activeImagePrompt, setActiveImagePrompt] = useState<{prompt: string, index: number} | null>(null);
@@ -186,7 +149,10 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
 
     useEffect(() => {
         if (isOpen) {
-            const systemInstruction = `You are an expert medical tutor. Facilitate a deep Socratic discussion about "${topic.aspect}" for "${caseTitle}". Jump immediately into the dialogue. Provide technical details using Markdown Tables for comparisons. Cite PMIDs/DOIs for claims. Visual tags: [GRAPH: oxygen_dissociation], [DIAGRAM: description], [ILLUSTRATE: description]. Language: ${language}.`;
+            const systemInstruction = `You are an expert medical tutor. Facilitate a deep Socratic discussion about "${topic.aspect}" for "${caseTitle}". Provide technical details using Markdown Tables for comparisons. Cite PMIDs/DOIs for claims. 
+            VISUAL TOOLS: Whenever explaining complex physiology, embed a graph using exactly: [GRAPH: type]. 
+            Types: oxygen_dissociation, frank_starling, pressure_volume_loop, cerebral_pressure_volume, cerebral_autoregulation.
+            Language: ${language}.`;
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             let chatHistory: Content[] | undefined = undefined;
             if (initialHistory && initialHistory.length > 0) {
@@ -347,7 +313,7 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
                     <div className="space-y-6">
                         {messages.map((msg, index) => {
                             const illustrationMatch = msg.text.match(/\[ILLUSTRATE: (.*?)\]/);
-                            const graphMatch = msg.text.match(/\[GRAPH: (.*?)\]/);
+                            const graphMatches = [...msg.text.matchAll(/\[GRAPH: (.*?)\]/g)];
                             const textWithoutTags = msg.text.replace(/\[ILLUSTRATE:.*?\]/g, '').replace(/\[DIAGRAM:.*?\]/g, '').replace(/\[GRAPH:.*?\]/g, '').trim();
                             return (
                                 <div key={index} className={`flex items-start gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
@@ -370,7 +336,18 @@ export const DiscussionModal: React.FC<DiscussionModalProps> = ({
                                                     </button>
                                                 </div>
                                             )}
-                                            {graphMatch && <div className="mt-4 pt-4 border-t border-gray-100 dark:border-dark-border"><ScientificGraph type={graphMatch[1] as any} title="Hemoglobin Dissociation Curve" className="scale-105" /></div>}
+                                            {graphMatches.length > 0 && (
+                                                <div className="space-y-4 mt-4 pt-4 border-t border-gray-100 dark:border-dark-border">
+                                                    {graphMatches.map((m, i) => (
+                                                        <ScientificGraph 
+                                                            key={i} 
+                                                            type={m[1].trim() as any} 
+                                                            title={GRAPH_TITLES[m[1].trim()] || "Physiological Relationship Model"} 
+                                                            className="scale-100" 
+                                                        />
+                                                    ))}
+                                                </div>
+                                            )}
                                             {msg.imageData && <div className="mt-3"><img src={`data:image/png;base64,${msg.imageData}`} alt="Illustration" className="rounded-lg border border-gray-100 dark:border-dark-border shadow-sm max-w-full h-auto" /></div>}
                                         </div>
                                     </div>
