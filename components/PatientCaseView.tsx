@@ -13,6 +13,19 @@ import { DisciplineIcon } from './DisciplineIcon';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { SourceRenderer } from './SourceRenderer';
 import { ScientificGraph } from './ScientificGraph';
+import { AudioVisualizer } from './AudioVisualizer';
+
+const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+const isSpeechRecognitionSupported = !!SpeechRecognition;
+
+const getBCP47Language = (lang: string): string => {
+    const map: Record<string, string> = {
+        'en': 'en-US', 'es': 'es-ES', 'fr': 'fr-FR', 'zh': 'zh-CN', 'hi': 'hi-IN',
+        'sw': 'sw-KE', 'sn': 'sn-ZW', 'nd': 'nd-ZW', 'bem': 'en-ZM', 'ny': 'ny-MW',
+        'ar': 'ar-SA', 'pt': 'pt-PT', 'ru': 'ru-RU', 'tn': 'tn-ZA', 'el': 'el-GR',
+    };
+    return map[lang] || 'en-US';
+};
 
 interface PatientCaseViewProps {
   patientCase: PatientCase;
@@ -57,23 +70,6 @@ function useHistoryState<T>(initialState: T) {
   return { state: currentState, setState, undo, redo, canUndo: currentIndex > 0, canRedo: currentIndex < history.length - 1, resetState };
 }
 
-const formatCaseForClipboard = (patientCase: PatientCase, T: Record<string, any>): string => {
-    let text = `Title: ${patientCase.title}\n\n`;
-    const addSect = (t: string, c: string) => { text += `## ${t}\n${c}\n\n`; };
-    addSect(T.patientProfile, patientCase.patientProfile);
-    addSect(T.presentingComplaint, patientCase.presentingComplaint);
-    addSect(T.history, patientCase.history);
-    return text;
-};
-
-const SkeletonLoader: React.FC = () => (
-    <div className="space-y-2 animate-pulse">
-        <div className="h-3 bg-gray-200 dark:bg-slate-700 rounded w-3/4"></div>
-        <div className="h-3 bg-gray-200 dark:bg-slate-700 rounded w-full"></div>
-        <div className="h-3 bg-gray-200 dark:bg-slate-700 rounded w-5/6"></div>
-    </div>
-);
-
 const Section: React.FC<{
   title: string;
   onCopy: () => void;
@@ -107,21 +103,15 @@ const Section: React.FC<{
         </div>
       </div>
       <div className="text-xs sm:text-sm text-brand-text dark:text-dark-text leading-relaxed">{children}</div>
-      {groundingSources && Array.isArray(groundingSources) && groundingSources.length > 0 && (
-          <div className="mt-1.5 p-2 bg-slate-50 dark:bg-slate-800/30 border border-gray-100 dark:border-dark-border rounded-lg shadow-xs">
-              <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-0.5">Clinical Sources Verified</p>
-              <ul className="space-y-0.5">
-                  {groundingSources.map((s, i) => s.web?.uri ? <li key={i} className="text-[10px] flex items-start gap-1.5 text-blue-600 dark:text-blue-400"><svg className="w-2.5 h-2.5 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clipRule="evenodd" /></svg><a href={s.web.uri} target="_blank" rel="noopener noreferrer" className="hover:underline break-all font-semibold">{s.web.title || s.web.uri}</a></li> : null)}
-              </ul>
-          </div>
-      )}
     </section>
   );
 };
 
-const SmartContent: React.FC<{ content: string; language: string; T: Record<string, any>; onTriggerIllustration: (desc: string) => void }> = ({ content, language, T, onTriggerIllustration }) => {
-    const graphMatches = [...content.matchAll(/\[GRAPH:\s*(.*?)\s*\]/g)];
-    const illustrateMatches = [...content.matchAll(/\[ILLUSTRATE:\s*(.*?)\s*\]/g)];
+const SmartContent: React.FC<{ content: string; language: string; T: Record<string, any>; onTriggerIllustration: (desc: string) => void; allowVisuals?: boolean }> = ({ content, language, T, onTriggerIllustration, allowVisuals = false }) => {
+    const graphMatches = allowVisuals ? [...content.matchAll(/\[GRAPH:\s*(.*?)\s*\]/g)] : [];
+    const illustrateMatches = allowVisuals ? [...content.matchAll(/\[ILLUSTRATE:\s*(.*?)\s*\]/g)] : [];
+    
+    // Strictly filter out graph/illustration tags if not allowed (e.g., in history section)
     const cleanContent = content.replace(/\[GRAPH:.*?\]/g, '').replace(/\[ILLUSTRATE:.*?\]/g, '').replace(/\[DIAGRAM:.*?\]/g, '').trim();
     
     return (
@@ -130,12 +120,12 @@ const SmartContent: React.FC<{ content: string; language: string; T: Record<stri
             <div className="pt-0.5">
                 <SourceRenderer text={content} />
             </div>
-            {graphMatches.length > 0 && (
+            {allowVisuals && graphMatches.length > 0 && (
                 <div className="space-y-2 mt-1">
                     {graphMatches.map((m, i) => <ScientificGraph key={i} type={m[1].trim() as any} title="Physiological Model Visualization" />)}
                 </div>
             )}
-            {illustrateMatches.length > 0 && (
+            {allowVisuals && illustrateMatches.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-1">
                     {illustrateMatches.map((m, i) => (
                         <button key={i} onClick={() => onTriggerIllustration(m[1].trim())} title="Generate Clinical Illustration" className="group flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 text-brand-blue dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-all text-[9px] font-black shadow-xs">
@@ -149,6 +139,14 @@ const SmartContent: React.FC<{ content: string; language: string; T: Record<stri
     );
 };
 
+const SkeletonLoader: React.FC = () => (
+    <div className="space-y-2 animate-pulse">
+        <div className="h-3 bg-gray-200 dark:bg-slate-700 rounded w-3/4"></div>
+        <div className="h-3 bg-gray-200 dark:bg-slate-700 rounded w-full"></div>
+        <div className="h-3 bg-gray-200 dark:bg-slate-700 rounded w-5/6"></div>
+    </div>
+);
+
 export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: initialCase, isGeneratingDetails, onSave, language, T, onSaveSnippet, onOpenShare, onOpenDiscussion, onGetMapImage, mapData }) => {
   const { state: patientCase, setState: setPatientCase, undo, redo, canUndo, canRedo, resetState } = useHistoryState<PatientCase>(initialCase);
   const [isEditing, setIsEditing] = useState(false);
@@ -156,18 +154,90 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
   const [activeSourceSearch, setActiveSourceSearch] = useState<string | null>(null);
   const [isEnrichingEvidence, setIsEnrichingEvidence] = useState(false);
   const [groundingSources, setGroundingSources] = useState<any[]>([]);
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
   useEffect(() => { resetState(initialCase); }, [initialCase, resetState]);
-  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>, key: keyof PatientCase) => setPatientCase({ ...patientCase, [key]: e.target.value });
+
+  const handleTextChange = (value: string, key: keyof PatientCase) => setPatientCase({ ...patientCase, [key]: value });
   const handleSave = () => { onSave(patientCase); setIsEditing(false); };
   const handleCancel = () => { resetState(initialCase); setIsEditing(false); };
-  const handleTriggerIllustration = (desc: string, sourceIndex: number) => { setActiveImageGenerator({ content: { title: 'Clinical Visualization', description: desc, type: EducationalContentType.IMAGE, reference: 'AI-Synthesized Evidence' }, index: sourceIndex }); };
-  const handleImageGenerated = useCallback((idx: number, img: string) => { setPatientCase(prev => { const edu = [...(prev.educationalContent || [])]; if (idx >= 0 && edu[idx]) { edu[idx] = { ...edu[idx], imageData: img }; } return { ...prev, educationalContent: edu }; }); setActiveImageGenerator(null); }, [setPatientCase]);
-  const handleEnrichSources = async () => { setIsEnrichingEvidence(true); try { const { newEvidence, newReadings, groundingSources: gs } = await enrichCaseWithWebSources(patientCase, language); setPatientCase(prev => ({ ...prev, traceableEvidence: [...(prev.traceableEvidence || []), ...newEvidence], furtherReadings: [...(prev.furtherReadings || []), ...newReadings] })); setGroundingSources(gs); } catch (e) { console.error(e); } finally { setIsEnrichingEvidence(false); } };
-  const EditableText: React.FC<{ value: string; onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void; isEditing: boolean; }> = ({ value, onChange, isEditing }) => {
+
+  const handleMicClick = useCallback((key: keyof PatientCase) => {
+    if (!isSpeechRecognitionSupported) return;
+    if (isListening && recognitionRef.current) { recognitionRef.current.stop(); return; }
+    
+    const recognition = new SpeechRecognition();
+    recognition.lang = getBCP47Language(language);
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    
+    recognition.onstart = () => setIsListening(true);
+    recognition.onend = () => { setIsListening(false); recognitionRef.current = null; };
+    recognition.onerror = () => setIsListening(false);
+    recognition.onresult = (e: any) => {
+        const transcript = e.results[0][0].transcript;
+        handleTextChange(transcript, key);
+    };
+    recognitionRef.current = recognition;
+    recognition.start();
+  }, [isListening, language, patientCase]);
+
+  const handleTriggerIllustration = (desc: string, sourceIndex: number) => { 
+    setActiveImageGenerator({ content: { title: 'Clinical Visualization', description: desc, type: EducationalContentType.IMAGE, reference: 'AI-Synthesized Evidence' }, index: sourceIndex }); 
+  };
+
+  const handleImageGenerated = useCallback((idx: number, img: string) => { 
+    setPatientCase(prev => { 
+        const edu = [...(prev.educationalContent || [])]; 
+        if (idx >= 0 && edu[idx]) { edu[idx] = { ...edu[idx], imageData: img }; } 
+        return { ...prev, educationalContent: edu }; 
+    }); 
+    setActiveImageGenerator(null); 
+  }, [setPatientCase]);
+
+  const handleEnrichSources = async () => { 
+    setIsEnrichingEvidence(true); 
+    try { 
+        const { newEvidence, newReadings, groundingSources: gs } = await enrichCaseWithWebSources(patientCase, language); 
+        setPatientCase(prev => ({ ...prev, traceableEvidence: [...(prev.traceableEvidence || []), ...newEvidence], furtherReadings: [...(prev.furtherReadings || []), ...newReadings] })); 
+        setGroundingSources(gs); 
+    } catch (e) { console.error(e); } 
+    finally { setIsEnrichingEvidence(false); } 
+  };
+
+  const EditableField: React.FC<{ value: string; fieldKey: keyof PatientCase; isEditing: boolean; allowVisuals?: boolean }> = ({ value, fieldKey, isEditing, allowVisuals = false }) => {
     const ref = useRef<HTMLTextAreaElement>(null);
     useEffect(() => { if (isEditing && ref.current) { ref.current.style.height = 'auto'; ref.current.style.height = `${ref.current.scrollHeight}px`; } }, [isEditing, value]);
-    return isEditing ? <textarea ref={ref} value={value} onChange={onChange} className="w-full p-3 border border-blue-200 dark:border-blue-800 rounded-lg focus:ring-4 focus:ring-brand-blue/10 bg-blue-50/50 dark:bg-blue-900/20 text-black dark:text-white resize-none transition-all shadow-inner font-serif" /> : <SmartContent content={value} language={language} T={T} onTriggerIllustration={(d) => handleTriggerIllustration(d, -1)} />;
+    
+    if (isEditing) {
+        return (
+            <div className="relative group">
+                <textarea 
+                    ref={ref} 
+                    value={value} 
+                    onChange={(e) => handleTextChange(e.target.value, fieldKey)} 
+                    className="w-full p-3 pr-12 border border-blue-200 dark:border-blue-800 rounded-lg focus:ring-4 focus:ring-brand-blue/10 bg-blue-50/50 dark:bg-blue-900/20 text-black dark:text-white resize-none transition-all shadow-inner font-serif min-h-[100px]" 
+                />
+                <div className="absolute top-2 right-2 flex flex-col gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
+                    <button 
+                        type="button"
+                        onClick={() => handleMicClick(fieldKey)} 
+                        className={`p-2 rounded-full transition shadow-sm ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-white dark:bg-slate-800 text-gray-500 border border-gray-200 dark:border-slate-700 hover:bg-gray-100'}`}
+                        title="Voice input"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm-1 4a4 4 0 108 0V4a4 4 0 10-8 0v4zM2 11a1 1 0 011-1h1a1 1 0 011 1v.5a.5.5 0 001 0V11a3 3 0 013-3h0a3 3 0 013 3v.5a.5.5 0 001 0V11a1 1 0 011 1h1a1 1 0 110 2h-1a1 1 0 01-1-1v-.5a2.5 2.5 0 00-5 0v.5a1 1 0 01-1 1H3a1 1 0 01-1-1v-2z" clipRule="evenodd" />
+                        </svg>
+                    </button>
+                    {isListening && <div className="mx-auto"><AudioVisualizer isListening={isListening} /></div>}
+                </div>
+            </div>
+        );
+    }
+    return <SmartContent content={value} language={language} T={T} onTriggerIllustration={(d) => handleTriggerIllustration(d, -1)} allowVisuals={allowVisuals} />;
   };
+
   return (
     <div className="p-3 sm:p-5 relative bg-white dark:bg-dark-surface transition-colors duration-300">
       <header className="sticky top-0 -mx-3 sm:-mx-5 -mt-3 sm:-mt-5 p-2 sm:p-3 bg-white/95 dark:bg-dark-surface/95 backdrop-blur-md border-b border-gray-100 dark:border-dark-border z-20 shadow-sm mb-4">
@@ -190,9 +260,9 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
         </div>
       </header>
       <div className="space-y-3 max-w-5xl mx-auto">
-        <Section title={T.patientProfile} onCopy={() => {}} onSaveSnippet={() => onSaveSnippet(T.patientProfile, patientCase.patientProfile)} T={T}><EditableText value={patientCase.patientProfile} onChange={(e) => handleTextChange(e, 'patientProfile')} isEditing={isEditing} /></Section>
-        <Section title={T.presentingComplaint} onCopy={() => {}} onSaveSnippet={() => onSaveSnippet(T.presentingComplaint, patientCase.presentingComplaint)} T={T}><EditableText value={patientCase.presentingComplaint} onChange={(e) => handleTextChange(e, 'presentingComplaint')} isEditing={isEditing} /></Section>
-        <Section title={T.history} onCopy={() => {}} onSaveSnippet={() => onSaveSnippet(T.history, patientCase.history)} T={T}><EditableText value={patientCase.history} onChange={(e) => handleTextChange(e, 'history')} isEditing={isEditing} /></Section>
+        <Section title={T.patientProfile} onCopy={() => {}} onSaveSnippet={() => onSaveSnippet(T.patientProfile, patientCase.patientProfile)} T={T}><EditableField value={patientCase.patientProfile} fieldKey="patientProfile" isEditing={isEditing} /></Section>
+        <Section title={T.presentingComplaint} onCopy={() => {}} onSaveSnippet={() => onSaveSnippet(T.presentingComplaint, patientCase.presentingComplaint)} T={T}><EditableField value={patientCase.presentingComplaint} fieldKey="presentingComplaint" isEditing={isEditing} /></Section>
+        <Section title={T.history} onCopy={() => {}} onSaveSnippet={() => onSaveSnippet(T.history, patientCase.history)} T={T}><EditableField value={patientCase.history} fieldKey="history" isEditing={isEditing} /></Section>
         
         { patientCase.biochemicalPathway ? (
             <Section 
@@ -207,7 +277,7 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
                     <button onClick={() => onOpenDiscussion({ aspect: patientCase.biochemicalPathway!.title, consideration: patientCase.biochemicalPathway!.description })} className="text-[8px] bg-brand-blue dark:bg-brand-blue-light text-white font-black py-1 px-2.5 rounded-full shadow-xs transition-transform hover:scale-105 uppercase tracking-widest">{T.discussButton}</button>
                 </div>
                 <p className="text-[8px] text-gray-400 font-mono mb-1 uppercase tracking-tighter">{patientCase.biochemicalPathway.reference}</p>
-                <SmartContent content={patientCase.biochemicalPathway.description} language={language} T={T} onTriggerIllustration={(d) => handleTriggerIllustration(d, -1)} />
+                <SmartContent content={patientCase.biochemicalPathway.description} language={language} T={T} onTriggerIllustration={(d) => handleTriggerIllustration(d, -1)} allowVisuals={true} />
                 {patientCase.biochemicalPathway.diagramData && <div className="mt-2 h-[280px] rounded-xl border border-gray-100 dark:border-dark-border shadow-xs overflow-hidden"><InteractiveDiagram id="diagram-biochem" data={patientCase.biochemicalPathway.diagramData} /></div>}
             </Section>
         ) : isGeneratingDetails ? <Section title={T.biochemicalPathwaySection} onCopy={() => {}} onSaveSnippet={() => {}} T={T}><SkeletonLoader /></Section> : null }

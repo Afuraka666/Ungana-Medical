@@ -35,13 +35,14 @@ const SYNTHESIS_GUIDELINE = `
 1. **Clean Formatting:** Remove unnecessary symbols/artifacts. Do NOT use raw LaTeX delimiters ($) for simple variables.
 2. **Accurate Symbol Rendering:** Use Unicode for physiological variables (e.g., PaO₂, SaO₂, PvO₂, CO₂, H₂O, P_c, P_i, T½). Use subscripts/superscripts directly in the text.
 3. **Formula Handling:** ONLY use LaTeX ($...$) for complex, multi-variable mathematical equations.
-4. **Physiological Relevancy (INTEGRATION):** If a physiological graph is relevant to the condition's pathophysiology, you MUST embed the tag [GRAPH: type] at the END of the 'biochemicalPathway.description' field. 
+4. **Physiological Relevancy (PLACEMENT RESTRICTION):** If a physiological graph is relevant, you MUST embed the tag [GRAPH: type] at the END of the 'biochemicalPathway.description' field. 
+   **STRICT PROHIBITION:** Do NOT include [GRAPH: type] or [ILLUSTRATE: type] tags in 'patientProfile', 'presentingComplaint', or 'history'.
    Available Tags:
-   - \`[GRAPH: oxygen_dissociation]\` (ARDS, Anemia, Sepsis, CO Poisoning)
+   - \`[GRAPH: oxygen_dissociation]\` (ARDS, Anemia, Sepsis)
    - \`[GRAPH: frank_starling]\` (CHF, Fluid resuscitation, Shock)
    - \`[GRAPH: pressure_volume_loop]\` (Valvular disease, Heart Failure)
    - \`[GRAPH: cerebral_pressure_volume]\` (TBI, ICH, ICP issues)
-   - \`[GRAPH: cerebral_autoregulation]\` (Stroke, Carotid disease, Neuro-anaesthesia)
+   - \`[GRAPH: cerebral_autoregulation]\` (Stroke, Neuro-anaesthesia)
 5. **Narrative Integrity:** No citations/PMIDs in 'patientProfile', 'presentingComplaint', or 'history'. Reads like a clinical record.
 6. **Quiz Quality:** Exactly 5 high-yield MCQs.
 7. **Phased Management Structuring:** Categorize 'disciplineSpecificConsiderations' into "Preoperative", "Intraoperative", and "Postoperative" (or equivalent acute/recovery phases).
