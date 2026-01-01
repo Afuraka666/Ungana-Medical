@@ -32,21 +32,21 @@ const FAST_MODEL = "gemini-3-flash-preview";
 
 const SYNTHESIS_GUIDELINE = `
 **STRICT PROFESSIONAL MEDICAL SYNTHESIS RULES:**
-1. **Clean Formatting:** Remove unnecessary symbols/artifacts. Ensure clean, legible, academic narrative.
-2. **Formula Handling:** Use standard scientific notation or LaTeX ($...$) ONLY for complex formulas.
-3. **Narrative Integrity:** No citations/PMIDs in 'patientProfile', 'presentingComplaint', or 'history'. Reads like a clinical record.
-4. **Physiological Relevancy (SENSITIVE):** Embed a graph tag ONLY if it is directly relevant to the condition's pathophysiology.
+1. **Clean Formatting:** Remove unnecessary symbols/artifacts. Do NOT use raw LaTeX delimiters ($) for simple variables.
+2. **Accurate Symbol Rendering:** Use Unicode for physiological variables (e.g., PaO₂, SaO₂, PvO₂, CO₂, H₂O, P_c, P_i, T½). Use subscripts/superscripts directly in the text.
+3. **Formula Handling:** ONLY use LaTeX ($...$) for complex, multi-variable mathematical equations.
+4. **Physiological Relevancy (INTEGRATION):** If a physiological graph is relevant to the condition's pathophysiology, you MUST embed the tag [GRAPH: type] at the END of the 'biochemicalPathway.description' field. 
    Available Tags:
    - \`[GRAPH: oxygen_dissociation]\` (ARDS, Anemia, Sepsis, CO Poisoning)
    - \`[GRAPH: frank_starling]\` (CHF, Fluid resuscitation, Shock)
    - \`[GRAPH: pressure_volume_loop]\` (Valvular disease, Heart Failure)
    - \`[GRAPH: cerebral_pressure_volume]\` (TBI, ICH, ICP issues)
    - \`[GRAPH: cerebral_autoregulation]\` (Stroke, Carotid disease, Neuro-anaesthesia)
-5. **Quiz Quality:** Exactly 5 high-yield MCQs.
-6. **Reference Rigor:** Verify PMIDs and DOIs using tools.
-7. **Phased Management Structuring:** Categorize 'disciplineSpecificConsiderations' into "Preoperative", "Intraoperative", and "Postoperative" (or "Acute/Initial", "Stabilization/Ongoing", and "Recovery/Long-term" for non-surgical disciplines).
-8. **Discipline Authenticity (CRITICAL):** Do NOT provide generalized medical advice. Adopt the technical language and priorities of the specific discipline.
-9. **Multidisciplinary Spectrum (NEW):** For 'multidisciplinaryConnections', provide 4-6 distinct items. You MUST cover both the Acute Phase (e.g., Emergency, ICU, Radiology) AND the Rehabilitation Phase (e.g., Physiotherapy, Speech Therapy, Social Work, Primary Care).
+5. **Narrative Integrity:** No citations/PMIDs in 'patientProfile', 'presentingComplaint', or 'history'. Reads like a clinical record.
+6. **Quiz Quality:** Exactly 5 high-yield MCQs.
+7. **Phased Management Structuring:** Categorize 'disciplineSpecificConsiderations' into "Preoperative", "Intraoperative", and "Postoperative" (or equivalent acute/recovery phases).
+8. **Discipline Authenticity (CRITICAL):** Use technical language specific to the discipline (e.g., NANDA-I for Nursing, Pharmacokinetics for Pharmacology). Do NOT provide generalized medical advice.
+9. **Multidisciplinary Spectrum:** Provide 4-6 distinct items covering both Acute Management AND Rehabilitation/Community Re-integration phases.
 `;
 
 const diagramNodeSchema = {
@@ -236,9 +236,10 @@ export const generateExtendedDetails = async (coreCase: PatientCase, discipline:
     STRUCTURE: Use three items with 'aspect' labels matching the relevant clinical phases (e.g., "Preoperative/Initial", "Intraoperative/Ongoing", "Postoperative/Recovery").
     
     **MULTIDISCIPLINARY CONNECTION SPECTRUM:** 
-    Synthesize 4-6 distinct multidisciplinary connections. Ensure a logical progression from Acute Management (Initial diagnosis/ICU/Specialist Intervention) to Rehabilitation and Community Re-integration (Allied Health/Support Services).
+    Synthesize 4-6 distinct multidisciplinary connections. Ensure a logical progression from Acute Management to Rehabilitation and Community Re-integration.
     
-    **GRAPH SELECTION:** Discern if a physiological graph is relevant to "${coreCase.title}". If so, embed the correct [GRAPH: type] tag.
+    **PHYSIOLOGICAL MODEL VISUALIZATION (CORE REQUIREMENT):** 
+    If a physiological graph (oxygen_dissociation, frank_starling, pressure_volume_loop, cerebral_pressure_volume, cerebral_autoregulation) is relevant to the pathophysiology of "${coreCase.title}", you MUST embed the correct [GRAPH: type] tag strictly within the 'biochemicalPathway.description' field.
     
     Language: ${language}. ${SYNTHESIS_GUIDELINE}`;
     const response: GenerateContentResponse = await retryWithBackoff(() => ai.models.generateContent({

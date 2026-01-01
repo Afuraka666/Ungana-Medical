@@ -25,45 +25,46 @@ export const ScientificGraph: React.FC<ScientificGraphProps> = ({ type, title, c
         const rect = containerRef.current.getBoundingClientRect();
         if (rect.width === 0) return;
 
-        const margin = { top: 50, right: 60, bottom: 60, left: 70 };
+        const margin = { top: 60, right: 60, bottom: 60, left: 75 };
         const width = rect.width - margin.left - margin.right;
-        const height = 350 - margin.top - margin.bottom;
+        const height = 400 - margin.top - margin.bottom;
 
         if (width <= 0 || height <= 0) return;
 
         const isDark = document.documentElement.classList.contains('dark');
-        const textColor = isDark ? '#e2e8f0' : '#1e293b';
-        const gridColor = isDark ? '#334155' : '#e2e8f0';
+        const textColor = isDark ? '#f1f5f9' : '#0f172a';
+        const gridColor = isDark ? '#334155' : '#cbd5e1';
 
         const svg = container.append('svg')
             .attr('width', width + margin.left + margin.right)
             .attr('height', height + margin.top + margin.bottom)
-            .attr('class', 'overflow-visible')
+            .attr('class', 'overflow-visible font-sans')
             .append('g')
             .attr('transform', `translate(${margin.left},${margin.top})`);
 
         const x = d3.scaleLinear().range([0, width]);
         const y = d3.scaleLinear().range([height, 0]);
 
-        // Helper for Tooltips and Markers
+        // Tooltip Marker Helper
         const addMarker = (xVal: number, yVal: number, color: string, infoTitle: string, infoDesc: string) => {
             const marker = svg.append('g')
-                .attr('class', 'info-marker cursor-help')
+                .attr('class', 'info-marker cursor-help transition-all')
                 .attr('transform', `translate(${x(xVal)}, ${y(yVal)})`);
 
             marker.append('circle')
-                .attr('r', 8)
+                .attr('r', 9)
                 .attr('fill', color)
                 .attr('stroke', '#fff')
-                .attr('stroke-width', 2);
+                .attr('stroke-width', 2.5)
+                .attr('filter', 'drop-shadow(0px 2px 4px rgba(0,0,0,0.2))');
 
             marker.append('text')
                 .attr('text-anchor', 'middle')
                 .attr('dy', '0.35em')
                 .attr('fill', '#fff')
-                .attr('font-size', '10px')
-                .attr('font-weight', 'bold')
-                .text('?');
+                .attr('font-size', '11px')
+                .attr('font-weight', '900')
+                .text('i');
 
             const tooltip = marker.append('g')
                 .attr('class', 'marker-tooltip')
@@ -71,137 +72,152 @@ export const ScientificGraph: React.FC<ScientificGraphProps> = ({ type, title, c
                 .style('pointer-events', 'none');
 
             tooltip.append('rect')
-                .attr('x', 12)
-                .attr('y', -40)
-                .attr('width', 180)
-                .attr('height', 80)
-                .attr('rx', 8)
+                .attr('x', 15)
+                .attr('y', -45)
+                .attr('width', 200)
+                .attr('height', 90)
+                .attr('rx', 10)
                 .attr('fill', isDark ? '#1e293b' : '#ffffff')
                 .attr('stroke', color)
                 .attr('stroke-width', 2)
-                .style('filter', 'drop-shadow(0 10px 15px rgba(0,0,0,0.1))');
+                .style('filter', 'drop-shadow(0 10px 20px rgba(0,0,0,0.15))');
 
             const text = tooltip.append('text')
-                .attr('x', 22)
-                .attr('y', -20)
-                .attr('font-size', '11px')
+                .attr('x', 25)
+                .attr('y', -25)
+                .attr('font-size', '12px')
                 .attr('fill', textColor);
 
             text.append('tspan')
-                .attr('font-weight', 'bold')
+                .attr('font-weight', 'black')
                 .attr('fill', color)
+                .attr('text-transform', 'uppercase')
+                .attr('letter-spacing', '0.05em')
                 .text(infoTitle);
 
             infoDesc.split('\n').forEach((line, i) => {
                 text.append('tspan')
-                    .attr('x', 22)
-                    .attr('dy', i === 0 ? '1.4em' : '1.2em')
+                    .attr('x', 25)
+                    .attr('dy', i === 0 ? '1.5em' : '1.3em')
+                    .attr('font-weight', 'medium')
                     .text(line);
             });
 
-            marker.on('mouseenter', () => tooltip.transition().duration(200).style('opacity', 1))
-                  .on('mouseleave', () => tooltip.transition().duration(200).style('opacity', 0));
+            marker.on('mouseenter', function() {
+                d3.select(this).select('circle').transition().duration(200).attr('r', 11);
+                tooltip.transition().duration(300).style('opacity', 1).attr('transform', 'translate(5, 0)');
+            }).on('mouseleave', function() {
+                d3.select(this).select('circle').transition().duration(200).attr('r', 9);
+                tooltip.transition().duration(300).style('opacity', 0).attr('transform', 'translate(0, 0)');
+            });
         };
 
         let activeData: any[] = [];
         let bisect = d3.bisector((d: any) => d.x).left;
         let xLabel = "";
         let yLabel = "";
-        let xFormat = (v: number) => v.toFixed(1);
-        let yFormat = (v: number) => v.toFixed(1);
 
         if (type === 'oxygen_dissociation') {
             const n = 2.8;
-            const p50Normal = 26.6;
             const calcSaO2 = (p: number, p50: number) => (Math.pow(p, n) / (Math.pow(p, n) + Math.pow(p50, n))) * 100;
-            const generateData = (p50Val: number) => {
+            const gen = (p50Val: number) => {
                 const arr = [];
                 for (let p = 0; p <= 110; p += 0.5) arr.push({ x: p, y: calcSaO2(p, p50Val) });
                 return arr;
             };
             x.domain([0, 110]); y.domain([0, 105]);
-            activeData = generateData(p50Normal);
-            xLabel = "PO₂ (mmHg)"; yLabel = "SaO₂ (%)";
+            activeData = gen(26.6);
+            xLabel = "Partial Pressure of Oxygen (PaO₂ / mmHg)"; yLabel = "Hemoglobin Saturation (SaO₂ / %)";
             const line = d3.line().x((d: any) => x(d.x)).y((d: any) => y(d.y)).curve(d3.curveBasis);
-            svg.append('path').datum(generateData(18.6)).attr('fill', 'none').attr('stroke', '#38bdf8').attr('stroke-width', 2).attr('stroke-dasharray', '5,3').attr('d', line).attr('opacity', 0.5);
-            svg.append('path').datum(generateData(34.6)).attr('fill', 'none').attr('stroke', '#f87171').attr('stroke-width', 2).attr('stroke-dasharray', '5,3').attr('d', line).attr('opacity', 0.5);
-            svg.append('path').datum(activeData).attr('fill', 'none').attr('stroke', isDark ? '#60a5fa' : '#1e3a8a').attr('stroke-width', 4).attr('d', line);
-            addMarker(15, 80, '#0ea5e9', 'Left Shift', 'Causes: ↑pH, ↓Temp, ↓2,3-DPG.\nHb holds O₂ tighter.\nHinders tissue unloading.');
-            addMarker(70, 65, '#ef4444', 'Right Shift', 'Causes: ↓pH, ↑Temp, ↑2,3-DPG.\nHb releases O₂ easier.');
+            // Left shift
+            svg.append('path').datum(gen(18.6)).attr('fill', 'none').attr('stroke', '#0ea5e9').attr('stroke-width', 2).attr('stroke-dasharray', '6,4').attr('d', line).attr('opacity', 0.4);
+            // Right shift
+            svg.append('path').datum(gen(34.6)).attr('fill', 'none').attr('stroke', '#f43f5e').attr('stroke-width', 2).attr('stroke-dasharray', '6,4').attr('d', line).attr('opacity', 0.4);
+            // Normal
+            svg.append('path').datum(activeData).attr('fill', 'none').attr('stroke', isDark ? '#3b82f6' : '#1e3a8a').attr('stroke-width', 4).attr('d', line);
+            addMarker(15, 85, '#0ea5e9', 'Left Shift (Alkalosis)', 'Higher affinity for O₂.\nOccurs in hypothermia, alkalosis,\nand low 2,3-BPG.');
+            addMarker(75, 65, '#f43f5e', 'Right Shift (Acidosis)', 'Lower affinity; easier unloading.\nOccurs in fever, acidosis,\nand high 2,3-BPG.');
         } else if (type === 'frank_starling') {
             x.domain([0, 200]); y.domain([0, 150]);
-            xLabel = "LVEDV (mL)"; yLabel = "Stroke Volume (mL)";
-            const generateCurve = (k: number) => {
+            xLabel = "Left Ventricular End-Diastolic Volume (mL)"; yLabel = "Stroke Volume (mL)";
+            const gen = (k: number) => {
                 const arr = [];
                 for (let v = 0; v <= 200; v += 2) arr.push({ x: v, y: k * (1 - Math.exp(-0.02 * v)) * 100 });
                 return arr;
             };
-            activeData = generateCurve(1.2);
+            activeData = gen(1.2);
             const line = d3.line().x((d: any) => x(d.x)).y((d: any) => y(d.y)).curve(d3.curveBasis);
-            svg.append('path').datum(generateCurve(1.6)).attr('fill', 'none').attr('stroke', '#10b981').attr('stroke-width', 2).attr('stroke-dasharray', '5,3').attr('d', line).attr('opacity', 0.5);
-            svg.append('path').datum(generateCurve(0.7)).attr('fill', 'none').attr('stroke', '#f43f5e').attr('stroke-width', 2).attr('stroke-dasharray', '5,3').attr('d', line).attr('opacity', 0.5);
+            svg.append('path').datum(gen(1.7)).attr('fill', 'none').attr('stroke', '#10b981').attr('stroke-width', 2).attr('stroke-dasharray', '4,2').attr('d', line).attr('opacity', 0.4);
+            svg.append('path').datum(gen(0.6)).attr('fill', 'none').attr('stroke', '#f43f5e').attr('stroke-width', 2).attr('stroke-dasharray', '4,2').attr('d', line).attr('opacity', 0.4);
             svg.append('path').datum(activeData).attr('fill', 'none').attr('stroke', '#3b82f6').attr('stroke-width', 4).attr('d', line);
-            addMarker(40, 110, '#10b981', 'Hyperdynamic', 'Sepsis (Early), Inotropes.\nIncreased SV for any preload.');
-            addMarker(150, 60, '#f43f5e', 'Heart Failure', 'Preload rises (Congestion)\nbut SV remains low.');
+            addMarker(40, 115, '#10b981', 'Hyperdynamic State', 'Enhanced contractility.\nSeen in sepsis (early phase)\nor inotropic support.');
+            addMarker(155, 60, '#f43f5e', 'Hypodynamic (HF)', 'Reduced contractility.\nPreload increases (congestion)\nwithout proportional SV increase.');
         } else if (type === 'pressure_volume_loop') {
-            x.domain([40, 160]); y.domain([0, 140]);
+            x.domain([40, 165]); y.domain([0, 145]);
             xLabel = "LV Volume (mL)"; yLabel = "LV Pressure (mmHg)";
             activeData = [
-                {x: 50, y: 10}, {x: 140, y: 12}, // Filling
-                {x: 140, y: 80}, // Isocontraction
-                {x: 100, y: 120}, {x: 50, y: 80}, // Ejection
-                {x: 50, y: 10} // Isorelaxation
+                {x: 50, y: 10}, {x: 150, y: 12}, // Filling
+                {x: 150, y: 80}, // Isovolumetric contraction
+                {x: 110, y: 125}, {x: 50, y: 85}, // Ejection
+                {x: 50, y: 10} // Isovolumetric relaxation
             ];
-            const line = d3.line().x((d: any) => x(d.x)).y((d: any) => y(d.y)).curve(d3.curveLinearClosed);
-            svg.append('path').datum(activeData).attr('fill', '#3b82f620').attr('stroke', '#3b82f6').attr('stroke-width', 4).attr('d', line);
-            addMarker(140, 45, '#94a3b8', 'End-Diastolic Point', 'Mitral closure.\nReflects Preload.');
-            addMarker(50, 45, '#94a3b8', 'End-Systolic Point', 'Aortic closure.\nReflects Afterload/Contractility.');
+            const line = d3.line().x((d: any) => x(d.x)).y((d: any) => y(d.y)).curve(d3.curveCatmullRomClosed.alpha(0.5));
+            svg.append('path').datum(activeData).attr('fill', 'url(#loop-gradient)').attr('stroke', '#3b82f6').attr('stroke-width', 4).attr('d', line);
+            
+            const defs = svg.append('defs');
+            const gradient = defs.append('linearGradient').attr('id', 'loop-gradient').attr('x1', '0%').attr('y1', '0%').attr('x2', '0%').attr('y2', '100%');
+            gradient.append('stop').attr('offset', '0%').attr('stop-color', '#3b82f6').attr('stop-opacity', 0.2);
+            gradient.append('stop').attr('offset', '100%').attr('stop-color', '#3b82f6').attr('stop-opacity', 0.05);
+
+            addMarker(150, 46, '#94a3b8', 'Mitral Closure (EDV)', 'End of diastolic filling.\nCorrelates with Preload.');
+            addMarker(50, 47, '#94a3b8', 'Aortic Closure (ESV)', 'End of systolic ejection.\nReflects Afterload.');
         } else if (type === 'cerebral_pressure_volume') {
-            x.domain([0, 100]); y.domain([0, 80]);
-            for (let v = 0; v <= 100; v += 1) activeData.push({ x: v, y: 5 * Math.exp(0.028 * v) });
-            xLabel = "Volume"; yLabel = "ICP (mmHg)";
+            x.domain([0, 100]); y.domain([0, 100]);
+            for (let v = 0; v <= 100; v += 1) activeData.push({ x: v, y: 4 * Math.exp(0.032 * v) });
+            xLabel = "Intracranial Volume Addition"; yLabel = "ICP (mmHg)";
             const line = d3.line().x((d: any) => x(d.x)).y((d: any) => y(d.y)).curve(d3.curveBasis);
             svg.append('path').datum(activeData).attr('fill', 'none').attr('stroke', '#ef4444').attr('stroke-width', 4).attr('d', line);
-            addMarker(30, 15, '#94a3b8', 'Compensation', 'CSF displacement.');
-            addMarker(85, 55, '#dc2626', 'Decompensation', 'Risk of herniation.');
+            addMarker(25, 12, '#94a3b8', 'Spatial Compensation', 'Monro-Kellie Doctrine:\nCSF and venous blood displacement\nkeeps ICP normal initially.');
+            addMarker(80, 58, '#dc2626', 'Decompensation', 'Exhausted buffering capacity.\nMinimal volume increase causes\ncatastrophic ICP spikes.');
         } else if (type === 'cerebral_autoregulation') {
             x.domain([0, 200]); y.domain([0, 100]);
             for (let map = 0; map <= 200; map += 2) {
                 let cbf = 50;
                 if (map < 50) cbf = map; 
-                else if (map > 150) cbf = 50 + (map - 150) * 0.8;
+                else if (map > 150) cbf = 50 + (map - 150) * 0.9;
                 activeData.push({ x: map, y: cbf });
             }
-            xLabel = "MAP (mmHg)"; yLabel = "CBF";
+            xLabel = "Mean Arterial Pressure (MAP / mmHg)"; yLabel = "Cerebral Blood Flow (CBF)";
             const line = d3.line().x((d: any) => x(d.x)).y((d: any) => y(d.y)).curve(d3.curveBasis);
             svg.append('path').datum(activeData).attr('fill', 'none').attr('stroke', '#10b981').attr('stroke-width', 4).attr('d', line);
+            addMarker(100, 50, '#10b981', 'Autoregulatory Plateau', 'Stable CBF despite MAP changes.\nMaintained via vasoconstriction/\ndilation within 50-150 mmHg.');
         }
 
-        // Axes & Grid
-        svg.append('g').attr('class', 'grid').attr('transform', `translate(0,${height})`).call(d3.axisBottom(x).ticks(5).tickSize(-height).tickFormat('')).attr('stroke', gridColor).attr('stroke-opacity', 0.1);
-        svg.append('g').attr('class', 'grid').call(d3.axisLeft(y).ticks(5).tickSize(-width).tickFormat('')).attr('stroke', gridColor).attr('stroke-opacity', 0.1);
+        // --- AXES & GRID ---
+        svg.append('g').attr('class', 'grid').attr('transform', `translate(0,${height})`).call(d3.axisBottom(x).ticks(8).tickSize(-height).tickFormat('')).attr('stroke', gridColor).attr('stroke-opacity', 0.1);
+        svg.append('g').attr('class', 'grid').call(d3.axisLeft(y).ticks(8).tickSize(-width).tickFormat('')).attr('stroke', gridColor).attr('stroke-opacity', 0.1);
         
-        const xAxis = svg.append('g').attr('transform', `translate(0,${height})`).call(d3.axisBottom(x));
-        xAxis.selectAll('text').attr('fill', textColor);
+        const xAxis = svg.append('g').attr('transform', `translate(0,${height})`).call(d3.axisBottom(x).ticks(8));
+        xAxis.selectAll('text').attr('fill', textColor).attr('font-size', '11px').attr('font-weight', '500');
         
-        const yAxis = svg.append('g').call(d3.axisLeft(y));
-        yAxis.selectAll('text').attr('fill', textColor);
+        const yAxis = svg.append('g').call(d3.axisLeft(y).ticks(8));
+        yAxis.selectAll('text').attr('fill', textColor).attr('font-size', '11px').attr('font-weight', '500');
 
-        svg.append('text').attr('x', width/2).attr('y', height + 45).attr('text-anchor', 'middle').attr('fill', textColor).attr('font-weight', '700').attr('font-size', '12px').text(xLabel);
-        svg.append('text').attr('transform', 'rotate(-90)').attr('y', -50).attr('x', -height/2).attr('text-anchor', 'middle').attr('fill', textColor).attr('font-weight', '700').attr('font-size', '12px').text(yLabel);
-        svg.append('text').attr('x', width / 2).attr('y', -25).attr('text-anchor', 'middle').attr('font-weight', '900').attr('fill', textColor).attr('font-size', '16px').text(title);
+        svg.append('text').attr('x', width/2).attr('y', height + 45).attr('text-anchor', 'middle').attr('fill', textColor).attr('font-weight', '800').attr('font-size', '13px').attr('text-transform', 'uppercase').attr('letter-spacing', '0.025em').text(xLabel);
+        svg.append('text').attr('transform', 'rotate(-90)').attr('y', -60).attr('x', -height/2).attr('text-anchor', 'middle').attr('fill', textColor).attr('font-weight', '800').attr('font-size', '13px').attr('text-transform', 'uppercase').attr('letter-spacing', '0.025em').text(yLabel);
+        svg.append('text').attr('x', width / 2).attr('y', -30).attr('text-anchor', 'middle').attr('font-weight', '900').attr('fill', textColor).attr('font-size', '18px').attr('letter-spacing', '-0.02em').text(title);
 
-        // Hover Interactivity
+        // --- INTERACTIVE CROSSHAIR ---
         const focus = svg.append('g').style('display', 'none');
-        focus.append('line').attr('class', 'x-hover-line').attr('y1', 0).attr('y2', height).attr('stroke', textColor).attr('stroke-width', 1).attr('stroke-dasharray', '3,3');
-        focus.append('line').attr('class', 'y-hover-line').attr('x1', 0).attr('x2', width).attr('stroke', textColor).attr('stroke-width', 1).attr('stroke-dasharray', '3,3');
-        focus.append('circle').attr('r', 6).attr('fill', '#1e3a8a').attr('stroke', '#fff').attr('stroke-width', 2);
+        focus.append('line').attr('class', 'x-hover-line').attr('y1', 0).attr('y2', height).attr('stroke', textColor).attr('stroke-width', 1).attr('stroke-dasharray', '4,4');
+        focus.append('line').attr('class', 'y-hover-line').attr('x1', 0).attr('x2', width).attr('stroke', textColor).attr('stroke-width', 1).attr('stroke-dasharray', '4,4');
+        focus.append('circle').attr('r', 7).attr('fill', '#1e3a8a').attr('stroke', '#fff').attr('stroke-width', 2);
         
         const tooltipGroup = focus.append('g').attr('class', 'value-tooltip');
-        tooltipGroup.append('rect').attr('width', 100).attr('height', 45).attr('rx', 6).attr('fill', isDark ? '#1e293b' : '#ffffff').attr('stroke', isDark ? '#334155' : '#e2e8f0').attr('stroke-width', 1);
-        const tooltipText = tooltipGroup.append('text').attr('x', 10).attr('y', 18).attr('font-size', '10px').attr('font-weight', 'bold').attr('fill', textColor);
-        const tSpanX = tooltipText.append('tspan').attr('x', 10).attr('dy', '0em');
-        const tSpanY = tooltipText.append('tspan').attr('x', 10).attr('dy', '1.4em');
+        tooltipGroup.append('rect').attr('width', 110).attr('height', 50).attr('rx', 8).attr('fill', isDark ? '#0f172a' : '#ffffff').attr('stroke', isDark ? '#334155' : '#e2e8f0').attr('stroke-width', 1.5).style('filter', 'drop-shadow(0 4px 6px rgba(0,0,0,0.1))');
+        const tooltipText = tooltipGroup.append('text').attr('x', 12).attr('y', 20).attr('font-size', '11px').attr('font-weight', 'bold').attr('fill', textColor);
+        const tSpanX = tooltipText.append('tspan').attr('x', 12).attr('dy', '0em');
+        const tSpanY = tooltipText.append('tspan').attr('x', 12).attr('dy', '1.5em');
 
         svg.append('rect')
             .attr('width', width)
@@ -223,13 +239,13 @@ export const ScientificGraph: React.FC<ScientificGraphProps> = ({ type, title, c
                 focus.select('.x-hover-line').attr('transform', `translate(${x(d.x)},0)`);
                 focus.select('.y-hover-line').attr('transform', `translate(0,${y(d.y)})`);
                 
-                tSpanX.text(`${xLabel.split(' ')[0]}: ${xFormat(d.x)}`);
-                tSpanY.text(`${yLabel.split(' ')[0]}: ${yFormat(d.y)}`);
+                tSpanX.text(`X: ${d.x.toFixed(1)}`);
+                tSpanY.text(`Y: ${d.y.toFixed(1)}`);
 
-                let tx = x(d.x) + 12;
-                let ty = y(d.y) - 55;
-                if (tx + 100 > width) tx = x(d.x) - 112;
-                if (ty < -40) ty = y(d.y) + 12;
+                let tx = x(d.x) + 15;
+                let ty = y(d.y) - 60;
+                if (tx + 110 > width) tx = x(d.x) - 125;
+                if (ty < -40) ty = y(d.y) + 15;
                 tooltipGroup.attr('transform', `translate(${tx}, ${ty})`);
             });
 
@@ -247,12 +263,12 @@ export const ScientificGraph: React.FC<ScientificGraphProps> = ({ type, title, c
     if (!isSupportedType) return null;
 
     return (
-        <div className={`bg-white dark:bg-slate-900 p-4 sm:p-6 border-2 border-gray-100 dark:border-dark-border rounded-2xl shadow-inner overflow-hidden transition-all group ${className || ''}`}>
-            <div ref={containerRef} className="w-full min-h-[250px] sm:min-h-[300px] select-none"></div>
-            <div className="flex flex-col items-center mt-4 pt-4 border-t border-gray-50 dark:border-dark-border">
-                <div className="flex items-center gap-2 text-[10px] text-gray-400 font-bold uppercase tracking-widest text-center">
-                    <svg className="w-4 h-4 animate-pulse flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path></svg>
-                    <span>Interactive: Hover over curve for values & markers for clinical detail</span>
+        <div className={`bg-white dark:bg-slate-900 p-6 sm:p-8 border-2 border-gray-100 dark:border-dark-border rounded-3xl shadow-xl overflow-hidden transition-all group ${className || ''}`}>
+            <div ref={containerRef} className="w-full min-h-[300px] sm:min-h-[400px] select-none"></div>
+            <div className="flex flex-col items-center mt-6 pt-6 border-t border-gray-50 dark:border-dark-border">
+                <div className="flex items-center gap-2.5 text-[11px] text-gray-500 font-black uppercase tracking-widest text-center">
+                    <svg className="w-4 h-4 animate-bounce flex-shrink-0 text-brand-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path></svg>
+                    <span>High-Fidelity Interaction: Hover for Values & Insight</span>
                 </div>
             </div>
         </div>

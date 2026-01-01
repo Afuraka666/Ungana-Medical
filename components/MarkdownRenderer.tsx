@@ -12,16 +12,38 @@ interface MarkdownRendererProps {
 
 /**
  * Sanitizes AI output to remove artifacts and stray characters.
+ * Specifically handles the removal of stray '$' symbols and ensures 
+ * physiological variables are represented correctly.
  */
 const sanitizeContent = (text: string): string => {
     if (!text) return '';
     return text
-        // Remove stray $ that are not part of math blocks
+        // 1. Convert simple LaTeX variables to Unicode if they look like artifacts
+        // e.g. $P_c$ -> P_c, $O_2$ -> O₂
+        .replace(/\$([A-Za-z]+)_([0-9a-zA-Z]+)\$/g, '$1_$2')
+        .replace(/\$([A-Za-z]+)\^([0-9a-zA-Z\+\-]+)\$/g, '$1^$2')
+        
+        // 2. Remove stray $ that are not part of a balanced math block
         .replace(/(^|\s)\$(?!\s*\S+\s*\$)/g, '$1')
         .replace(/(\S)\$(\s|$)/g, '$1$2')
-        // Remove common AI formatting artifacts
+        
+        // 3. Clean up common physiological variables that might not be in LaTeX
+        .replace(/\bPaO2\b/g, 'PaO₂')
+        .replace(/\bSaO2\b/g, 'SaO₂')
+        .replace(/\bPvO2\b/g, 'PvO₂')
+        .replace(/\bCO2\b/g, 'CO₂')
+        .replace(/\bO2\b/g, 'O₂')
+        .replace(/\bH2O\b/g, 'H₂O')
+        .replace(/\bPc\b/g, 'P_c')
+        .replace(/\bPi\b/g, 'P_i')
+        .replace(/\bMAP\b/g, 'MAP')
+        .replace(/\bICP\b/g, 'ICP')
+        .replace(/\bCBF\b/g, 'CBF')
+        
+        // 4. Remove common AI formatting artifacts
         .replace(/\*\*\:\s/g, '**: ')
-        // Ensure clean list bullets
+        
+        // 5. Ensure clean list bullets
         .replace(/^\s*[\-\*]\s+/gm, '• ')
         .trim();
 };
