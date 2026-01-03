@@ -148,6 +148,9 @@ export interface Snippet {
   title: string;
   content: string;
   savedAt: string;
+  diagramData?: DiagramData;
+  mapData?: KnowledgeMapData;
+  imageData?: string;
 }
 
 export interface InteractionState {

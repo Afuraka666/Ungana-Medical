@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useReducer, useRef } from 'react';
 import { EducationalContentType, Discipline } from '../types';
-import type { PatientCase, EducationalContent, QuizQuestion, DisciplineSpecificConsideration, MultidisciplinaryConnection, TraceableEvidence, FurtherReading, ProcedureDetails, PatientOutcome, KnowledgeMapData } from '../types';
+import type { PatientCase, EducationalContent, QuizQuestion, DisciplineSpecificConsideration, MultidisciplinaryConnection, TraceableEvidence, FurtherReading, ProcedureDetails, PatientOutcome, KnowledgeMapData, Snippet } from '../types';
 import { DisciplineColors } from './KnowledgeMap';
 import { QuizView } from './QuizView';
 import { ImageGenerator } from './ImageGenerator';
@@ -33,7 +33,7 @@ interface PatientCaseViewProps {
   onSave: (updatedCase: PatientCase) => void;
   language: string;
   T: Record<string, any>;
-  onSaveSnippet: (title: string, content: string) => void;
+  onSaveSnippet: (title: string, content: string, visualData?: Partial<Snippet>) => void;
   onOpenShare: () => void;
   onOpenDiscussion: (topic: DisciplineSpecificConsideration) => void;
   onGetMapImage?: () => Promise<string | undefined>;
@@ -268,7 +268,7 @@ export const PatientCaseView: React.FC<PatientCaseViewProps> = ({ patientCase: i
             <Section 
               title={T.biochemicalPathwaySection} 
               onCopy={() => {}} 
-              onSaveSnippet={() => onSaveSnippet(patientCase.biochemicalPathway!.title, patientCase.biochemicalPathway!.description)} 
+              onSaveSnippet={() => onSaveSnippet(patientCase.biochemicalPathway!.title, patientCase.biochemicalPathway!.description, { diagramData: patientCase.biochemicalPathway!.diagramData })} 
               T={T}
               groundingSources={patientCase.groundingSources}
             >

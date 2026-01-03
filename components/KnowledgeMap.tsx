@@ -112,15 +112,16 @@ interface MapControlsProps {
     onZoomOut: () => void;
     onReset: () => void;
     onToggleFullscreen: () => void;
+    onSaveMap?: () => void;
     isFullscreen: boolean;
 }
 
-const MapControls: React.FC<MapControlsProps> = ({ onZoomIn, onZoomOut, onReset, onToggleFullscreen, isFullscreen }) => {
+const MapControls: React.FC<MapControlsProps> = ({ onZoomIn, onZoomOut, onReset, onToggleFullscreen, onSaveMap, isFullscreen }) => {
     const buttonClasses = "bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm hover:bg-white dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200 shadow-xl border border-gray-200 dark:border-dark-border rounded-lg w-10 h-10 flex items-center justify-center transition-all hover:scale-110 active:scale-90";
     return (
         <div className="absolute top-3 left-3 flex flex-col gap-2 z-10">
             <button onClick={onZoomIn} title="Zoom In" className={buttonClasses}>
-                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
+                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011-1h4a1 1 0 010 2H6.414l2.293 2.293a1 1 0 11-1.414 1.414L5 5.414V8a1 1 0 01-2 0V4zm9 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 11-2 0V5.414l-2.293 2.293a1 1 0 11-1.414-1.414L14.586 5H13a1 1 0 01-1-1zm1 12a1 1 0 010-2h1.586l-2.293-2.293a1 1 0 111.414-1.414L15 14.586V12a1 1 0 112 0v4a1 1 0 01-1 1h-4zm-7 0a1 1 0 01-1 1H4a1 1 0 01-1-1v-4a1 1 0 112 v2.586l2.293-2.293a1 1 0 111.414 1.414L5.414 15H8a1 1 0 011 1z" clipRule="evenodd" /></svg>
             </button>
             <button onClick={onZoomOut} title="Zoom Out" className={buttonClasses}>
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" /></svg>
@@ -131,6 +132,11 @@ const MapControls: React.FC<MapControlsProps> = ({ onZoomIn, onZoomOut, onReset,
              <button onClick={onToggleFullscreen} title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"} className={buttonClasses}>
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 4a1 1 0 011-1h4a1 1 0 010 2H6.414l2.293 2.293a1 1 0 11-1.414 1.414L5 5.414V8a1 1 0 01-2 0V4zm9 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 11-2 0V5.414l-2.293 2.293a1 1 0 11-1.414-1.414L14.586 5H13a1 1 0 01-1-1zm1 12a1 1 0 010-2h1.586l-2.293-2.293a1 1 0 111.414-1.414L15 14.586V12a1 1 0 112 0v4a1 1 0 01-1 1h-4zm-7 0a1 1 0 01-1 1H4a1 1 0 01-1-1v-4a1 1 0 112 v2.586l2.293-2.293a1 1 0 111.414 1.414L5.414 15H8a1 1 0 011 1z" clipRule="evenodd" /></svg>
             </button>
+            {onSaveMap && (
+                <button onClick={onSaveMap} title="Save Map to Collection" className={`${buttonClasses} text-brand-blue`}>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v12a1 1 0 01-1.447.894L10 14.586l-3.553 2.308A1 1 0 015 16V4z" /></svg>
+                </button>
+            )}
         </div>
     );
 };
@@ -162,9 +168,10 @@ interface KnowledgeMapProps {
     language: string;
     T: Record<string, any>;
     onDiscussNode: (nodeInfo: { node: KnowledgeNode; abstract: string; loading: boolean }) => void;
+    onSaveMap?: () => void;
 }
 
-export const KnowledgeMap = forwardRef<any, KnowledgeMapProps>(({ data, onNodeClick, selectedNodeInfo, onClearSelection, isMapFullscreen, setIsMapFullscreen, caseTitle, language, T, onDiscussNode }, ref) => {
+export const KnowledgeMap = forwardRef<any, KnowledgeMapProps>(({ data, onNodeClick, selectedNodeInfo, onClearSelection, isMapFullscreen, setIsMapFullscreen, caseTitle, language, T, onDiscussNode, onSaveMap }, ref) => {
     const svgRef = useRef<SVGSVGElement | null>(null);
     const containerRef = useRef<HTMLDivElement | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -327,7 +334,7 @@ export const KnowledgeMap = forwardRef<any, KnowledgeMapProps>(({ data, onNodeCl
         <div ref={containerRef} className={`w-full h-full bg-slate-50 dark:bg-slate-900 shadow-inner border border-gray-200 dark:border-dark-border overflow-hidden transition-colors duration-300 ${isMapFullscreen ? 'fixed inset-0 z-40' : 'relative rounded-xl'}`}>
             {isLoading && <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-50/50 dark:bg-dark-bg/50 backdrop-blur-sm"><LoadingSpinner /></div>}
             <svg ref={svgRef} className="w-full h-full touch-none" onClick={onClearSelection}></svg>
-            <MapControls onZoomIn={() => zoomRef.current && d3.select(svgRef.current).transition().call(zoomRef.current.scaleBy, 1.3)} onZoomOut={() => zoomRef.current && d3.select(svgRef.current).transition().call(zoomRef.current.scaleBy, 0.7)} onReset={resetZoom} onToggleFullscreen={() => setIsMapFullscreen(!isMapFullscreen)} isFullscreen={isMapFullscreen} />
+            <MapControls onZoomIn={() => zoomRef.current && d3.select(svgRef.current).transition().call(zoomRef.current.scaleBy, 1.3)} onZoomOut={() => zoomRef.current && d3.select(svgRef.current).transition().call(zoomRef.current.scaleBy, 0.7)} onReset={resetZoom} onToggleFullscreen={() => setIsMapFullscreen(!isMapFullscreen)} onSaveMap={onSaveMap} isFullscreen={isMapFullscreen} />
             <NodeTooltip node={hoveredNode?.node || null} position={hoveredNode?.position || null} />
             
             {hoveredLink && (

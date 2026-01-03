@@ -10,9 +10,9 @@ interface ClinicalToolsModalProps {
     language: string;
 }
 
-type ActiveTab = 'drug' | 'fluid' | 'scoring' | 'electrolytes' | 'ecg';
+type ActiveTab = 'paediatricDrug' | 'adultDrug' | 'fluid' | 'scoring' | 'electrolytes' | 'ecg';
 
-// --- DRUG DOSE CALCULATOR ---
+// --- DRUG DATA TYPES ---
 
 interface Drug {
     name: string;
@@ -36,8 +36,278 @@ interface Drug {
     };
 }
 
+// --- DRUG DATABASES ---
 
-const drugDatabase: Drug[] = [
+const adultDrugDatabase: Drug[] = [
+    {
+        name: 'Adenosine',
+        doseText: '6 mg rapid IV push; followed by 12 mg if unsuccessful',
+        concentration: '3 mg/mL',
+        notes: 'Administer into a large vein (e.g., antecubital) followed by a rapid 20mL saline flush.',
+        adverseEvents: ['Chest pain', 'Dyspnea', 'Flushing', 'Transient asystole'],
+        calculation: () => ({ dose: 6, unit: 'mg', volume: 2, volumeUnit: 'mL', notes: 'Initial dose 6mg. If no effect in 1-2 min, give 12mg.' })
+    },
+    {
+        name: 'Adrenaline (Epinephrine) 1:10,000 (Cardiac Arrest)',
+        doseText: '1 mg every 3-5 minutes',
+        concentration: '1 mg / 10 mL (100 mcg/mL)',
+        calculation: () => ({ dose: 1, unit: 'mg', volume: 10, volumeUnit: 'mL' })
+    },
+    {
+        name: 'Adrenaline (Epinephrine) 1:1,000 (Anaphylaxis)',
+        doseText: '0.5 mg IM',
+        concentration: '1 mg / 1 mL (1,000 mcg/mL)',
+        calculation: () => ({ dose: 0.5, unit: 'mg', volume: 0.5, volumeUnit: 'mL', notes: 'Repeat every 5-15 min if no improvement.' })
+    },
+    {
+        name: 'Amiodarone (Cardiac Arrest)',
+        doseText: '300 mg IV/IO bolus; second dose 150 mg',
+        concentration: '50 mg/mL',
+        notes: 'For shock-refractory VF/pVT.',
+        calculation: () => ({ dose: 300, unit: 'mg', volume: 6, volumeUnit: 'mL' })
+    },
+    {
+        name: 'Amoxicillin',
+        doseText: '500 mg - 1 g every 8 hours',
+        concentration: '500 mg tablets or IV',
+        maxDose: 'Max 6 g/day in severe infections',
+        notes: 'Adjust dose in severe renal impairment.',
+        calculation: () => ({ dose: 500, unit: 'mg', notes: 'Standard dose is 500mg-1g TDS.' })
+    },
+    {
+        name: 'Atracurium',
+        doseText: '0.5 mg/kg for intubation',
+        concentration: '10 mg/mL',
+        adverseEvents: ['Histamine release (hypotension, flushing)', 'Bronchospasm'],
+        calculation: (weight) => {
+            const dose = 0.5 * weight;
+            return { dose, unit: 'mg', volume: dose / 10, volumeUnit: 'mL' };
+        }
+    },
+    {
+        name: 'Atropine',
+        doseText: '0.5 - 1 mg IV every 3-5 minutes',
+        concentration: '0.6 mg/mL or 1 mg/mL',
+        maxDose: 'Total max 3 mg (asystole/bradycardia)',
+        calculation: () => ({ dose: 0.5, unit: 'mg', notes: 'Standard dose for bradycardia.' })
+    },
+    {
+        name: 'Bupivacaine 0.5% Heavy (Spinal)',
+        doseText: '10 - 20 mg (2 - 4 mL)',
+        concentration: '5 mg/mL in 8% Dextrose',
+        notes: 'Adjust based on patient height and desired block level.',
+        calculation: () => ({ dose: 15, unit: 'mg', volume: 3, volumeUnit: 'mL', notes: 'Example dose for T10 block.' })
+    },
+    {
+        name: 'Dantrolene',
+        doseText: '2.5 mg/kg IV bolus',
+        concentration: '0.33 mg/mL (reconstituted)',
+        notes: 'For Malignant Hyperthermia. Reconstitute 20mg vial with 60mL sterile water.',
+        calculation: (weight) => {
+            const dose = 2.5 * weight;
+            return { dose, unit: 'mg', volume: dose / 0.33, volumeUnit: 'mL' };
+        }
+    },
+    {
+        name: 'Dexamethasone',
+        doseText: '4 - 8 mg IV/IM',
+        concentration: '4 mg/mL',
+        notes: 'Used for PONV prophylaxis, airway edema, or inflammation.',
+        calculation: () => ({ dose: 4, unit: 'mg', volume: 1, volumeUnit: 'mL' })
+    },
+    {
+        name: 'Dexmedetomidine',
+        doseText: 'Load: 1 mcg/kg over 10 min; Infusion: 0.2 - 1.0 mcg/kg/hr',
+        concentration: '100 mcg/mL',
+        calculation: (weight) => ({ dose: 1 * weight, unit: 'mcg', notes: 'Loading dose.' }),
+        infusionCalculation: (weight) => ({
+            rate: '0.2-1.0 mcg/kg/hr',
+            preparation: '4 mcg/mL (200mcg in 50mL NS)',
+            notes: `Calculated Rate: ${(0.2 * weight / 4).toFixed(1)} - ${(1.0 * weight / 4).toFixed(1)} mL/hr.`
+        })
+    },
+    {
+        name: 'Diclofenac',
+        doseText: '75 mg IM or 50 mg PO',
+        concentration: '75 mg / 3 mL ampoule',
+        maxDose: 'Max 150 mg/day',
+        calculation: () => ({ dose: 75, unit: 'mg', volume: 3, volumeUnit: 'mL' })
+    },
+    {
+        name: 'Ephedrine',
+        doseText: '3 - 6 mg IV bolus',
+        concentration: '3 mg/mL (diluted from 30mg ampoule)',
+        notes: 'Titrate to effect for hypotension.',
+        calculation: () => ({ unit: 'mg', notes: 'Standard bolus: 3-6mg. Repeat as necessary.' })
+    },
+    {
+        name: 'Esmolol',
+        doseText: 'Load: 500 mcg/kg over 1 min; Infusion: 50 - 300 mcg/kg/min',
+        concentration: '10 mg/mL',
+        calculation: (weight) => ({ dose: 500 * weight, unit: 'mcg', notes: 'Loading dose over 60 seconds.' }),
+        infusionCalculation: (weight) => ({
+            rate: '50-300 mcg/kg/min',
+            preparation: 'Undiluted (10 mg/mL)',
+            notes: `Calculated Rate: ${(50 * weight * 60 / 10000).toFixed(1)} - ${(300 * weight * 60 / 10000).toFixed(1)} mL/hr.`
+        })
+    },
+    {
+        name: 'Fentanyl',
+        doseText: '1 - 2 mcg/kg for induction',
+        concentration: '50 mcg/mL',
+        adverseEvents: ['Respiratory depression', 'Bradycardia'],
+        calculation: (weight) => {
+            const dose = 1.5 * weight;
+            return { dose, unit: 'mcg', volume: dose / 50, volumeUnit: 'mL' };
+        }
+    },
+    {
+        name: 'Ibuprofen',
+        doseText: '400 mg every 6-8 hours',
+        maxDose: 'Max 2.4 g/day',
+        calculation: () => ({ dose: 400, unit: 'mg' })
+    },
+    {
+        name: 'Intralipid 20%',
+        doseText: 'Bolus: 1.5 mL/kg; Infusion: 0.25 mL/kg/min',
+        notes: 'LAST Protocol. Can repeat bolus x2.',
+        calculation: (weight) => ({ dose: 0, unit: 'mL', volume: 1.5 * weight, volumeUnit: 'mL', notes: 'Bolus over 1 min.' }),
+        infusionCalculation: (weight) => ({
+            rate: '0.25 mL/kg/min',
+            preparation: 'Undiluted 20% lipid emulsion',
+            notes: `Initial rate: ${(0.25 * weight * 60).toFixed(0)} mL/hr.`
+        })
+    },
+    {
+        name: 'Ketamine (Analgesia)',
+        doseText: '0.1 - 0.3 mg/kg IV',
+        concentration: '10 mg/mL or 50 mg/mL',
+        calculation: (weight) => ({ dose: 0.2 * weight, unit: 'mg', notes: 'Sub-dissociative dose.' })
+    },
+    {
+        name: 'Ketamine (Induction)',
+        doseText: '1 - 2 mg/kg IV',
+        concentration: '10 mg/mL or 50 mg/mL',
+        calculation: (weight) => ({ dose: 1.5 * weight, unit: 'mg' })
+    },
+    {
+        name: 'Magnesium Sulphate',
+        doseText: '2 g IV over 10-20 minutes',
+        concentration: '500 mg/mL (50%)',
+        notes: 'Dilute to 10-20% for administration.',
+        calculation: () => ({ dose: 2000, unit: 'mg', volume: 4, volumeUnit: 'mL', notes: 'Standard dose for arrhythmias or asthma.' })
+    },
+    {
+        name: 'Metronidazole',
+        doseText: '500 mg every 8 hours',
+        concentration: '500 mg / 100 mL IV',
+        calculation: () => ({ dose: 500, unit: 'mg', volume: 100, volumeUnit: 'mL' })
+    },
+    {
+        name: 'Midazolam (Sedation)',
+        doseText: '0.5 - 2 mg titrated IV',
+        concentration: '1 mg/mL',
+        calculation: () => ({ dose: 1, unit: 'mg', notes: 'Start with 0.5-1mg in elderly.' })
+    },
+    {
+        name: 'Morphine',
+        doseText: '0.1 mg/kg or titration (e.g. 2mg every 5 min)',
+        concentration: '10 mg/mL (usually diluted to 1mg/mL)',
+        calculation: (weight) => ({ dose: 0.1 * weight, unit: 'mg', notes: 'Titrate IV to pain relief and respiratory rate.' })
+    },
+    {
+        name: 'Naloxone',
+        doseText: '0.4 - 2 mg IV/IM/SC',
+        concentration: '0.4 mg/mL',
+        notes: 'Titrate 40-100mcg increments if trying to preserve analgesia.',
+        calculation: () => ({ dose: 0.4, unit: 'mg', volume: 1, volumeUnit: 'mL' })
+    },
+    {
+        name: 'Neostigmine',
+        doseText: '0.05 - 0.07 mg/kg IV',
+        concentration: '2.5 mg/mL',
+        maxDose: 'Max 5 mg',
+        notes: 'Must give with anticholinergic (Atropine or Glycopyrrolate).',
+        calculation: (weight) => ({ dose: Math.min(0.05 * weight, 5), unit: 'mg' })
+    },
+    {
+        name: 'Norepinephrine',
+        doseText: '0.05 - 1.0 mcg/kg/min',
+        infusionCalculation: (weight) => ({
+            rate: '0.05-1.0 mcg/kg/min',
+            preparation: '80 mcg/mL (4mg in 50mL D5W)',
+            notes: `Calculated Rate: ${(0.05 * weight * 60 / 80).toFixed(1)} - ${(1.0 * weight * 60 / 80).toFixed(1)} mL/hr.`
+        })
+    },
+    {
+        name: 'Ondansetron',
+        doseText: '4 - 8 mg IV/PO',
+        concentration: '2 mg/mL',
+        calculation: () => ({ dose: 4, unit: 'mg', volume: 2, volumeUnit: 'mL' })
+    },
+    {
+        name: 'Pancuronium',
+        doseText: '0.1 mg/kg IV',
+        concentration: '2 mg/mL',
+        calculation: (weight) => ({ dose: 0.1 * weight, unit: 'mg', volume: (0.1 * weight) / 2, volumeUnit: 'mL' })
+    },
+    {
+        name: 'Paracetamol',
+        doseText: '1 g every 4-6 hours',
+        concentration: '10 mg/mL (100mL bag IV)',
+        maxDose: 'Max 4 g/day',
+        calculation: () => ({ dose: 1000, unit: 'mg', volume: 100, volumeUnit: 'mL' })
+    },
+    {
+        name: 'Phenylephrine',
+        doseText: '50 - 100 mcg IV bolus',
+        concentration: '100 mcg/mL (diluted)',
+        adverseEvents: ['Reflex bradycardia', 'Hypertension'],
+        calculation: () => ({ unit: 'mcg', notes: 'Standard bolus: 50-100mcg. Titrate to MAP.' })
+    },
+    {
+        name: 'Propofol',
+        doseText: '1.5 - 2.5 mg/kg for induction',
+        concentration: '10 mg/mL (1%)',
+        adverseEvents: ['Hypotension', 'Pain on injection', 'Apnea'],
+        calculation: (weight) => {
+            const dose = 2.0 * weight;
+            return { dose, unit: 'mg', volume: dose / 10, volumeUnit: 'mL' };
+        }
+    },
+    {
+        name: 'Rocuronium',
+        doseText: '0.6 - 1.2 mg/kg for intubation',
+        concentration: '10 mg/mL',
+        calculation: (weight) => {
+            const dose = 0.6 * weight;
+            return { dose, unit: 'mg', volume: dose / 10, volumeUnit: 'mL' };
+        }
+    },
+    {
+        name: 'Sildenafil',
+        doseText: '20 mg PO TDS',
+        notes: 'Standard adult dose for PAH.',
+        calculation: () => ({ dose: 20, unit: 'mg' })
+    },
+    {
+        name: 'Sugammadex',
+        doseText: '2 - 4 mg/kg depending on block depth',
+        concentration: '100 mg/mL',
+        calculation: (weight) => {
+            const dose = 2.0 * weight;
+            return { dose, unit: 'mg', volume: dose / 100, volumeUnit: 'mL', notes: '2mg/kg for routine reversal (TOF count ≥2).' };
+        }
+    },
+    {
+        name: 'Suxamethonium',
+        doseText: '1.0 - 1.5 mg/kg IV',
+        concentration: '50 mg/mL',
+        calculation: (weight) => ({ dose: 1.0 * weight, unit: 'mg', volume: (1.0 * weight) / 50, volumeUnit: 'mL' })
+    }
+].sort((a, b) => a.name.localeCompare(b.name));
+
+const paediatricDrugDatabase: Drug[] = [
     // A
     {
         name: 'Adenosine',
@@ -802,9 +1072,14 @@ const drugDatabase: Drug[] = [
             };
         }
     }
-].sort((a, b) => a.name.localeCompare(b.name)); // Sort alphabetically
+].sort((a, b) => a.name.localeCompare(b.name));
 
-const DrugDoseCalculator: React.FC<{ T: Record<string, any>, language: string }> = ({ T, language }) => {
+const DoseCalculator: React.FC<{ 
+    T: Record<string, any>, 
+    language: string, 
+    database: Drug[],
+    title?: string 
+}> = ({ T, language, database, title }) => {
     const [weight, setWeight] = useState<number | ''>('');
     const [selectedDrug, setSelectedDrug] = useState<Drug | null>(null);
     const [selectedInteractionDrugs, setSelectedInteractionDrugs] = useState<string[]>([]);
@@ -813,8 +1088,8 @@ const DrugDoseCalculator: React.FC<{ T: Record<string, any>, language: string }>
     const [interactionError, setInteractionError] = useState<string | null>(null);
 
     const bolusResult = useMemo(() => {
-        if (weight && selectedDrug && selectedDrug.calculation) {
-            return selectedDrug.calculation(weight);
+        if (selectedDrug && selectedDrug.calculation) {
+            return selectedDrug.calculation(weight || 70); // Default to 70 for fixed dose visualization
         }
         return null;
     }, [weight, selectedDrug]);
@@ -852,7 +1127,6 @@ const DrugDoseCalculator: React.FC<{ T: Record<string, any>, language: string }>
 
     return (
         <div className="space-y-6">
-            {/* Dose Calculator */}
             <div className="space-y-4">
                 <div className="p-4 bg-slate-100 rounded-lg border border-slate-200">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -862,60 +1136,33 @@ const DrugDoseCalculator: React.FC<{ T: Record<string, any>, language: string }>
                         </div>
                         <div>
                             <label htmlFor="drug-select" className="block text-sm font-medium text-gray-700">{T.selectDrugLabel}</label>
-                            <select id="drug-select" onChange={(e) => setSelectedDrug(drugDatabase.find(d => d.name === e.target.value) || null)} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm text-black bg-white">
+                            <select id="drug-select" onChange={(e) => setSelectedDrug(database.find(d => d.name === e.target.value) || null)} className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm text-black bg-white">
                                 <option value="">-- Select --</option>
-                                {drugDatabase.map(d => <option key={d.name} value={d.name}>{d.name}</option>)}
+                                {database.map(d => <option key={d.name} value={d.name}>{d.name}</option>)}
                             </select>
                         </div>
                     </div>
                 </div>
 
                 {selectedDrug && (bolusResult || infusionResult) && (
-                    <div className="mt-4 p-4 bg-white border border-slate-300 rounded-lg animate-fade-in space-y-4">
+                    <div className="mt-4 p-4 bg-white border border-slate-300 rounded-lg animate-fade-in space-y-4 shadow-sm">
                         <h3 className="text-md font-bold text-brand-blue">{selectedDrug.name}</h3>
                         <p className="text-xs text-gray-500 italic">Based on {selectedDrug.doseText} {selectedDrug.maxDose ? `(${selectedDrug.maxDose})` : ''}</p>
                         
-                        {selectedDrug.coverage && (
-                            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                                <h4 className="text-sm font-bold text-gray-700">{T.coverageLabel}</h4>
-                                <p className="text-sm text-gray-800">{selectedDrug.coverage}</p>
-                            </div>
-                        )}
-
-                        {selectedDrug.adverseEvents && (
-                            <div className="bg-red-100 border-l-4 border-red-500 text-red-900 p-3 mt-2 rounded-r-lg" role="alert">
-                                <div className="flex">
-                                    <div className="flex-shrink-0">
-                                        <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.21 3.03-1.742 3.03H4.42c-1.532 0-2.492-1.696-1.742-3.03l5.58-9.92zM10 13a1 1 0 110-2 1 1 0 010 2zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                                        </svg>
-                                    </div>
-                                    <div className="ml-3">
-                                        <h4 className="text-sm font-bold">Key Adverse Events to Monitor</h4>
-                                        <ul className="mt-1 list-disc list-inside text-xs">
-                                            {selectedDrug.adverseEvents.map((event, index) => <li key={index}>{event}</li>)}
-                                        </ul>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                        
-                        {selectedDrug.notes && <p className="text-xs text-gray-600 mt-2">{selectedDrug.notes}</p>}
-                        
                         {bolusResult && (
                              <div className="p-3 bg-blue-100 border border-blue-200 rounded-lg mt-4">
-                                <h4 className="text-sm font-semibold text-blue-900">Bolus / Single Dose</h4>
+                                <h4 className="text-sm font-semibold text-blue-900">Recommended Dose</h4>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
                                     {bolusResult.dose !== undefined && bolusResult.dose > 0 ? (
                                         <div>
                                             <p className="text-sm font-medium text-gray-600">{T.calculatedDoseLabel}</p>
-                                            <p className="text-xl font-bold text-slate-900">{bolusResult.dose} {bolusResult.unit}</p>
+                                            <p className="text-xl font-bold text-slate-900">{bolusResult.dose.toFixed(1)} {bolusResult.unit}</p>
                                         </div>
                                     ) : null}
                                     {bolusResult.volume !== undefined && (
                                         <div>
                                             <p className="text-sm font-medium text-gray-600">{T.calculatedVolumeLabel} {selectedDrug.concentration && `(${selectedDrug.concentration})`}</p>
-                                            <p className="text-xl font-bold text-slate-900">{bolusResult.volume} {bolusResult.volumeUnit}</p>
+                                            <p className="text-xl font-bold text-slate-900">{bolusResult.volume.toFixed(2)} {bolusResult.volumeUnit}</p>
                                         </div>
                                     )}
                                 </div>
@@ -953,13 +1200,12 @@ const DrugDoseCalculator: React.FC<{ T: Record<string, any>, language: string }>
 
             <hr className="my-6 border-gray-200" />
 
-            {/* Interaction Checker */}
             <div className="space-y-4">
                 <h3 className="text-md font-bold text-brand-blue">{T.drugInteractionCheckerTitle}</h3>
                 <div className="p-4 bg-slate-100 rounded-lg border border-slate-200">
                     <label className="block text-sm font-medium text-gray-700 mb-2">{T.selectDrugsPrompt}</label>
                     <div className="max-h-32 overflow-y-auto border border-gray-300 rounded-md p-3 grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2 bg-white">
-                        {drugDatabase.map(drug => (
+                        {database.map(drug => (
                             <label key={drug.name} className="flex items-center space-x-2 text-sm cursor-pointer text-gray-800">
                                 <input
                                     type="checkbox"
@@ -1487,7 +1733,7 @@ const ElectrolyteCalculators: React.FC<{ T: Record<string, any> }> = ({ T }) => 
 // --- MAIN MODAL COMPONENT ---
 
 export const ClinicalToolsModal: React.FC<ClinicalToolsModalProps> = ({ isOpen, onClose, T, language }) => {
-    const [activeTab, setActiveTab] = useState<ActiveTab>('drug');
+    const [activeTab, setActiveTab] = useState<ActiveTab>('adultDrug');
 
     if (!isOpen) return null;
 
@@ -1503,19 +1749,22 @@ export const ClinicalToolsModal: React.FC<ClinicalToolsModalProps> = ({ isOpen, 
                 
                  <div className="border-b border-gray-200">
                     <nav className="-mb-px flex space-x-4 px-4 overflow-x-auto" aria-label="Tabs">
-                        <button onClick={() => setActiveTab('drug')} className={`${activeTab === 'drug' ? 'border-brand-blue text-brand-blue' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm`}>
-                           {T.drugDoseTab}
+                        <button onClick={() => setActiveTab('adultDrug')} className={`${activeTab === 'adultDrug' ? 'border-brand-blue text-brand-blue' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-all`}>
+                           {T.adultDrugDoseTab}
                         </button>
-                        <button onClick={() => setActiveTab('fluid')} className={`${activeTab === 'fluid' ? 'border-brand-blue text-brand-blue' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm`}>
+                        <button onClick={() => setActiveTab('paediatricDrug')} className={`${activeTab === 'paediatricDrug' ? 'border-brand-blue text-brand-blue' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-all`}>
+                           {T.paediatricDrugDoseTab}
+                        </button>
+                        <button onClick={() => setActiveTab('fluid')} className={`${activeTab === 'fluid' ? 'border-brand-blue text-brand-blue' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-all`}>
                            {T.fluidManagementTab}
                         </button>
-                         <button onClick={() => setActiveTab('scoring')} className={`${activeTab === 'scoring' ? 'border-brand-blue text-brand-blue' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm`}>
+                         <button onClick={() => setActiveTab('scoring')} className={`${activeTab === 'scoring' ? 'border-brand-blue text-brand-blue' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-all`}>
                            {T.scoringSystemsTab}
                         </button>
-                        <button onClick={() => setActiveTab('electrolytes')} className={`${activeTab === 'electrolytes' ? 'border-brand-blue text-brand-blue' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm`}>
+                        <button onClick={() => setActiveTab('electrolytes')} className={`${activeTab === 'electrolytes' ? 'border-brand-blue text-brand-blue' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-all`}>
                            {T.electrolytesTab}
                         </button>
-                         <button onClick={() => setActiveTab('ecg')} className={`${activeTab === 'ecg' ? 'border-brand-blue text-brand-blue' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm`}>
+                         <button onClick={() => setActiveTab('ecg')} className={`${activeTab === 'ecg' ? 'border-brand-blue text-brand-blue' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-all`}>
                            {T.ecgInterpretationTab}
                         </button>
                     </nav>
@@ -1530,14 +1779,15 @@ export const ClinicalToolsModal: React.FC<ClinicalToolsModalProps> = ({ isOpen, 
                             <strong className="font-semibold">Disclaimer:</strong> {T.calculatorDisclaimer}
                         </div>
                     </div>
-                    {activeTab === 'drug' && <DrugDoseCalculator T={T} language={language} />}
+                    {activeTab === 'paediatricDrug' && <DoseCalculator T={T} language={language} database={paediatricDrugDatabase} />}
+                    {activeTab === 'adultDrug' && <DoseCalculator T={T} language={language} database={adultDrugDatabase} />}
                     {activeTab === 'fluid' && <FluidManagementCalculator T={T} />}
                     {activeTab === 'scoring' && <ScoringSystems T={T} />}
                     {activeTab === 'electrolytes' && <ElectrolyteCalculators T={T} />}
                     {activeTab === 'ecg' && <EcgInterpreter T={T} language={language} />}
                 </main>
                  <footer className="p-3 border-t border-gray-200 text-right bg-gray-50">
-                    <button onClick={onClose} className="bg-brand-blue hover:bg-blue-800 text-white font-bold py-2 px-6 rounded-md transition duration-300">
+                    <button onClick={onClose} className="bg-brand-blue hover:bg-blue-800 text-white font-black py-2.5 px-8 rounded-xl transition duration-300 shadow-md uppercase tracking-widest text-xs">
                         {T.closeButton}
                     </button>
                 </footer>

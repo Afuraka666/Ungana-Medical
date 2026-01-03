@@ -336,13 +336,14 @@ export const App: React.FC = () => {
         localStorage.setItem('ungana_saved_cases', JSON.stringify(updatedCases));
     };
 
-    const handleSaveSnippet = (title: string, content: string) => {
+    const handleSaveSnippet = (title: string, content: string, visualData?: Partial<Snippet>) => {
         logEvent('save_snippet', { snippet_title: title });
         const newSnippet: Snippet = {
             id: crypto.randomUUID(),
             title,
             content,
             savedAt: new Date().toISOString(),
+            ...visualData
         };
         const updatedSnippets = [...savedSnippets, newSnippet];
         setSavedSnippets(updatedSnippets);
@@ -350,6 +351,16 @@ export const App: React.FC = () => {
         setInteractionState(prev => ({ ...prev, snippetSaved: true }));
     };
     
+    const handleSaveMapSnippet = () => {
+        if (!mapData || !patientCase) return;
+        handleSaveSnippet(
+            `Map: ${patientCase.title}`,
+            `Knowledge relationship map for ${patientCase.title}.`,
+            { mapData: mapData }
+        );
+        alert('Map saved to collection!');
+    };
+
     const handleDeleteSnippet = (snippetId: string) => {
         const updatedSnippets = savedSnippets.filter(s => s.id !== snippetId);
         setSavedSnippets(updatedSnippets);
@@ -443,6 +454,7 @@ export const App: React.FC = () => {
                                             language={language}
                                             T={T}
                                             onDiscussNode={handleDiscussNode}
+                                            onSaveMap={handleSaveMapSnippet}
                                         />
                                     ) : isGeneratingDetails ? (
                                         <div className="w-full h-full flex items-center justify-center bg-white dark:bg-dark-surface rounded-lg shadow-lg border border-gray-200 dark:border-dark-border p-8 text-center text-dark-text">
@@ -474,6 +486,7 @@ export const App: React.FC = () => {
                 savedSnippets={savedSnippets}
                 onDeleteSnippet={handleDeleteSnippet}
                 T={T}
+                language={language}
             />
 
              <ShareModal
