@@ -11,39 +11,42 @@ interface MarkdownRendererProps {
 }
 
 /**
- * Sanitizes AI output to remove artifacts and stray characters.
- * Specifically handles the removal of stray '$' symbols and ensures 
- * physiological variables are represented correctly.
+ * Aggressively sanitizes AI output to remove LaTeX artifacts and formatting glitches.
+ * Targets symbols like $\, \$, and raw backslashes that interfere with readability.
  */
 const sanitizeContent = (text: string): string => {
     if (!text) return '';
     return text
-        // 1. Convert simple LaTeX variables to Unicode if they look like artifacts
-        // e.g. $P_c$ -> P_c, $O_2$ -> O₂
-        .replace(/\$([A-Za-z]+)_([0-9a-zA-Z]+)\$/g, '$1_$2')
-        .replace(/\$([A-Za-z]+)\^([0-9a-zA-Z\+\-]+)\$/g, '$1^$2')
+        // 1. Remove specific problematic LaTeX escaping artifacts
+        .replace(/\\\$/g, '$')           // Convert \$ to $
+        .replace(/\$\\/g, '')            // Remove raw $\ artifacts
+        .replace(/\\_/g, '_')            // Convert \_ to _
+        .replace(/\\\^/g, '^')           // Convert \^ to ^
+        .replace(/\\\[/g, '[')           // Convert \[ to [
+        .replace(/\\\]/g, ']')           // Convert \] to ]
+        .replace(/\\/g, '')              // Aggressively remove stray backslashes
         
-        // 2. Remove stray $ that are not part of a balanced math block
-        .replace(/(^|\s)\$(?!\s*\S+\s*\$)/g, '$1')
-        .replace(/(\S)\$(\s|$)/g, '$1$2')
-        
-        // 3. Clean up common physiological variables that might not be in LaTeX
+        // 2. Clean up common medical/chemical variables to Unicode for high fidelity
         .replace(/\bPaO2\b/g, 'PaO₂')
         .replace(/\bSaO2\b/g, 'SaO₂')
         .replace(/\bPvO2\b/g, 'PvO₂')
         .replace(/\bCO2\b/g, 'CO₂')
         .replace(/\bO2\b/g, 'O₂')
         .replace(/\bH2O\b/g, 'H₂O')
-        .replace(/\bPc\b/g, 'P_c')
-        .replace(/\bPi\b/g, 'P_i')
-        .replace(/\bMAP\b/g, 'MAP')
-        .replace(/\bICP\b/g, 'ICP')
-        .replace(/\bCBF\b/g, 'CBF')
+        .replace(/\bt1\/2\b/gi, 'T½')
         
-        // 4. Remove common AI formatting artifacts
-        .replace(/\*\*\:\s/g, '**: ')
+        // 3. Normalize spacing and ensure word separation
+        .replace(/([a-z])([A-Z][a-z])/g, '$1 $2') // Basic camelCase separation for concatenated text
+        .replace(/([\.!\?])([A-Z])/g, '$1 $2')     // Ensure space after punctuation
+        .replace(/[ \t]+/g, ' ')                  // Collapse multiple spaces
         
-        // 5. Ensure clean list bullets
+        // 4. Remove stray $ that aren't part of a pair
+        .replace(/(^|[^\$])\$([^\$]|$)/g, (match, p1, p2) => {
+            if (/\d/.test(p2)) return match; // Keep for currency $5 etc
+            return p1 + p2;
+        })
+        
+        // 5. Final cleanup of bullet markers
         .replace(/^\s*[\-\*]\s+/gm, '• ')
         .trim();
 };
@@ -66,21 +69,21 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
                 h3: ({ node, ...props }) => <h3 {...props} className="text-lg font-black mt-4 mb-2 text-gray-800 dark:text-slate-200" />,
                 blockquote: ({ node, ...props }) => <blockquote {...props} className="border-l-4 border-brand-blue/20 pl-4 italic my-4 bg-slate-50 dark:bg-slate-800/40 py-3 pr-3 text-gray-600 dark:text-slate-400 rounded-r-xl" />,
                 table: ({ node, ...props }) => (
-                    <div className="overflow-x-auto my-6 bg-white dark:bg-slate-900 shadow-sm border border-black dark:border-white">
+                    <div className="overflow-x-auto my-6 bg-white dark:bg-slate-900 shadow-sm border border-gray-200 dark:border-dark-border rounded-lg">
                         <table {...props} className="min-w-full border-collapse" />
                     </div>
                 ),
-                thead: ({ node, ...props }) => <thead {...props} className="bg-gray-100 dark:bg-slate-800 border-b-2 border-black dark:border-white" />,
+                thead: ({ node, ...props }) => <thead {...props} className="bg-gray-50 dark:bg-slate-800 border-b border-gray-200 dark:border-dark-border" />,
                 th: ({ node, ...props }) => (
                     <th 
                         {...props} 
-                        className="px-4 py-2 text-left text-xs font-black text-black dark:text-white uppercase tracking-tight border border-black dark:border-white" 
+                        className="px-4 py-2 text-left text-xs font-black text-gray-700 dark:text-gray-200 uppercase tracking-tight border-r border-gray-100 dark:border-dark-border last:border-0" 
                     />
                 ),
                 td: ({ node, ...props }) => (
                     <td 
                         {...props} 
-                        className="px-4 py-2 text-sm text-black dark:text-slate-200 border border-black dark:border-white font-medium bg-white dark:bg-slate-900 first:bg-gray-50 first:dark:bg-slate-800/50 first:font-bold" 
+                        className="px-4 py-2 text-sm text-gray-600 dark:text-slate-300 border-t border-r border-gray-100 dark:border-dark-border last:border-r-0 font-medium" 
                     />
                 ),
                 tr: ({ node, ...props }) => (
